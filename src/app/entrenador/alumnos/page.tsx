@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { Users, Plus, Search } from "lucide-react";
+import { Users, Plus, Search, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { getInitials } from "@/lib/utils";
+
+function whatsappUrl(phone: string) {
+  const clean = phone.replace(/[^\d+]/g, "");
+  return `https://wa.me/${clean}`;
+}
 
 export default async function AlumnosPage() {
   const supabase = await createClient();
@@ -42,9 +47,8 @@ export default async function AlumnosPage() {
       {students && students.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {students.map((student) => (
-            <Link key={student.id} href={`/entrenador/alumnos/${student.id}`}
-              className="bg-white rounded-2xl p-5 shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all">
-              <div className="flex items-start gap-4">
+            <div key={student.id} className="relative group bg-white rounded-2xl p-5 shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all">
+              <Link href={`/entrenador/alumnos/${student.id}`} className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0">
                   {getInitials(student.full_name || "?")}
                 </div>
@@ -64,8 +68,21 @@ export default async function AlumnosPage() {
                     )}
                   </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
+
+              {/* WhatsApp button — bottom right, visible on hover */}
+              {student.phone && (
+                <a
+                  href={whatsappUrl(student.phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-xl bg-[#25D366] text-white hover:bg-[#1ebe5d] shadow-sm"
+                  title={`WhatsApp · ${student.phone}`}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </a>
+              )}
+            </div>
           ))}
         </div>
       ) : (

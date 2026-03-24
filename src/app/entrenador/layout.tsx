@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import TrainerSidebar from "@/components/layout/TrainerSidebar";
+import TrainerLayoutClient from "@/components/layout/TrainerLayoutClient";
 
 export default async function TrainerLayout({
   children,
@@ -21,13 +21,8 @@ export default async function TrainerLayout({
   if (profile?.role === "student") redirect("/alumno");
 
   return (
-    <div className="flex h-screen bg-muted/30 overflow-hidden">
-      <TrainerSidebar user={profile} />
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-7xl mx-auto">
-          {children}
-        </div>
-      </main>
-    </div>
+    <TrainerLayoutClient user={profile}>
+      {children}
+    </TrainerLayoutClient>
   );
 }

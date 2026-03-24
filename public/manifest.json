@@ -1,6 +1,6 @@
 {
-  "name": "Box Trainer App",
-  "short_name": "Box Trainer",
+  "name": "EntrenAPP",
+  "short_name": "EntrenAPP",
   "description": "Plataforma de gestión para entrenadores de halterofilia y fuerza",
   "start_url": "/",
   "display": "standalone",

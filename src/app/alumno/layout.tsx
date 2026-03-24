@@ -15,7 +15,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   return (
     <div className="flex flex-col min-h-screen bg-muted/30">
-      <main className="flex-1 pb-20">
+      <main className="flex-1 pb-24">
         {children}
       </main>
       <StudentBottomNav />

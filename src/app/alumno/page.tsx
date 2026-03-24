@@ -1,148 +1,247 @@
 import { createClient } from "@/lib/supabase/server";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, cn } from "@/lib/utils";
-import { Calendar, CheckCircle2, Dumbbell, AlertCircle } from "lucide-react";
+import { Dumbbell, AlertCircle, Moon, ChevronRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+
+const DAY_ABBR: Record<number, string> = {
+  1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 7: "Dom",
+};
 
 export default async function StudentHome() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Perfil
   const { data: profile } = await supabase
     .from("users").select("*").eq("id", user!.id).single();
 
-  // Obtener el entrenamiento de hoy usando la función de Supabase
-  const { data: todayTraining } = await supabase
-    .rpc("get_today_training", { p_student_id: user!.id });
+  // Ciclo activo
+  const { data: activeCycle } = await supabase
+    .from("training_cycles")
+    .select("id, name, start_date, total_weeks")
+    .eq("student_id", user!.id)
+    .eq("active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
 
-  const today = todayTraining?.[0];
+  // Calcular semana actual dentro del ciclo
+  let currentWeek: Record<string, unknown> | null = null;
+  let weekNumber = 1;
 
-  // Si hay entrenamiento hoy, obtener los bloques y ejercicios
-  let blocks: Record<string, unknown>[] = [];
-  if (today?.day_id) {
-    const { data } = await supabase
-      .from("training_blocks")
+  if (activeCycle) {
+    const startDate = new Date(activeCycle.start_date as string);
+    const today = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const daysDiff = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    weekNumber = Math.max(1, Math.min(Math.floor(daysDiff / 7) + 1, activeCycle.total_weeks as number));
+
+    const { data: week } = await supabase
+      .from("training_weeks")
       .select(`
-        *,
-        training_exercises (
-          *,
-          exercises (name, category, muscle_group, video_url)
+        id, week_number, type,
+        training_days (
+          id, day_of_week, label, is_rest,
+          training_blocks (
+            id,
+            training_exercises ( id )
+          )
         )
       `)
-      .eq("day_id", today.day_id)
-      .order("order");
-    blocks = (data as Record<string, unknown>[]) || [];
+      .eq("cycle_id", activeCycle.id as string)
+      .eq("week_number", weekNumber)
+      .single();
+
+    currentWeek = week as Record<string, unknown> | null;
   }
 
-  // Estado de pago
+  // Día de hoy (1=Lun … 7=Dom)
+  const todayDow = new Date().getDay() === 0 ? 7 : new Date().getDay();
+  const dateLabel = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+  const dateCapitalized = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
+
+  // Obtener el día de hoy dentro de la semana actual
+  const weekDays = ((currentWeek?.training_days as Record<string, unknown>[]) || [])
+    .sort((a, b) => (a.day_of_week as number) - (b.day_of_week as number));
+
+  const todayDay = weekDays.find(d => d.day_of_week === todayDow);
+
+  // Contar ejercicios por día
+  function countExercises(day: Record<string, unknown>): number {
+    return ((day.training_blocks as Record<string, unknown>[]) || [])
+      .reduce((acc, b) => acc + (((b.training_exercises as unknown[]) || []).length), 0);
+  }
+
+  // Alerta de pago vencido
   const { data: pendingPayment } = await supabase
     .from("student_payments")
-    .select("*")
+    .select("id")
     .eq("student_id", user!.id)
     .eq("status", "vencido")
     .limit(1)
     .single();
 
-  const dayName = DAY_NAMES[new Date().getDay() === 0 ? 7 : new Date().getDay()];
-
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-sidebar text-white px-4 pt-12 pb-6">
-        <p className="text-white/60 text-sm">{dayName}, {new Date().toLocaleDateString("es-AR", { day: "numeric", month: "long" })}</p>
+      <div className="bg-sidebar text-white px-4 pt-12 pb-8">
+        <p className="text-white/60 text-sm">{dateCapitalized}</p>
         <h1 className="text-2xl font-bold mt-1">¡Hola, {profile?.full_name?.split(" ")[0]}!</h1>
-        {today && (
+        {currentWeek && (
           <div className="mt-3 flex items-center gap-2">
-            <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium", WEEK_TYPE_COLORS[today.week_type])}>
-              Semana {today.week_number} — {WEEK_TYPE_LABELS[today.week_type]}
+            <span className={cn(
+              "text-xs px-2.5 py-1 rounded-full font-medium",
+              WEEK_TYPE_COLORS[(currentWeek.type as string)] ?? "bg-gray-100 text-gray-700"
+            )}>
+              {activeCycle?.name as string} · Semana {weekNumber} — {WEEK_TYPE_LABELS[(currentWeek.type as string)]}
             </span>
           </div>
         )}
       </div>
 
-      <div className="px-4 -mt-4 space-y-4 pb-4">
+      <div className="px-4 -mt-4 space-y-4 pb-8">
+
         {/* Alerta de pago vencido */}
         {pendingPayment && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-red-700">Pago vencido</p>
-              <p className="text-xs text-red-600 mt-0.5">Tenés un pago pendiente. <Link href="/alumno/pagos" className="underline font-medium">Ver detalles →</Link></p>
+              <p className="text-xs text-red-600 mt-0.5">
+                Tenés un pago pendiente.{" "}
+                <Link href="/alumno/pagos" className="underline font-medium">Ver detalles →</Link>
+              </p>
             </div>
           </div>
         )}
 
-        {/* Entrenamiento de hoy */}
-        {today ? (
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-border">
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="font-semibold text-foreground">{today.day_label}</h2>
-                <span className="text-xs text-muted-foreground">{today.cycle_name}</span>
-              </div>
-              <p className="text-sm text-muted-foreground">{blocks.length} bloque{blocks.length !== 1 ? "s" : ""} · {blocks.reduce((acc: number, b: Record<string, unknown>) => acc + ((b.training_exercises as unknown[])?.length || 0), 0)} ejercicios</p>
-            </div>
-
-            {/* Bloques */}
-            {blocks.map((block: Record<string, unknown>) => (
-              <div key={block.id as string} className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
-                <div className="px-4 py-3 border-b border-border bg-muted/30">
-                  <h3 className="font-semibold text-sm text-foreground">{block.name as string}</h3>
-                  <p className="text-xs text-muted-foreground capitalize">{block.type as string}</p>
-                </div>
-                <div className="divide-y divide-border">
-                  {((block.training_exercises as Record<string, unknown>[]) || []).map((ex: Record<string, unknown>, idx: number) => {
-                    const exercise = ex.exercises as Record<string, string>;
-                    return (
-                      <div key={ex.id as string} className="px-4 py-3 flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-                          {idx + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{exercise?.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {ex.sets as number} series × {ex.reps as string} reps
-                            {ex.percentage_1rm
-                              ? ` · ${ex.percentage_1rm}% 1RM`
-                              : ex.weight_target
-                              ? ` · ${ex.weight_target} kg`
-                              : ""}
-                            {ex.rest_seconds ? ` · ${ex.rest_seconds}s descanso` : ""}
-                          </p>
-                        </div>
-                        {ex.video_url && (
-                          <a href={ex.video_url as string} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-primary font-medium">
-                            Video
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            {/* Botón de registrar sesión */}
-            <Link href={`/alumno/entrenar/${today.day_id}`}
-              className="block w-full bg-primary hover:bg-primary/90 text-white font-semibold py-4 rounded-2xl text-center transition shadow-lg">
-              <div className="flex items-center justify-center gap-2">
-                <Dumbbell className="w-5 h-5" />
-                Registrar entrenamiento
-              </div>
-            </Link>
-          </div>
-        ) : (
-          /* Sin entrenamiento hoy */
+        {/* Sin ciclo activo */}
+        {!activeCycle && (
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-border text-center mt-4">
-            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <h3 className="font-semibold text-foreground">Hoy es día de descanso</h3>
+            <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="font-semibold text-foreground">Sin ciclo activo</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              No tenés entrenamiento programado para hoy. Aprovechá para recuperarte.
+              Tu entrenador aún no te asignó un ciclo de entrenamiento.
             </p>
-            <Link href="/alumno/historial"
-              className="inline-block mt-4 text-sm text-primary font-medium hover:underline">
-              Ver historial →
-            </Link>
+          </div>
+        )}
+
+        {/* HOY */}
+        {todayDay && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide pt-2">Hoy</h2>
+
+            {(todayDay.is_rest as boolean) ? (
+              /* Día de descanso */
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                  <Moon className="w-6 h-6 text-blue-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-blue-800">Día de descanso</p>
+                  <p className="text-sm text-blue-600 mt-0.5">Recuperate, mañana volvemos fuerte.</p>
+                </div>
+              </div>
+            ) : countExercises(todayDay) === 0 ? (
+              /* Día sin ejercicios cargados */
+              <div className="bg-white border border-border rounded-2xl p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                  <Dumbbell className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-foreground">{todayDay.label as string}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">Tu entrenador aún no cargó los ejercicios de hoy.</p>
+                </div>
+              </div>
+            ) : (
+              /* Día con ejercicios */
+              <Link
+                href={`/alumno/entrenar/${todayDay.id as string}`}
+                className="block bg-primary rounded-2xl p-5 shadow-md"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-white text-base">{todayDay.label as string}</p>
+                    <p className="text-white/70 text-sm mt-0.5">
+                      {(todayDay.training_blocks as unknown[])?.length ?? 0} bloque{((todayDay.training_blocks as unknown[])?.length ?? 0) !== 1 ? "s" : ""} · {countExercises(todayDay)} ejercicios
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                    <Dumbbell className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div className="mt-4 bg-white/20 rounded-xl py-2.5 text-center">
+                  <p className="text-white font-semibold text-sm">Empezar entrenamiento →</p>
+                </div>
+              </Link>
+            )}
+          </div>
+        )}
+
+        {/* SEMANA COMPLETA */}
+        {currentWeek && weekDays.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide pt-2">
+              Esta semana
+            </h2>
+            <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden divide-y divide-border">
+              {weekDays.map(day => {
+                const isToday = (day.day_of_week as number) === todayDow;
+                const isRest = day.is_rest as boolean;
+                const exCount = countExercises(day);
+                const isEmpty = !isRest && exCount === 0;
+
+                return (
+                  <div key={day.id as string} className={cn("flex items-center gap-4 px-4 py-3.5", isToday && "bg-primary/5")}>
+                    {/* Day abbr */}
+                    <div className={cn(
+                      "w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0",
+                      isToday ? "bg-primary text-white" : isRest ? "bg-blue-100 text-blue-500" : isEmpty ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                    )}>
+                      {isRest ? <Moon className="w-4 h-4" /> : DAY_ABBR[day.day_of_week as number]}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className={cn("text-sm font-medium", isToday ? "text-primary" : "text-foreground")}>
+                        {day.label as string}
+                        {isToday && <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-semibold">Hoy</span>}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {isRest
+                          ? "Descanso"
+                          : isEmpty
+                          ? "Sin ejercicios cargados"
+                          : `${exCount} ejercicio${exCount !== 1 ? "s" : ""}`}
+                      </p>
+                    </div>
+
+                    {/* Action */}
+                    {!isRest && !isEmpty && (
+                      <Link href={`/alumno/entrenar/${day.id as string}`}
+                        className={cn(
+                          "flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0",
+                          isToday
+                            ? "bg-primary text-white hover:bg-primary/90"
+                            : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                        )}
+                      >
+                        {isToday ? "Empezar" : "Ver"}
+                        <ChevronRight className="w-3 h-3" />
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Semana sin días configurados */}
+        {currentWeek && weekDays.length === 0 && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-border text-center">
+            <p className="text-sm text-muted-foreground">Tu entrenador aún no configuró los días de esta semana.</p>
           </div>
         )}
       </div>

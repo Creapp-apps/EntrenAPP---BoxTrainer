@@ -1,8 +1,52 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import { ArrowLeft, User, Calendar, CreditCard, Dumbbell, Phone, Target, AlertTriangle } from "lucide-react";
+import { ArrowLeft, User, Calendar, CreditCard, Dumbbell, Phone, Target, AlertTriangle, BarChart2, MessageCircle, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatCurrency, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from "@/lib/utils";
+import AlumnoActions from "@/components/AlumnoActions";
+
+// ─── Tonnage helpers ─────────────────────────────────────────
+function parseReps(repsStr: string): number {
+  if (!repsStr) return 1;
+  // "3-5" or "3x5" => average; else direct parse
+  const rangeMatch = repsStr.match(/^(\d+)[-x](\d+)$/);
+  if (rangeMatch) return Math.round((parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2);
+  const n = parseInt(repsStr);
+  return isNaN(n) ? 1 : n;
+}
+
+type ExerciseLogRow = {
+  weight_used_kg?: number | null;
+  sets_completed: number;
+  reps_completed: string;
+  set_weights?: number[] | null;
+};
+
+function calcSessionTonnage(logs: ExerciseLogRow[]): number {
+  return logs.reduce((total, log) => {
+    if (!log.weight_used_kg && !log.set_weights) return total;
+    const reps = parseReps(log.reps_completed);
+    if (log.set_weights && log.set_weights.length > 0) {
+      return total + log.set_weights.reduce((s, w) => s + (w ?? 0) * reps, 0);
+    }
+    return total + (log.weight_used_kg ?? 0) * log.sets_completed * reps;
+  }, 0);
+}
+
+function getWeekLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  // ISO week start = Monday
+  const day = d.getDay() === 0 ? 6 : d.getDay() - 1;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - day);
+  return monday.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+}
+
+function whatsappUrl(phone: string) {
+  // Strips everything except digits and leading +
+  const clean = phone.replace(/[^\d+]/g, "");
+  return `https://wa.me/${clean}`;
+}
 
 export default async function AlumnoDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -12,14 +56,42 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
 
   if (!student) notFound();
 
-  const [{ data: cycles }, { data: payments }, { data: records }] = await Promise.all([
+  const [{ data: cycles }, { data: payments }, { data: records }, { data: recentSessions }] = await Promise.all([
     supabase.from("training_cycles").select("*")
       .eq("student_id", params.id).order("created_at", { ascending: false }),
     supabase.from("student_payments").select("*")
       .eq("student_id", params.id).order("due_date", { ascending: false }).limit(6),
     supabase.from("personal_records").select("*, exercises(name)")
       .eq("student_id", params.id).order("created_at", { ascending: false }).limit(5),
+    supabase.from("session_logs")
+      .select("id, completed_at, exercise_logs(weight_used_kg, sets_completed, reps_completed, set_weights)")
+      .eq("student_id", params.id)
+      .order("completed_at", { ascending: false })
+      .limit(30),
   ]);
+
+  // Build weekly tonnage from recent sessions
+  type WeekData = { label: string; tonnage: number; sessions: number };
+  const weekMap = new Map<string, WeekData>();
+
+  if (recentSessions) {
+    for (const session of recentSessions) {
+      const completed = session.completed_at as string;
+      if (!completed) continue;
+      const weekKey = getWeekLabel(completed);
+      const logs = (session.exercise_logs as ExerciseLogRow[]) || [];
+      const tonnage = calcSessionTonnage(logs);
+
+      if (!weekMap.has(weekKey)) {
+        weekMap.set(weekKey, { label: weekKey, tonnage: 0, sessions: 0 });
+      }
+      const entry = weekMap.get(weekKey)!;
+      entry.tonnage += tonnage;
+      entry.sessions += 1;
+    }
+  }
+
+  const weeklyTonnage = Array.from(weekMap.values()).slice(0, 8).reverse();
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -37,12 +109,30 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
             <p className="text-sm text-muted-foreground">{student.email}</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Link href={`/entrenador/ciclos/nuevo?alumno=${params.id}`}
-            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-            <Calendar className="w-4 h-4" />
-            Nuevo ciclo
+        <div className="flex gap-2 flex-wrap items-center">
+          {student.phone && (
+            <a
+              href={whatsappUrl(student.phone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-[#25D366] text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-[#1ebe5d] transition"
+              title={`Escribirle por WhatsApp a ${student.full_name}`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </a>
+          )}
+          <Link href={`/entrenador/alumnos/${params.id}/1rm`}
+            className="flex items-center gap-2 bg-muted text-foreground px-3 py-2 rounded-xl text-sm font-medium hover:bg-muted/80 transition border border-border">
+            <BarChart2 className="w-4 h-4" />
+            <span className="hidden sm:inline">1RM</span>
           </Link>
+          <Link href={`/entrenador/ciclos/nuevo?alumno=${params.id}`}
+            className="flex items-center gap-2 bg-primary text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
+            <Calendar className="w-4 h-4" />
+            <span className="hidden sm:inline">Nuevo ciclo</span>
+          </Link>
+          <AlumnoActions studentId={params.id} studentName={student.full_name} />
         </div>
       </div>
 
@@ -53,8 +143,16 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
             <h2 className="font-semibold text-foreground">Datos personales</h2>
             {student.phone && (
               <div className="flex items-center gap-3 text-sm">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                <span>{student.phone}</span>
+                <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                <a
+                  href={whatsappUrl(student.phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-foreground hover:text-[#25D366] transition-colors group"
+                >
+                  <span>{student.phone}</span>
+                  <MessageCircle className="w-3.5 h-3.5 text-[#25D366] opacity-0 group-hover:opacity-100 transition-opacity" />
+                </a>
               </div>
             )}
             {student.birth_date && (
@@ -134,6 +232,55 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
               <p className="text-sm text-muted-foreground text-center py-4">Sin ciclos asignados todavía.</p>
             )}
           </div>
+
+          {/* Carga semanal (tonnage) */}
+          {weeklyTonnage.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-border p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold text-foreground">Carga semanal</h2>
+                <span className="text-xs text-muted-foreground ml-auto">kg totales movidos</span>
+              </div>
+              {/* Bar chart (CSS-only) */}
+              {(() => {
+                const maxTonnage = Math.max(...weeklyTonnage.map(w => w.tonnage), 1);
+                return (
+                  <div className="flex items-end gap-2 h-28">
+                    {weeklyTonnage.map((week, i) => {
+                      const pct = week.tonnage > 0 ? (week.tonnage / maxTonnage) * 100 : 0;
+                      const isLatest = i === weeklyTonnage.length - 1;
+                      return (
+                        <div key={week.label} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                          <span className={`text-xs font-bold ${isLatest ? "text-primary" : "text-muted-foreground"} truncate w-full text-center`}>
+                            {week.tonnage > 0 ? `${Math.round(week.tonnage / 1000 * 10) / 10}t` : ""}
+                          </span>
+                          <div className="w-full flex items-end" style={{ height: "72px" }}>
+                            <div
+                              className={`w-full rounded-t-lg transition-all ${isLatest ? "bg-primary" : "bg-primary/30"}`}
+                              style={{ height: `${Math.max(pct, week.tonnage > 0 ? 8 : 0)}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground truncate w-full text-center">{week.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              {/* Total last week */}
+              {weeklyTonnage.length > 0 && weeklyTonnage[weeklyTonnage.length - 1].tonnage > 0 && (
+                <div className="mt-3 pt-3 border-t border-border flex justify-between text-sm">
+                  <span className="text-muted-foreground">Semana actual</span>
+                  <span className="font-semibold text-foreground">
+                    {Math.round(weeklyTonnage[weeklyTonnage.length - 1].tonnage).toLocaleString()} kg
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ({weeklyTonnage[weeklyTonnage.length - 1].sessions} sesión{weeklyTonnage[weeklyTonnage.length - 1].sessions !== 1 ? "es" : ""})
+                    </span>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Pagos */}
           <div className="bg-white rounded-2xl shadow-sm border border-border p-5">

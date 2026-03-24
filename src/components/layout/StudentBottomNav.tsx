@@ -9,13 +9,16 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/alumno", label: "Hoy", icon: Home, exact: true },
   { href: "/alumno/historial", label: "Historial", icon: History },
-  { href: "/alumno/records", label: "PRs", icon: Trophy },
+  { href: "/alumno/prs", label: "PRs", icon: Trophy },
   { href: "/alumno/pagos", label: "Pagos", icon: CreditCard },
 ];
 
 export default function StudentBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Hide nav during active training session
+  if (pathname.startsWith("/alumno/entrenar/")) return null;
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -24,7 +27,7 @@ export default function StudentBottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border pb-safe z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex items-center justify-around px-2 py-2">
         {navItems.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? pathname === href : pathname.startsWith(href);

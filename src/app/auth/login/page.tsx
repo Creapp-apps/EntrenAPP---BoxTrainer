@@ -38,7 +38,7 @@ export default function LoginPage() {
           <div className="bg-primary rounded-2xl p-4 mb-4">
             <Dumbbell className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-white text-2xl font-bold">Box Trainer</h1>
+          <h1 className="text-white text-2xl font-bold">EntrenAPP</h1>
           <p className="text-white/60 text-sm mt-1">Plataforma de entrenamiento</p>
         </div>
 

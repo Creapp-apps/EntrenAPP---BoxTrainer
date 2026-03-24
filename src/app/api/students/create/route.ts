@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authError.message }, { status: 400 });
     }
 
-    // 2. Insertar perfil en public.users
-    const { error: profileError } = await supabase.from("users").insert({
+    // 2. Upsert perfil en public.users (el trigger puede haberlo creado ya)
+    const { error: profileError } = await supabase.from("users").upsert({
       id: authData.user.id,
       email,
       role: "student",
@@ -44,10 +44,9 @@ export async function POST(request: NextRequest) {
       injuries: injuries || null,
       monthly_price: monthly_price || null,
       payment_due_day: payment_due_day || 1,
-    });
+    }, { onConflict: "id" });
 
     if (profileError) {
-      // Si falla el perfil, eliminar el usuario de auth para no dejar inconsistencia
       await supabase.auth.admin.deleteUser(authData.user.id);
       return NextResponse.json({ error: profileError.message }, { status: 400 });
     }

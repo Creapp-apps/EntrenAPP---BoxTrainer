@@ -6,13 +6,13 @@ import { Toaster } from "sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Box Trainer App",
+  title: "EntrenAPP",
   description: "Plataforma de gestión para entrenadores de halterofilia y fuerza",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Box Trainer",
+    title: "EntrenAPP",
   },
 };
 
@@ -21,6 +21,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
