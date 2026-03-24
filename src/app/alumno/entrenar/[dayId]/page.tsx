@@ -27,7 +27,7 @@ type TrainingExercise = {
   complex_id?: string;
   complex_order?: number;
   exercises: ExerciseData;
-  exercise_variants?: { id: string; name: string };
+  exercise_variants?: { id: string; name: string; video_url?: string | null };
 };
 type Block = { id: string; name: string; type: string; order: number; training_exercises: TrainingExercise[] };
 type DayInfo = { cycle_id: string; cycle_name: string; week_number: number };
@@ -270,7 +270,7 @@ export default function EntrenarPage() {
 
       const [{ data: blocksData }, { data: dayData }, { data: ormsData }] = await Promise.all([
         supabase.from("training_blocks")
-          .select(`*, training_exercises(*, exercises(id, name, category, video_url), exercise_variants(id, name))`)
+          .select(`*, training_exercises(*, exercises(id, name, category, video_url), exercise_variants(id, name, video_url))`)
           .eq("day_id", dayId).order("order"),
         supabase.from("training_days")
           .select(`*, training_weeks(week_number, type, training_cycles(id, name))`)
@@ -667,13 +667,17 @@ export default function EntrenarPage() {
                         <span className="text-primary font-bold ml-1">— {te.exercise_variants.name}</span>
                       )}
                     </p>
-                    {te.exercises?.video_url && (
-                      <a href={te.exercises.video_url} target="_blank" rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="text-primary shrink-0">
-                        <Video className="w-3 h-3" />
-                      </a>
-                    )}
+                    {(() => {
+                      const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
+                      return videoUrl ? (
+                        <a href={videoUrl} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full hover:bg-primary/20 transition-colors shrink-0">
+                          <Video className="w-3 h-3" />
+                          <span>Ver video</span>
+                        </a>
+                      ) : null;
+                    })()}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {!inComplex && `${te.sets} series × `}{te.reps} reps
