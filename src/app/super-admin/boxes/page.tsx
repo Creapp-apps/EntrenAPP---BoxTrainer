@@ -66,38 +66,19 @@ export default function BoxesPage() {
 
   async function load() {
     setLoading(true);
-    const { data: boxesData } = await supabase
-      .from("boxes")
-      .select("*, users!boxes_owner_id_fkey(full_name, email)")
-      .order("created_at", { ascending: false });
-
-    const { data: subs } = await supabase
-      .from("box_subscriptions")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    const { data: students } = await supabase
-      .from("users")
-      .select("box_id")
-      .eq("role", "student")
-      .eq("active", true);
-
-    const countMap: Record<string, number> = {};
-    (students || []).forEach((s: any) => {
-      if (s.box_id) countMap[s.box_id] = (countMap[s.box_id] || 0) + 1;
-    });
-
-    const subsMap: Record<string, any> = {};
-    (subs || []).forEach((s: any) => { subsMap[s.box_id] = s; });
-
-    const result = (boxesData || []).map((b: any) => ({
-      ...b,
-      owner: b.users,
-      subscription: subsMap[b.id],
-      _student_count: countMap[b.id] || 0,
-    }));
-
-    setBoxes(result as Box[]);
+    try {
+      const res = await fetch("/api/list-boxes");
+      const data = await res.json();
+      if (res.ok && data.boxes) {
+        setBoxes(data.boxes as Box[]);
+      } else {
+        console.error("Error loading boxes:", data.error);
+        setBoxes([]);
+      }
+    } catch (err) {
+      console.error("Error loading boxes:", err);
+      setBoxes([]);
+    }
     setLoading(false);
   }
 
