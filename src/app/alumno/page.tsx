@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, cn } from "@/lib/utils";
-import { Dumbbell, AlertCircle, Moon, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Dumbbell, AlertCircle, Moon, ChevronRight, CheckCircle2, Ticket, CalendarCheck } from "lucide-react";
 import Link from "next/link";
 
 const DAY_ABBR: Record<number, string> = {
@@ -73,14 +73,30 @@ export default async function StudentHome() {
       .reduce((acc, b) => acc + (((b.training_exercises as unknown[]) || []).length), 0);
   }
 
-  // Alerta de pago vencido
-  const { data: pendingPayment } = await supabase
-    .from("student_payments")
-    .select("id")
-    .eq("student_id", user!.id)
-    .eq("status", "vencido")
-    .limit(1)
-    .single();
+  const [{ data: pendingPayment }, subRes, nextBookingRes] = await Promise.all([
+    supabase.from("student_payments")
+      .select("id")
+      .eq("student_id", user!.id)
+      .eq("status", "vencido")
+      .limit(1)
+      .single(),
+    supabase.from("student_plan_subscriptions")
+      .select("*, plans(name)")
+      .eq("student_id", user!.id)
+      .eq("status", "activo")
+      .order("period_start", { ascending: false })
+      .limit(1),
+    supabase.from("bookings")
+      .select("*, box_schedule_slots(label, start_time, end_time)")
+      .eq("student_id", user!.id)
+      .eq("status", "confirmada")
+      .gte("booking_date", new Date().toISOString().split("T")[0])
+      .order("booking_date")
+      .limit(1),
+  ]);
+
+  const activeSub = subRes.data?.[0];
+  const nextBooking = nextBookingRes.data?.[0];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -114,6 +130,41 @@ export default async function StudentHome() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Créditos + Próximo turno */}
+        {(activeSub || nextBooking) && (
+          <Link href="/alumno/turnos" className="bg-white rounded-2xl shadow-sm border border-border p-4 flex items-center gap-4 hover:shadow-md transition-shadow">
+            {activeSub && (
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="bg-primary/10 p-2.5 rounded-xl shrink-0">
+                  <Ticket className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Créditos</p>
+                  <p className="font-bold text-foreground">
+                    {activeSub.credits_total - activeSub.credits_used}
+                    <span className="text-sm font-normal text-muted-foreground">/{activeSub.credits_total}</span>
+                  </p>
+                </div>
+              </div>
+            )}
+            {nextBooking && (
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="bg-green-50 p-2.5 rounded-xl shrink-0">
+                  <CalendarCheck className="w-5 h-5 text-green-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Próximo turno</p>
+                  <p className="font-semibold text-foreground text-sm truncate">
+                    {new Date(nextBooking.booking_date + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                    <span className="font-normal text-muted-foreground"> · {nextBooking.box_schedule_slots?.start_time?.slice(0, 5)}</span>
+                  </p>
+                </div>
+              </div>
+            )}
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+          </Link>
         )}
 
         {/* Sin ciclo activo */}

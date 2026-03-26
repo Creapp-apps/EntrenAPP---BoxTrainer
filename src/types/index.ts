@@ -1,5 +1,6 @@
 // ─── ROLES ────────────────────────────────────────────────────────────────────
-export type UserRole = "trainer" | "co_trainer" | "student";
+export type UserRole = "trainer" | "co_trainer" | "professor" | "student" | "super_admin";
+export type StudentModality = "presencial" | "a_distancia" | "mixto";
 
 // ─── USUARIOS ─────────────────────────────────────────────────────────────────
 export interface User {
@@ -22,6 +23,7 @@ export interface StudentProfile extends User {
   injuries?: string;
   monthly_price?: number;
   payment_due_day?: number; // día del mes que vence el pago
+  modality?: StudentModality;
 }
 
 // ─── EJERCICIOS ────────────────────────────────────────────────────────────────
@@ -223,4 +225,98 @@ export interface TrainerDashboardMetrics {
   monthly_revenue: number;
   overdue_payments: number;
   students_without_plan: number;
+}
+
+// ─── PLANES DE ENTRENAMIENTO ─────────────────────────────────────────────────
+export interface Plan {
+  id: string;
+  trainer_id: string;
+  name: string;
+  modality: StudentModality;
+  sessions_per_week: number;
+  billing_weeks: number;
+  total_credits: number; // generated column
+  price: number;
+  active: boolean;
+  created_at: string;
+}
+
+// ─── SUSCRIPCIONES A PLANES ──────────────────────────────────────────────────
+export type SubscriptionStatus = "activo" | "vencido" | "pausado";
+
+export interface StudentPlanSubscription {
+  id: string;
+  student_id: string;
+  student?: User;
+  plan_id: string;
+  plan?: Plan;
+  period_start: string;
+  period_end: string;
+  credits_total: number;
+  credits_used: number;
+  credits_remaining: number; // computed: credits_total - credits_used
+  status: SubscriptionStatus;
+  created_at: string;
+}
+
+// ─── HORARIOS DEL BOX ────────────────────────────────────────────────────────
+export interface BoxScheduleSlot {
+  id: string;
+  trainer_id: string;
+  day_of_week: DayOfWeek;
+  start_time: string; // HH:MM:SS
+  end_time: string;
+  max_capacity: number;
+  label: string;
+  active: boolean;
+  created_at: string;
+}
+
+// ─── FECHAS BLOQUEADAS ───────────────────────────────────────────────────────
+export interface BoxBlockedDate {
+  id: string;
+  trainer_id: string;
+  blocked_date: string;
+  reason?: string;
+  created_at: string;
+}
+
+// ─── RESERVAS ────────────────────────────────────────────────────────────────
+export type BookingStatus = "confirmada" | "cancelada" | "completada" | "no_show";
+
+export interface Booking {
+  id: string;
+  student_id: string;
+  student?: User;
+  slot_id: string;
+  slot?: BoxScheduleSlot;
+  subscription_id?: string;
+  booking_date: string;
+  status: BookingStatus;
+  cancelled_at?: string;
+  cancel_reason?: string;
+  created_at: string;
+}
+
+// ─── SLOTS DISPONIBLES (resultado de get_available_slots) ────────────────────
+export interface AvailableSlot {
+  slot_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  max_capacity: number;
+  label: string;
+  current_bookings: number;
+  spots_available: number;
+}
+
+// ─── TRAINER SETTINGS EXTENDIDO ──────────────────────────────────────────────
+export interface TrainerSettings {
+  trainer_id: string;
+  common_variants: string[];
+  cancel_hours_before: number;
+  allow_waitlist: boolean;
+  allow_credit_rollover: boolean;
+  booking_window_days: number;
+  updated_at: string;
 }

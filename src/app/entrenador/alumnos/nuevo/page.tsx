@@ -22,6 +22,7 @@ export default function NuevoAlumnoPage() {
     injuries: "",
     monthly_price: "",
     payment_due_day: "1",
+    modality: "presencial",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,7 +60,12 @@ export default function NuevoAlumnoPage() {
       return;
     }
 
-    toast.success(`Alumno ${form.full_name} creado correctamente`);
+    toast.success("Alumno " + form.full_name + " creado correctamente");
+    if (result.email_sent) {
+      toast.success("Email de bienvenida enviado a " + form.email);
+    } else {
+      toast.warning("No se pudo enviar el email de bienvenida");
+    }
     router.push("/entrenador/alumnos");
     router.refresh();
   };
@@ -101,6 +107,19 @@ export default function NuevoAlumnoPage() {
           {field("Contraseña inicial *", "password", { type: "password", placeholder: "Mínimo 6 caracteres", required: true },
             "El alumno podrá cambiarla después desde su perfil")}
           {field("Teléfono", "phone", { type: "tel", placeholder: "+54 9 11 1234-5678" })}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Modalidad</label>
+            <select
+              value={form.modality}
+              onChange={e => setForm({ ...form, modality: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="presencial">Presencial</option>
+              <option value="a_distancia">A distancia</option>
+              <option value="mixto">Mixto</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">Define si el alumno entrena en el box o a distancia</p>
+          </div>
         </div>
 
         {/* Datos físicos */}

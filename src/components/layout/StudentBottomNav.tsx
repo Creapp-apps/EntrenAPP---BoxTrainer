@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Home, History, Trophy, CreditCard, LogOut } from "lucide-react";
+import { Home, History, Trophy, CreditCard, LogOut, CalendarCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/alumno", label: "Hoy", icon: Home, exact: true },
+  { href: "/alumno/turnos", label: "Turnos", icon: CalendarCheck },
   { href: "/alumno/historial", label: "Historial", icon: History },
   { href: "/alumno/prs", label: "PRs", icon: Trophy },
   { href: "/alumno/pagos", label: "Pagos", icon: CreditCard },

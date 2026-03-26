@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Loader2, ChevronDown, ChevronRight,
   Dumbbell, Trash2, GripVertical, Search, X, Check, Copy,
-  MoreVertical, BookMarked, Link2, UserPlus, Users, Moon
+  MoreVertical, BookMarked, Link2, UserPlus, Users, Moon,
+  ArrowRightLeft, UserMinus
 } from "lucide-react";
 import Link from "next/link";
-import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS } from "@/lib/utils";
+import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, getInitials } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────
 type Variant = { id: string; name: string };
@@ -27,6 +28,15 @@ type Day = { id: string; day_of_week: number; label: string; order: number; is_r
 type Week = { id: string; week_number: number; type: string; days: Day[]; expanded: boolean };
 type Cycle = { id: string; name: string; total_weeks: number; student_id: string; student_name: string; is_template: boolean };
 type Student = { id: string; full_name: string; activeCycle?: { id: string; name: string } };
+
+type ComplexSet = {
+  id: string;
+  complex_id: string;
+  day_id: string;
+  set_number: number;
+  percentage_1rm: number | null;
+  reps_overrides: { training_exercise_id: string; reps: string }[];
+};
 
 type BlockItem =
   | { type: "single"; ex: TrainingExercise }
@@ -276,7 +286,74 @@ function ExercisePicker({
   );
 }
 
-// ─── Complex Picker Modal (multi-select) ─────────────────────
+// ─── Set Reps Override Modal ──────────────────────────────────
+function SetRepsOverrideModal({
+  setNumber, exercises, currentOverrides, onSave, onClose,
+}: {
+  setNumber: number;
+  exercises: TrainingExercise[];
+  currentOverrides: { training_exercise_id: string; reps: string }[];
+  onSave: (overrides: { training_exercise_id: string; reps: string }[]) => void;
+  onClose: () => void;
+}) {
+  const [inputs, setInputs] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    exercises.forEach(te => {
+      const existing = currentOverrides.find(o => o.training_exercise_id === te.id);
+      map[te.id] = existing?.reps ?? te.reps ?? "";
+    });
+    return map;
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="p-4 border-b border-border">
+          <h3 className="font-semibold text-foreground">Serie {setNumber} — Reps por ejercicio</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Modificá las reps solo para esta serie</p>
+        </div>
+        <div className="p-4 space-y-3">
+          {exercises.map((te, i) => {
+            const name = te.exercise?.name ?? "";
+            const variant = te.variant?.name ?? "";
+            return (
+              <div key={te.id} className="flex items-center gap-3">
+                <span className="text-xs text-primary font-bold w-4 shrink-0">{i + 1}.</span>
+                <span className="text-sm flex-1 truncate font-medium">
+                  {name}{variant ? ` — ${variant}` : ""}
+                </span>
+                <input
+                  type="text"
+                  value={inputs[te.id] ?? ""}
+                  onChange={e => setInputs(prev => ({ ...prev, [te.id]: e.target.value }))}
+                  className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="p-3 border-t border-border flex gap-2">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+            Cancelar
+          </button>
+          <button
+            onClick={() => {
+              const overrides = exercises
+                .filter(te => inputs[te.id] !== undefined && inputs[te.id] !== te.reps)
+                .map(te => ({ training_exercise_id: te.id, reps: inputs[te.id] }));
+              onSave(overrides);
+            }}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Complex / Trepada Picker Modal ───────────────────────────
 function ComplexPicker({
   exercises, onConfirm, onClose,
 }: {
@@ -310,6 +387,8 @@ function ComplexPicker({
     setSelectedItems(prev => prev.filter((_, i) => i !== index));
   };
 
+  const label = selectedItems.length === 1 ? "Trepada" : "Complex / Trepada";
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
@@ -317,9 +396,11 @@ function ComplexPicker({
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div>
             <h3 className="font-semibold text-foreground flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-primary" /> Crear complex
+              <Link2 className="w-4 h-4 text-primary" /> Complex / Trepada
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Seleccioná 2 o más ejercicios</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              1 ejercicio = trepada · 2 o más = complex
+            </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
             <X className="w-4 h-4" />
@@ -330,7 +411,7 @@ function ComplexPicker({
         {selectedItems.length > 0 && (
           <div className="p-3 border-b border-border bg-primary/5">
             <p className="text-xs font-semibold text-primary mb-2 uppercase tracking-wide">
-              Complex ({selectedItems.length} ejercicio{selectedItems.length !== 1 ? "s" : ""}):
+              {label} ({selectedItems.length} ejercicio{selectedItems.length !== 1 ? "s" : ""}):
             </p>
             <div className="space-y-1.5">
               {selectedItems.map((item, i) => (
@@ -352,7 +433,6 @@ function ComplexPicker({
         {/* Browse / Variant selection */}
         {!pickingVariantFor ? (
           <>
-            {/* Search */}
             <div className="px-3 pt-3 pb-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -363,7 +443,6 @@ function ComplexPicker({
               </div>
             </div>
 
-            {/* Category tabs */}
             <div className="px-3 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
               {CATEGORY_TABS.map(tab => {
                 const count = tab.value === "all" ? exercises.length : (counts[tab.value] || 0);
@@ -443,8 +522,8 @@ function ComplexPicker({
             className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
             Cancelar
           </button>
-          <button onClick={() => selectedItems.length >= 2 && onConfirm(selectedItems)}
-            disabled={selectedItems.length < 2}
+          <button onClick={() => selectedItems.length >= 1 && onConfirm(selectedItems)}
+            disabled={selectedItems.length < 1}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
             <Link2 className="w-4 h-4" />
             Crear ({selectedItems.length})
@@ -455,32 +534,85 @@ function ComplexPicker({
   );
 }
 
-// ─── Complex Card ─────────────────────────────────────────────
+// ─── Complex / Trepada Card ───────────────────────────────────
 function ComplexCard({
-  exs, complexId, blockId,
-  onUpdateField, onUpdateComplexShared, onDelete, onUngroup,
+  exs, complexId, blockId, dayId,
+  sets, onUpdateField, onUpdateSetPercentage, onUpdateSetRepsOverride,
+  onAddSet, onRemoveSet, onUpdateRest, onDelete, onUngroup,
   studentOneRMs,
 }: {
   exs: TrainingExercise[];
   complexId: string;
   blockId: string;
+  dayId: string;
+  sets: ComplexSet[];
   onUpdateField: (blockId: string, exId: string, field: string, value: unknown) => void;
-  onUpdateComplexShared: (blockId: string, complexId: string, field: string, value: unknown) => void;
+  onUpdateSetPercentage: (setId: string, pct: number | null) => void;
+  onUpdateSetRepsOverride: (setId: string, overrides: { training_exercise_id: string; reps: string }[]) => void;
+  onAddSet: (complexId: string, dayId: string) => void;
+  onRemoveSet: (setId: string) => void;
+  onUpdateRest: (blockId: string, complexId: string, value: number | null) => void;
   onDelete: (blockId: string, exId: string) => void;
   onUngroup: (blockId: string, complexId: string) => void;
   studentOneRMs: Record<string, number>;
 }) {
+  const [overrideModalSet, setOverrideModalSet] = useState<ComplexSet | null>(null);
+  // Estado local para los inputs de % — auto-guardado 600ms después de escribir + onBlur
+  const [pctInputs, setPctInputs] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    sets.forEach(s => { map[s.id] = s.percentage_1rm?.toString() ?? ""; });
+    return map;
+  });
+  const [savedPct, setSavedPct] = useState<Record<string, boolean>>({});
+  const saveTimers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Sincronizar cuando llegan nuevos sets (ej: al agregar serie)
+  const prevSetIds = sets.map(s => s.id).join(",");
+  useEffect(() => {
+    setPctInputs(prev => {
+      const next = { ...prev };
+      sets.forEach(s => {
+        if (!(s.id in next)) next[s.id] = s.percentage_1rm?.toString() ?? "";
+      });
+      return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prevSetIds]);
+
+  const savePct = (setId: string, raw: string, current: number | null) => {
+    const pct = raw !== "" ? parseFloat(raw) : null;
+    if (isNaN(pct ?? 0) && pct !== null) return; // valor inválido
+    if ((pct ?? null) === (current ?? null)) return; // sin cambios
+    onUpdateSetPercentage(setId, pct);
+    setSavedPct(prev => ({ ...prev, [setId]: true }));
+    setTimeout(() => setSavedPct(prev => ({ ...prev, [setId]: false })), 1500);
+  };
+
+  const handlePctChange = (setId: string, current: number | null, newVal: string) => {
+    setPctInputs(prev => ({ ...prev, [setId]: newVal }));
+    // Auto-save después de 600ms sin escribir
+    if (saveTimers.current[setId]) clearTimeout(saveTimers.current[setId]);
+    saveTimers.current[setId] = setTimeout(() => {
+      savePct(setId, newVal, current);
+    }, 600);
+  };
+
   const sorted = [...exs].sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0));
-  const sharedSets = sorted[0]?.sets ?? 3;
+  const sortedSets = [...sets].sort((a, b) => a.set_number - b.set_number);
   const sharedRest = sorted[0]?.rest_seconds;
+  const isComplex = sorted.length > 1;
+
+  // 1RM for weight calculation comes from the FIRST exercise
+  const firstExercise = sorted[0];
+  const oneRMForCalc = firstExercise?.exercise_id ? studentOneRMs[firstExercise.exercise_id] : undefined;
 
   return (
     <div className="border-2 border-primary/25 rounded-xl overflow-hidden">
-      {/* Complex header */}
+      {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-primary/20">
         <Link2 className="w-3.5 h-3.5 text-primary shrink-0" />
         <span className="text-xs font-bold text-primary uppercase tracking-wide flex-1">
-          Complex · {sorted.length} ejercicios
+          {isComplex ? `Complex · ${sorted.length} ejercicios` : "Trepada"}
         </span>
         <button onClick={() => onUngroup(blockId, complexId)}
           className="text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-0.5 rounded border border-border/60 bg-white font-medium">
@@ -488,71 +620,124 @@ function ComplexCard({
         </button>
       </div>
 
-      {/* Per-exercise rows */}
+      {/* Per-exercise rows — reps only, no % */}
       <div className="divide-y divide-primary/10 bg-primary/5">
         {sorted.map((te, i) => {
           const name = te.exercise?.name ?? "";
           const variantName = te.variant?.name ?? "";
           const displayName = variantName ? `${name} — ${variantName}` : name;
-          const oneRM = te.exercise_id ? studentOneRMs[te.exercise_id] : undefined;
-          const calculatedWeight = oneRM && te.percentage_1rm
-            ? Math.round((oneRM * te.percentage_1rm / 100) / 2.5) * 2.5
-            : null;
 
           return (
-            <div key={te.id} className="flex items-start gap-2 px-3 py-2.5 group">
-              <span className="text-xs font-bold text-primary/50 w-4 mt-2 shrink-0">{i + 1}</span>
-              <div className="flex-1 min-w-0 space-y-1.5">
+            <div key={te.id} className="flex items-center gap-2 px-3 py-2 group">
+              <span className="text-xs font-bold text-primary/50 w-4 shrink-0">{i + 1}</span>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Reps</label>
-                    <input type="text" value={te.reps}
-                      onChange={e => onUpdateField(blockId, te.id, "reps", e.target.value)}
-                      placeholder="1"
-                      className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">% 1RM</label>
-                    <input type="number" min="0" max="110" value={te.percentage_1rm ?? ""}
-                      onChange={e => onUpdateField(blockId, te.id, "percentage_1rm", e.target.value ? parseFloat(e.target.value) : null)}
-                      placeholder="75"
-                      className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white" />
-                    {calculatedWeight && (
-                      <p className="text-xs text-primary font-medium mt-0.5 text-center">≈ {calculatedWeight} kg</p>
-                    )}
-                  </div>
-                </div>
-                <input type="text" value={te.notes ?? ""}
-                  onChange={e => onUpdateField(blockId, te.id, "notes", e.target.value)}
-                  placeholder="Notas (opcional)..."
-                  className="w-full px-2 py-1 rounded-lg border border-border text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary bg-white" />
               </div>
-              <button onClick={() => onDelete(blockId, te.id)}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 mt-1 shrink-0">
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <div>
+                  <label className="text-xs text-muted-foreground block text-center leading-none mb-0.5">Reps</label>
+                  <input type="text" value={te.reps}
+                    onChange={e => onUpdateField(blockId, te.id, "reps", e.target.value)}
+                    placeholder="2"
+                    className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white" />
+                </div>
+                <button onClick={() => onDelete(blockId, te.id)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 shrink-0">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Shared fields (sets + rest) */}
-      <div className="px-3 py-2.5 bg-primary/10 border-t border-primary/20 grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground font-medium">Series (todas)</label>
-          <input type="number" min="1" value={sharedSets}
-            onChange={e => onUpdateComplexShared(blockId, complexId, "sets", parseInt(e.target.value) || 1)}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white mt-0.5" />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground font-medium">Descanso (seg)</label>
-          <input type="number" min="0" value={sharedRest ?? ""}
-            onChange={e => onUpdateComplexShared(blockId, complexId, "rest_seconds", e.target.value ? parseInt(e.target.value) : null)}
-            placeholder="180"
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-white mt-0.5" />
-        </div>
+      {/* Series breakdown — per-set % */}
+      <div className="bg-white border-t border-primary/20 px-3 py-2.5 space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          Series — % 1RM {firstExercise?.exercise?.name ? `(${firstExercise.exercise.name})` : ""}
+        </p>
+
+        {sortedSets.length === 0 && (
+          <p className="text-xs text-muted-foreground italic">Sin series configuradas. Agregá una.</p>
+        )}
+
+        {sortedSets.map(s => {
+          const pctVal = pctInputs[s.id] ?? "";
+          const pctNum = pctVal !== "" ? parseFloat(pctVal) : null;
+          const calcWeight = oneRMForCalc && pctNum
+            ? Math.round((oneRMForCalc * pctNum / 100) / 2.5) * 2.5
+            : null;
+          const hasOverride = s.reps_overrides.length > 0;
+          const justSaved = savedPct[s.id];
+
+          return (
+            <div key={s.id} className="flex items-center gap-2">
+              <span className="text-xs font-bold text-primary/60 w-14 shrink-0">Serie {s.set_number}</span>
+              <div className="flex-1 flex items-center gap-2">
+                <input
+                  type="number" min="0" max="200"
+                  value={pctVal}
+                  onChange={e => handlePctChange(s.id, s.percentage_1rm, e.target.value)}
+                  onBlur={() => savePct(s.id, pctInputs[s.id] ?? "", s.percentage_1rm)}
+                  onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+                  placeholder="%"
+                  className="w-20 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                {justSaved ? (
+                  <span className="text-xs text-green-600 font-semibold">✓ guardado</span>
+                ) : calcWeight ? (
+                  <span className="text-xs text-primary font-semibold">≈ {calcWeight} kg</span>
+                ) : null}
+              </div>
+              {/* Reps override button */}
+              <button
+                onClick={() => setOverrideModalSet(s)}
+                title="Cambiar reps de esta serie"
+                className={`p-1.5 rounded-lg border text-xs font-medium transition-colors shrink-0 ${
+                  hasOverride
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+                }`}
+              >
+                {hasOverride ? "Rep ✓" : "Reps"}
+              </button>
+              <button onClick={() => onRemoveSet(s.id)}
+                className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })}
+
+        <button
+          onClick={() => onAddSet(complexId, dayId)}
+          className="flex items-center gap-1 text-xs text-primary font-semibold hover:underline mt-1">
+          <Plus className="w-3.5 h-3.5" /> Agregar serie
+        </button>
       </div>
+
+      {/* Rest */}
+      <div className="px-3 py-2.5 bg-primary/10 border-t border-primary/20">
+        <label className="text-xs text-muted-foreground font-medium">Descanso (seg)</label>
+        <input type="number" min="0" value={sharedRest ?? ""}
+          onChange={e => onUpdateRest(blockId, complexId, e.target.value ? parseInt(e.target.value) : null)}
+          placeholder="180"
+          className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-white mt-0.5" />
+      </div>
+
+      {/* Reps override modal */}
+      {overrideModalSet && (
+        <SetRepsOverrideModal
+          setNumber={overrideModalSet.set_number}
+          exercises={sorted}
+          currentOverrides={overrideModalSet.reps_overrides}
+          onSave={overrides => {
+            onUpdateSetRepsOverride(overrideModalSet.id, overrides);
+            setOverrideModalSet(null);
+          }}
+          onClose={() => setOverrideModalSet(null)}
+        />
+      )}
     </div>
   );
 }
@@ -794,10 +979,14 @@ export default function CicloDetailPage() {
   const [copying, setCopying] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [complexSets, setComplexSets] = useState<Record<string, ComplexSet[]>>({});
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [pickerBlock, setPickerBlock] = useState<string | null>(null);
   const [complexPickerBlock, setComplexPickerBlock] = useState<string | null>(null);
   const [copyWeekTarget, setCopyWeekTarget] = useState<Week | null>(null);
+  const [showStudents, setShowStudents] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<{ studentId: string; studentCycleId: string } | null>(null);
+  const [allCycles, setAllCycles] = useState<{ id: string; name: string; student_id: string | null; is_template: boolean }[]>([]);
   const [weekMenuOpen, setWeekMenuOpen] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -901,10 +1090,110 @@ export default function CicloDetailPage() {
         })).sort((a, b) => a.day_of_week - b.day_of_week),
       })));
     }
+
+    // ─── Cargar training_complex_sets para todos los días del ciclo ─
+    if (weeksData) {
+      const allDayIds: string[] = (weeksData as Record<string, unknown>[]).flatMap(w => {
+        const days = (w.training_days || []) as Record<string, unknown>[];
+        return days.map(d => d.id as string);
+      });
+      if (allDayIds.length > 0) {
+        const { data: setsData } = await supabase
+          .from("training_complex_sets")
+          .select("*")
+          .in("day_id", allDayIds)
+          .order("set_number");
+        if (setsData) {
+          const grouped: Record<string, ComplexSet[]> = {};
+          for (const s of setsData as ComplexSet[]) {
+            if (!grouped[s.complex_id]) grouped[s.complex_id] = [];
+            grouped[s.complex_id].push({
+              id: s.id,
+              complex_id: s.complex_id,
+              day_id: s.day_id,
+              set_number: s.set_number,
+              percentage_1rm: s.percentage_1rm ?? null,
+              reps_overrides: (s.reps_overrides as { training_exercise_id: string; reps: string }[]) || [],
+            });
+          }
+          setComplexSets(grouped);
+        }
+      }
+    }
+
+    // Load all cycles for transfer feature
+    const { data: allCyclesData } = await supabase
+      .from("training_cycles")
+      .select("id, name, student_id, is_template")
+      .eq("trainer_id", user!.id)
+      .order("name");
+    if (allCyclesData) setAllCycles(allCyclesData);
+
     setLoading(false);
   }, [id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Students active on this cycle (or derived from this template)
+  const activeStudentsOnCycle = students.filter(s => {
+    if (!s.activeCycle) return false;
+    // Direct match: this IS their active cycle
+    if (s.activeCycle.id === id) return true;
+    // Template match: their active cycle was copied from this template
+    const studentCycle = allCycles.find(c => c.id === s.activeCycle!.id);
+    // We also consider the cycle name match for template-based ones
+    return false;
+  });
+
+  // For template view: find all students who have an active cycle with template_id = this
+  const derivedStudents = allCycles
+    .filter(c => !c.is_template && c.student_id)
+    .map(c => {
+      const student = students.find(s => s.activeCycle?.id === c.id);
+      return student ? { ...student, cycleId: c.id, cycleName: c.name } : null;
+    })
+    .filter(Boolean) as (Student & { cycleId: string; cycleName: string })[];
+
+  // Merge: direct students + derived students
+  const managedStudents = [
+    ...activeStudentsOnCycle.map(s => ({ ...s, cycleId: s.activeCycle!.id, cycleName: s.activeCycle!.name })),
+    ...derivedStudents.filter(ds => !activeStudentsOnCycle.some(as2 => as2.id === ds.id)),
+  ];
+
+  // Deactivate student cycle
+  const deactivateStudentCycle = async (studentCycleId: string, studentName: string) => {
+    if (!confirm(`¿Desactivar el ciclo de ${studentName}? El alumno ya no verá esta planificación.`)) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("training_cycles")
+      .update({ active: false })
+      .eq("id", studentCycleId);
+    if (error) { toast.error("Error al desactivar"); return; }
+    toast.success(`Ciclo de ${studentName} desactivado`);
+    loadData();
+  };
+
+  // Transfer student to a different cycle
+  const transferStudent = async (studentId: string, oldCycleId: string, newCycleId: string) => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    // Deactivate old cycle
+    await supabase.from("training_cycles").update({ active: false }).eq("id", oldCycleId);
+    // Copy new cycle to student
+    const targetCycle = allCycles.find(c => c.id === newCycleId);
+    const { error } = await supabase.rpc("copy_cycle", {
+      p_source_cycle_id: newCycleId,
+      p_trainer_id: user!.id,
+      p_name: targetCycle?.name || "Ciclo",
+      p_start_date: new Date().toISOString().split("T")[0],
+      p_student_id: studentId,
+      p_is_template: false,
+    });
+    if (error) { toast.error("Error al transferir: " + error.message); return; }
+    toast.success("Alumno transferido correctamente");
+    setTransferTarget(null);
+    loadData();
+  };
 
   // ─── Agregar día ──────────────────────────────────────────
   const addDay = async (weekId: string) => {
@@ -1133,10 +1422,20 @@ export default function CicloDetailPage() {
     setPickerBlock(null);
   };
 
-  // ─── Crear complex ────────────────────────────────────────
+  // ─── Crear complex / trepada ──────────────────────────────
   const handleComplexCreate = async (items: { ex: Exercise; variant?: Variant }[]) => {
     if (!complexPickerBlock) return;
     const supabase = createClient();
+
+    // Encontrar day_id del bloque
+    let dayId = "";
+    for (const w of weeks) {
+      for (const d of w.days) {
+        if (d.blocks.some(b => b.id === complexPickerBlock)) { dayId = d.id; break; }
+      }
+      if (dayId) break;
+    }
+
     const block = weeks.flatMap(w => w.days).flatMap(d => d.blocks).find(b => b.id === complexPickerBlock);
     const complexId = crypto.randomUUID();
     const baseOrder = block?.training_exercises.length ?? 0;
@@ -1156,10 +1455,31 @@ export default function CicloDetailPage() {
     const { data, error } = await supabase.from("training_exercises").insert(toInsert).select("*");
     if (error) { toast.error("Error al crear complex: " + error.message); return; }
 
+    // Crear 3 series por defecto en training_complex_sets
+    const defaultSets = [1, 2, 3].map(n => ({
+      complex_id: complexId,
+      day_id: dayId,
+      set_number: n,
+      percentage_1rm: null,
+      reps_overrides: [],
+    }));
+    const { data: setsData, error: setsError } = await supabase
+      .from("training_complex_sets").insert(defaultSets).select("*");
+    if (setsError) { toast.error("Error al crear series: " + setsError.message); return; }
+
     const newExs: TrainingExercise[] = (data || []).map((te, i) => ({
       ...te,
       exercise: items[i].ex,
       variant: items[i].variant,
+    }));
+
+    const newComplexSets: ComplexSet[] = (setsData || []).map(s => ({
+      id: s.id,
+      complex_id: s.complex_id,
+      day_id: s.day_id,
+      set_number: s.set_number,
+      percentage_1rm: s.percentage_1rm ?? null,
+      reps_overrides: s.reps_overrides || [],
     }));
 
     setWeeks(weeks.map(w => ({
@@ -1171,8 +1491,10 @@ export default function CicloDetailPage() {
         } : b),
       })),
     })));
+    setComplexSets(prev => ({ ...prev, [complexId]: newComplexSets }));
     setComplexPickerBlock(null);
-    toast.success(`Complex creado con ${items.length} ejercicios`);
+    const label = items.length === 1 ? "Trepada" : "Complex";
+    toast.success(`${label} creado con ${items.length} ejercicio${items.length !== 1 ? "s" : ""}`);
   };
 
   // ─── Actualizar ejercicio ─────────────────────────────────
@@ -1193,8 +1515,8 @@ export default function CicloDetailPage() {
     await supabase.from("training_exercises").update({ [field]: value }).eq("id", exId);
   };
 
-  // ─── Actualizar campos compartidos del complex ────────────
-  const updateComplexShared = async (blockId: string, complexId: string, field: string, value: unknown) => {
+  // ─── Actualizar descanso del complex (solo rest_seconds) ──
+  const updateComplexRest = async (blockId: string, complexId: string, value: number | null) => {
     setWeeks(weeks.map(w => ({
       ...w,
       days: w.days.map(d => ({
@@ -1202,13 +1524,80 @@ export default function CicloDetailPage() {
         blocks: d.blocks.map(b => b.id === blockId ? {
           ...b,
           training_exercises: b.training_exercises.map(te =>
-            te.complex_id === complexId ? { ...te, [field]: value } : te
+            te.complex_id === complexId ? { ...te, rest_seconds: value ?? undefined } : te
           ),
         } : b),
       })),
     })));
     const supabase = createClient();
-    await supabase.from("training_exercises").update({ [field]: value }).eq("complex_id", complexId);
+    await supabase.from("training_exercises").update({ rest_seconds: value }).eq("complex_id", complexId);
+  };
+
+  // ─── Actualizar % de una serie ────────────────────────────
+  const updateComplexSetPercentage = async (setId: string, pct: number | null) => {
+    const supabase = createClient();
+    const { error } = await supabase.from("training_complex_sets").update({ percentage_1rm: pct }).eq("id", setId);
+    if (error) {
+      toast.error("Error al guardar el porcentaje");
+      console.error("updateComplexSetPercentage error:", error);
+      return;
+    }
+    setComplexSets(prev => {
+      const next = { ...prev };
+      for (const cid in next) {
+        next[cid] = next[cid].map(s => s.id === setId ? { ...s, percentage_1rm: pct } : s);
+      }
+      return next;
+    });
+  };
+
+  // ─── Actualizar reps override de una serie ────────────────
+  const updateComplexSetRepsOverride = async (
+    setId: string,
+    overrides: { training_exercise_id: string; reps: string }[]
+  ) => {
+    const supabase = createClient();
+    await supabase.from("training_complex_sets").update({ reps_overrides: overrides }).eq("id", setId);
+    setComplexSets(prev => {
+      const next = { ...prev };
+      for (const cid in next) {
+        next[cid] = next[cid].map(s => s.id === setId ? { ...s, reps_overrides: overrides } : s);
+      }
+      return next;
+    });
+  };
+
+  // ─── Agregar serie al complex ─────────────────────────────
+  const addComplexSet = async (complexId: string, dayId: string) => {
+    const currentSets = complexSets[complexId] || [];
+    const nextNumber = currentSets.length > 0
+      ? Math.max(...currentSets.map(s => s.set_number)) + 1
+      : 1;
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("training_complex_sets")
+      .insert({ complex_id: complexId, day_id: dayId, set_number: nextNumber, percentage_1rm: null, reps_overrides: [] })
+      .select("*").single();
+    if (error) { toast.error("Error al agregar serie"); return; }
+    const newSet: ComplexSet = {
+      id: data.id, complex_id: data.complex_id, day_id: data.day_id,
+      set_number: data.set_number, percentage_1rm: data.percentage_1rm ?? null,
+      reps_overrides: data.reps_overrides || [],
+    };
+    setComplexSets(prev => ({ ...prev, [complexId]: [...(prev[complexId] || []), newSet] }));
+  };
+
+  // ─── Eliminar serie del complex ───────────────────────────
+  const removeComplexSet = async (setId: string) => {
+    const supabase = createClient();
+    await supabase.from("training_complex_sets").delete().eq("id", setId);
+    setComplexSets(prev => {
+      const next = { ...prev };
+      for (const cid in next) {
+        next[cid] = next[cid].filter(s => s.id !== setId);
+      }
+      return next;
+    });
   };
 
   // ─── Desagrupar complex ───────────────────────────────────
@@ -1220,6 +1609,9 @@ export default function CicloDetailPage() {
       .eq("complex_id", complexId);
 
     if (error) return toast.error("Error al desagrupar");
+
+    // También borrar los sets del complex
+    await supabase.from("training_complex_sets").delete().eq("complex_id", complexId);
 
     setWeeks(weeks.map(w => ({
       ...w,
@@ -1235,6 +1627,11 @@ export default function CicloDetailPage() {
         } : b),
       })),
     })));
+    setComplexSets(prev => {
+      const next = { ...prev };
+      delete next[complexId];
+      return next;
+    });
     toast.success("Complex desagrupado");
   };
 
@@ -1365,6 +1762,82 @@ export default function CicloDetailPage() {
         </div>
       </div>
 
+      {/* Alumnos activos — collapsible */}
+      {managedStudents.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
+          <button
+            onClick={() => setShowStudents(!showStudents)}
+            className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left"
+          >
+            <Users className="w-4 h-4 text-primary" />
+            <span className="text-sm font-semibold text-foreground flex-1">
+              {managedStudents.length} alumno{managedStudents.length !== 1 ? "s" : ""} activo{managedStudents.length !== 1 ? "s" : ""}
+            </span>
+            {showStudents ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {showStudents && (
+            <div className="border-t border-border divide-y divide-border">
+              {managedStudents.map(student => (
+                <div key={student.id} className="px-5 py-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                    {getInitials(student.full_name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{student.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{student.cycleName}</p>
+                  </div>
+
+                  {/* Transfer button */}
+                  {transferTarget?.studentId === student.id ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="text-xs border border-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary max-w-[160px]"
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            transferStudent(student.id, transferTarget.studentCycleId, e.target.value);
+                          }
+                        }}
+                      >
+                        <option value="" disabled>Elegir ciclo...</option>
+                        {allCycles
+                          .filter(c => c.id !== student.cycleId && (c.is_template || !c.student_id))
+                          .map(c => (
+                            <option key={c.id} value={c.id}>{c.name}{c.is_template ? " (plantilla)" : ""}</option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={() => setTransferTarget(null)}
+                        className="p-1 rounded-md text-muted-foreground hover:bg-muted"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setTransferTarget({ studentId: student.id, studentCycleId: student.cycleId })}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        title="Transferir a otro ciclo"
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deactivateStudentCycle(student.cycleId, student.full_name)}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                        title="Desactivar ciclo del alumno"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Semanas */}
       {weeks.map(week => (
         <div key={week.id} className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
@@ -1476,7 +1949,7 @@ export default function CicloDetailPage() {
                                   blockId={block.id}
                                   onUpdate={updateExercise}
                                   onDelete={deleteExercise}
-                                  oneRM={item.ex.exercise_id ? studentOneRMs[item.ex.exercise_id] : undefined}
+                                  oneRM={!cycle?.is_template && item.ex.exercise_id ? studentOneRMs[item.ex.exercise_id] : undefined}
                                 />
                               ) : (
                                 <ComplexCard
@@ -1484,11 +1957,17 @@ export default function CicloDetailPage() {
                                   exs={item.exs}
                                   complexId={item.complexId}
                                   blockId={block.id}
+                                  dayId={day.id}
+                                  sets={complexSets[item.complexId] || []}
                                   onUpdateField={updateExercise}
-                                  onUpdateComplexShared={updateComplexShared}
+                                  onUpdateSetPercentage={updateComplexSetPercentage}
+                                  onUpdateSetRepsOverride={updateComplexSetRepsOverride}
+                                  onAddSet={addComplexSet}
+                                  onRemoveSet={removeComplexSet}
+                                  onUpdateRest={updateComplexRest}
                                   onDelete={deleteExercise}
                                   onUngroup={ungroupComplex}
-                                  studentOneRMs={studentOneRMs}
+                                  studentOneRMs={cycle?.is_template ? {} : studentOneRMs}
                                 />
                               )
                             )}
@@ -1502,7 +1981,7 @@ export default function CicloDetailPage() {
                             </button>
                             <button onClick={() => setComplexPickerBlock(block.id)}
                               className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium hover:text-primary transition-colors">
-                              <Link2 className="w-4 h-4" /> Agregar complex
+                              <Link2 className="w-4 h-4" /> Complex / Trepada
                             </button>
                           </div>
                         </div>

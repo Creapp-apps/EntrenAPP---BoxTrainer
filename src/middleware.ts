@@ -51,13 +51,23 @@ export async function middleware(request: NextRequest) {
 
   const role = profile?.role;
 
+  // Super admin puede acceder a todo
+  if (role === "super_admin") {
+    return supabaseResponse;
+  }
+
+  // Solo super_admin puede acceder a /super-admin
+  if (pathname.startsWith("/super-admin")) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   // Alumnos no pueden acceder al panel del entrenador
   if (pathname.startsWith("/entrenador") && role === "student") {
     return NextResponse.redirect(new URL("/alumno", request.url));
   }
 
-  // Entrenadores no pueden acceder al panel del alumno
-  if (pathname.startsWith("/alumno") && (role === "trainer" || role === "co_trainer")) {
+  // Entrenadores/profesores no pueden acceder al panel del alumno
+  if (pathname.startsWith("/alumno") && (role === "trainer" || role === "co_trainer" || role === "professor")) {
     return NextResponse.redirect(new URL("/entrenador", request.url));
   }
 

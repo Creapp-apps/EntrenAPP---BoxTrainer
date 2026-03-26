@@ -91,3 +91,47 @@
 .pt-safe {
   padding-top: env(safe-area-inset-top);
 }
+
+/* ─── Box Theme Presets ─── */
+[data-theme="ocean"] {
+  --primary: 210 100% 50%;
+  --ring: 210 100% 50%;
+  --chart-1: 210 100% 50%;
+  --sidebar-primary: 210 100% 50%;
+  --sidebar-ring: 210 100% 50%;
+}
+[data-theme="emerald"] {
+  --primary: 152 69% 40%;
+  --ring: 152 69% 40%;
+  --chart-1: 152 69% 40%;
+  --sidebar-primary: 152 69% 40%;
+  --sidebar-ring: 152 69% 40%;
+}
+[data-theme="violet"] {
+  --primary: 265 83% 57%;
+  --ring: 265 83% 57%;
+  --chart-1: 265 83% 57%;
+  --sidebar-primary: 265 83% 57%;
+  --sidebar-ring: 265 83% 57%;
+}
+[data-theme="rose"] {
+  --primary: 340 82% 52%;
+  --ring: 340 82% 52%;
+  --chart-1: 340 82% 52%;
+  --sidebar-primary: 340 82% 52%;
+  --sidebar-ring: 340 82% 52%;
+}
+[data-theme="crimson"] {
+  --primary: 0 72% 51%;
+  --ring: 0 72% 51%;
+  --chart-1: 0 72% 51%;
+  --sidebar-primary: 0 72% 51%;
+  --sidebar-ring: 0 72% 51%;
+}
+[data-theme="amber"] {
+  --primary: 38 92% 50%;
+  --ring: 38 92% 50%;
+  --chart-1: 38 92% 50%;
+  --sidebar-primary: 38 92% 50%;
+  --sidebar-ring: 38 92% 50%;
+}

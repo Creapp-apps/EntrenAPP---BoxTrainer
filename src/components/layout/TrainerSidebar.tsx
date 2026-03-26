@@ -16,6 +16,10 @@ import {
   Bell,
   X,
   Settings,
+  Warehouse,
+  Flame,
+  BarChart3,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,15 +28,21 @@ const navItems = [
   { href: "/entrenador/alumnos", label: "Alumnos", icon: Users },
   { href: "/entrenador/ejercicios", label: "Ejercicios", icon: BookOpen },
   { href: "/entrenador/ciclos", label: "Ciclos", icon: Calendar },
+  { href: "/entrenador/crossfit", label: "Cross / Funcional", icon: Flame },
+  { href: "/entrenador/metricas", label: "Métricas", icon: BarChart3 },
   { href: "/entrenador/pagos", label: "Pagos", icon: CreditCard },
+  { href: "/entrenador/tu-box", label: "Tu Espacio", icon: Warehouse },
+  { href: "/entrenador/mi-box", label: "Mi Box", icon: Building2 },
 ];
 
 export default function TrainerSidebar({
   user,
   onClose,
+  boxData,
 }: {
   user: Record<string, string> | null;
   onClose?: () => void;
+  boxData?: { name?: string; logo_url?: string; theme?: string } | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -52,11 +62,13 @@ export default function TrainerSidebar({
     <aside className="w-72 lg:w-64 bg-sidebar flex flex-col h-full shrink-0">
       {/* Logo + close button on mobile */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-        <div className="bg-primary rounded-xl p-2">
-          <Dumbbell className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1">
-          <p className="text-sidebar-foreground font-bold text-sm">EntrenAPP</p>
+        {boxData?.logo_url ? (
+          <img src={boxData.logo_url} alt={boxData?.name || "Box"} className="w-9 h-9 rounded-xl object-cover" />
+        ) : (
+          <img src="/logo.png" alt="EntrenAPP" className="w-9 h-9 rounded-xl" />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sidebar-foreground font-bold text-sm truncate">{boxData?.name || "EntrenAPP"}</p>
           <p className="text-sidebar-foreground/50 text-xs">Panel Entrenador</p>
         </div>
         {/* Close button — only shows on mobile */}

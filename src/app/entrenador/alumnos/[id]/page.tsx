@@ -4,6 +4,7 @@ import { ArrowLeft, User, Calendar, CreditCard, Dumbbell, Phone, Target, AlertTr
 import Link from "next/link";
 import { formatDate, formatCurrency, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from "@/lib/utils";
 import AlumnoActions from "@/components/AlumnoActions";
+import StudentPlanCard from "@/components/StudentPlanCard";
 
 // ─── Tonnage helpers ─────────────────────────────────────────
 function parseReps(repsStr: string): number {
@@ -105,7 +106,18 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
             {student.full_name?.[0]?.toUpperCase()}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">{student.full_name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-foreground">{student.full_name}</h1>
+              {student.modality && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  student.modality === "presencial" ? "bg-blue-100 text-blue-700" :
+                  student.modality === "a_distancia" ? "bg-amber-100 text-amber-700" :
+                  "bg-purple-100 text-purple-700"
+                }`}>
+                  {student.modality === "presencial" ? "Presencial" : student.modality === "a_distancia" ? "A distancia" : "Mixto"}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">{student.email}</p>
           </div>
         </div>
@@ -186,6 +198,9 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
               </div>
             )}
           </div>
+
+          {/* Plan & Créditos */}
+          <StudentPlanCard studentId={params.id} modality={student.modality} />
 
           {/* PRs */}
           {records && records.length > 0 && (

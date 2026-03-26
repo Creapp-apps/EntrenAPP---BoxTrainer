@@ -16,7 +16,9 @@ export default async function Home() {
     .eq("id", user.id)
     .single();
 
-  if (profile?.role === "student") {
+  if (profile?.role === "super_admin") {
+    redirect("/super-admin");
+  } else if (profile?.role === "student") {
     redirect("/alumno");
   } else {
     redirect("/entrenador");
