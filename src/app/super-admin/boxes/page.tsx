@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Pencil, Trash2, X, Save } from "lucide-react";
@@ -43,14 +42,7 @@ const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> 
   cancelled: { bg: "bg-white/10", text: "text-white/40", label: "Cancelado" },
 };
 
-const PLAN_LIMITS: Record<string, { max_students: number; max_professors: number }> = {
-  starter: { max_students: 30, max_professors: 1 },
-  pro: { max_students: 80, max_professors: 3 },
-  elite: { max_students: 9999, max_professors: 9999 },
-};
-
 export default function BoxesPage() {
-  const supabase = createClient();
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -107,9 +99,12 @@ export default function BoxesPage() {
   }
 
   async function changePlan(box: Box, newPlan: string) {
-    const limits = PLAN_LIMITS[newPlan] || PLAN_LIMITS.starter;
-    await supabase.from("boxes").update({ max_students: limits.max_students, max_professors: limits.max_professors }).eq("id", box.id);
-    if (box.subscription) await supabase.from("box_subscriptions").update({ plan_name: newPlan }).eq("id", box.subscription.id);
+    const res = await fetch("/api/manage-box", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "changePlan", boxId: box.id, plan: newPlan, subscriptionId: box.subscription?.id }),
+    });
+    if (!res.ok) { toast.error("Error al cambiar plan"); return; }
     toast.success(`Plan → ${newPlan.toUpperCase()}`);
     setChangingPlan(null);
     load();
@@ -117,12 +112,12 @@ export default function BoxesPage() {
 
   async function saveEdit() {
     if (!editingBox) return;
-    await supabase.from("boxes").update({
-      name: editForm.name.trim() || editingBox.name,
-      address: editForm.address.trim() || null,
-      city: editForm.city.trim() || null,
-      phone: editForm.phone.trim() || null,
-    }).eq("id", editingBox.id);
+    const res = await fetch("/api/manage-box", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "edit", boxId: editingBox.id, name: editForm.name, address: editForm.address, city: editForm.city, phone: editForm.phone }),
+    });
+    if (!res.ok) { toast.error("Error al actualizar"); return; }
     toast.success("Box actualizado");
     setEditingBox(null);
     load();
@@ -130,20 +125,26 @@ export default function BoxesPage() {
 
   async function deleteBox() {
     if (!deletingBox) return;
-    // Delete subscription, users, then box
-    await supabase.from("box_subscriptions").delete().eq("box_id", deletingBox.id);
-    await supabase.from("users").update({ box_id: null }).eq("box_id", deletingBox.id);
-    await supabase.from("boxes").delete().eq("id", deletingBox.id);
+    const res = await fetch("/api/manage-box", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ boxId: deletingBox.id }),
+    });
+    if (!res.ok) { toast.error("Error al eliminar"); return; }
     toast.success(`"${deletingBox.name}" eliminado`);
     setDeletingBox(null);
     load();
   }
 
   async function toggleStatus(box: Box) {
-    const newStatus = box.status === "suspended" ? "active" : "suspended";
-    await supabase.from("boxes").update({ status: newStatus }).eq("id", box.id);
-    if (box.subscription) await supabase.from("box_subscriptions").update({ status: newStatus }).eq("box_id", box.id);
-    toast.success(newStatus === "suspended" ? `Suspendido` : `Reactivado`);
+    const res = await fetch("/api/manage-box", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "toggleStatus", boxId: box.id, currentStatus: box.status }),
+    });
+    if (!res.ok) { toast.error("Error al cambiar estado"); return; }
+    const data = await res.json();
+    toast.success(data.newStatus === "suspended" ? "Suspendido" : "Reactivado");
     load();
   }
 
