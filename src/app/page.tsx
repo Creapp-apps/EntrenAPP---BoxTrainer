@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export default async function Home() {
-  const supabase = await createClient();
+  // Usamos createAdminClient (service role) para leer el rol bypasseando RLS
+  const supabase = await createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     redirect("/auth/login");
   }
 
-  // Obtener rol del usuario desde la DB
   const { data: profile, error: profileError } = await supabase
     .from("users")
     .select("role")
@@ -17,13 +17,12 @@ export default async function Home() {
     .single();
 
   if (profileError) {
-    console.error("[Home] Error al obtener perfil:", profileError.message, "| user:", user.email);
+    console.error("[Home] Error:", profileError.message, "| user:", user.email);
   }
 
-  // Fallback: si la DB no devuelve rol (ej: RLS bloqueando), leer desde app_metadata
-  const role: string | undefined = profile?.role ?? user.app_metadata?.role ?? undefined;
+  const role: string | undefined = profile?.role ?? undefined;
 
-  console.log("[Home] user:", user.email, "| role from DB:", profile?.role, "| role from metadata:", user.app_metadata?.role, "| role final:", role);
+  console.log("[Home] user:", user.email, "| role:", role);
 
   if (role === "super_admin") {
     redirect("/super-admin");

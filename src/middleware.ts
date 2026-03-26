@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // Cliente ANON para manejar la sesión del usuario (cookies)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -12,13 +13,13 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options as Parameters<typeof supabaseResponse.cookies.set>[2])
           );
         },
       },
@@ -42,21 +43,36 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
-  // Verificar rol para rutas específicas
-  const { data: profile, error: profileError } = await supabase
+  // Cliente SERVICE ROLE para leer el rol — bypasea RLS completamente
+  // Esto evita el problema de recursión con get_my_role() en las policies
+  const supabaseAdmin = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll() {
+          // No necesita setear cookies — solo lectura
+        },
+      },
+    }
+  );
+
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from("users")
     .select("role")
     .eq("id", user.id)
     .single();
 
   if (profileError) {
-    console.error("[Middleware] Error al obtener perfil:", profileError.message, "| user.id:", user.id);
+    console.error("[Middleware] Error DB:", profileError.message, "| user:", user.email);
   }
 
-  // Fallback: si la DB no devuelve rol (ej: RLS bloqueando), leer desde app_metadata
-  const role: string | undefined = profile?.role ?? user.app_metadata?.role ?? undefined;
+  const role: string | undefined = profile?.role ?? undefined;
 
-  console.log("[Middleware] user:", user.email, "| role from DB:", profile?.role, "| role from metadata:", user.app_metadata?.role, "| role final:", role, "| pathname:", pathname);
+  console.log("[Middleware] user:", user.email, "| role:", role, "| path:", pathname);
 
   // Super admin puede acceder a todo
   if (role === "super_admin") {
