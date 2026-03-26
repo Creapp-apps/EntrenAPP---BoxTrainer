@@ -16,31 +16,33 @@ export default async function TrainerLayout({
   const role = user.app_metadata?.role;
   if (role === "student") redirect("/alumno");
 
-  // Intentar obtener perfil del usuario — puede fallar si GRANTs no están configurados
+  // Use admin client (service role) to bypass RLS for profile + box data
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const adminSupabase = await createAdminClient();
+
+  // Obtener perfil del usuario
   let profile = null;
   let boxData = null;
   let needsOnboarding = false;
 
   try {
-    const { data } = await supabase
+    const { data } = await adminSupabase
       .from("users")
       .select("*")
       .eq("id", user.id)
       .single();
     profile = data;
   } catch {
-    // Si falla la query, crear objeto mínimo para que el layout no crashee
     profile = { id: user.id, email: user.email, full_name: user.email, role: role || "trainer" };
   }
 
-  // Si no hay perfil de la DB, usar datos de auth
   if (!profile) {
     profile = { id: user.id, email: user.email, full_name: user.email, role: role || "trainer" };
   }
 
   if (profile?.box_id) {
     try {
-      const { data: box } = await supabase
+      const { data: box } = await adminSupabase
         .from("boxes")
         .select("id, name, address, phone, logo_url, owner_id, theme, onboarding_completed")
         .eq("id", profile.box_id)

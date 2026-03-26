@@ -67,19 +67,34 @@ export default function BoxOnboarding({ boxId, boxName, onComplete }: Onboarding
 
   async function finish() {
     setSaving(true);
-    const { error } = await supabase.from("boxes").update({
-      name: form.name.trim(),
-      address: form.address.trim() || null,
-      city: form.city.trim() || null,
-      phone: form.phone.trim() || null,
-      logo_url: form.logo_url.trim() || null,
-      theme: selectedTheme !== "default" ? selectedTheme : null,
-      onboarding_completed: true,
-    }).eq("id", boxId);
-    if (error) { toast.error(error.message); setSaving(false); return; }
-    toast.success("¡Centro configurado!");
-    setSaving(false);
-    onComplete();
+    try {
+      const res = await fetch("/api/manage-box", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "onboarding",
+          boxId,
+          name: form.name.trim(),
+          address: form.address.trim() || null,
+          city: form.city.trim() || null,
+          phone: form.phone.trim() || null,
+          logo_url: form.logo_url.trim() || null,
+          theme: selectedTheme !== "default" ? selectedTheme : null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Error al guardar");
+        setSaving(false);
+        return;
+      }
+      toast.success("¡Centro configurado!");
+      setSaving(false);
+      onComplete();
+    } catch (err: any) {
+      toast.error(err.message);
+      setSaving(false);
+    }
   }
 
   const inputCls = "w-full bg-zinc-900/80 border border-zinc-800 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/40 transition-all";
