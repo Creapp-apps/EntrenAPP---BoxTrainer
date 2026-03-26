@@ -43,13 +43,20 @@ export async function middleware(request: NextRequest) {
   }
 
   // Verificar rol para rutas específicas
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("users")
     .select("role")
     .eq("id", user.id)
     .single();
 
-  const role = profile?.role;
+  if (profileError) {
+    console.error("[Middleware] Error al obtener perfil:", profileError.message, "| user.id:", user.id);
+  }
+
+  // Fallback: si la DB no devuelve rol (ej: RLS bloqueando), leer desde app_metadata
+  const role: string | undefined = profile?.role ?? user.app_metadata?.role ?? undefined;
+
+  console.log("[Middleware] user:", user.email, "| role from DB:", profile?.role, "| role from metadata:", user.app_metadata?.role, "| role final:", role, "| pathname:", pathname);
 
   // Super admin puede acceder a todo
   if (role === "super_admin") {
