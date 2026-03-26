@@ -36,11 +36,13 @@ export async function POST(request: NextRequest) {
   const selectedPlan = plan || "starter";
   const limits = PLAN_LIMITS[selectedPlan] || PLAN_LIMITS.starter;
 
-  // 1. Create auth user
+  // 1. Create auth user with role in app_metadata (needed for middleware routing)
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    app_metadata: { role: "trainer" },
+    user_metadata: { full_name: ownerName.trim() },
   });
   if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
 

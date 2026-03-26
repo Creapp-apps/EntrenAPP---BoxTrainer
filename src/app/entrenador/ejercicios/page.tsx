@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { BookOpen, Plus, Search, Trash2, Flame, Dumbbell, Video, Pencil, Zap, Filter } from "lucide-react";
+import { BookOpen, Plus, Search, Trash2, Flame, Dumbbell, Video, Pencil, Zap, Filter, Download, FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -49,6 +49,7 @@ export default function EjerciciosPage() {
   // Delete
   const [confirmTarget, setConfirmTarget] = useState<{ id: string; name: string; table: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -127,6 +128,37 @@ export default function EjerciciosPage() {
 
   const newExTipo = tab === "crossfit" ? "crossfit" : tab === "prep_fisica" ? "fuerza" : "fuerza";
 
+  async function loadDefaults() {
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/seed-exercises", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Error al cargar plantilla"); return; }
+      toast.success(`✅ Cargados ${data.inserted.exercises} ejercicios + ${data.inserted.cf_exercises} CrossFit`);
+      loadAll();
+    } catch (err: any) { toast.error(err.message); }
+    setSeeding(false);
+  }
+
+  function exportCSV() {
+    const { exercisesToCSV, cfExercisesToCSV, DEFAULT_FUERZA, DEFAULT_PREP_FISICA, DEFAULT_CROSSFIT } = require("@/lib/defaultExercises");
+    let csv: string;
+    let filename: string;
+    if (tab === "crossfit") {
+      csv = cfExercisesToCSV(DEFAULT_CROSSFIT);
+      filename = "ejercicios_crossfit.csv";
+    } else {
+      csv = exercisesToCSV(tab === "fuerza" ? DEFAULT_FUERZA : DEFAULT_PREP_FISICA);
+      filename = `ejercicios_${tab}.csv`;
+    }
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`CSV exportado: ${filename}`);
+  }
+
   return (
     <>
       <div className="space-y-5">
@@ -138,15 +170,29 @@ export default function EjerciciosPage() {
               {fuerzaExs.length} fuerza · {prepExs.length} prep. física · {cfExercises.length} cross/funcional
             </p>
           </div>
-          <Link
-            href={`/entrenador/ejercicios/nuevo?tipo=${newExTipo}`}
-            className={`flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition shadow-sm ${
-              tab === "crossfit" ? "bg-orange-600 hover:bg-orange-700" : "bg-primary hover:bg-primary/90"
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo ejercicio
-          </Link>
+          <div className="flex items-center gap-2">
+            <button onClick={exportCSV}
+              className="flex items-center gap-2 border border-border text-foreground px-3 py-2.5 rounded-xl text-sm font-medium hover:bg-muted transition"
+              title="Exportar CSV">
+              <Download className="w-4 h-4" /> CSV
+            </button>
+            {exercises.length === 0 && cfExercises.length === 0 && (
+              <button onClick={loadDefaults} disabled={seeding}
+                className="flex items-center gap-2 border-2 border-dashed border-orange-400/50 text-orange-500 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-orange-500/10 disabled:opacity-50 transition">
+                <FileSpreadsheet className="w-4 h-4" />
+                {seeding ? "Cargando..." : "Cargar plantilla"}
+              </button>
+            )}
+            <Link
+              href={`/entrenador/ejercicios/nuevo?tipo=${newExTipo}`}
+              className={`flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition shadow-sm ${
+                tab === "crossfit" ? "bg-orange-600 hover:bg-orange-700" : "bg-primary hover:bg-primary/90"
+              }`}
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo ejercicio
+            </Link>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -276,13 +322,20 @@ export default function EjerciciosPage() {
                 {search || muscleFilter !== "all" ? "Sin resultados" : tab === "fuerza" ? "Sin ejercicios de fuerza" : "Sin ejercicios de prep. física"}
               </h3>
               <p className="text-sm text-muted-foreground mt-1 mb-4">
-                {search ? `No se encontraron ejercicios con "${search}"` : "Cargá ejercicios para empezar."}
+                {search ? `No se encontraron ejercicios con "${search}"` : "Cargá ejercicios para empezar o usá la plantilla predefinida."}
               </p>
               {!search && muscleFilter === "all" && (
-                <Link href={`/entrenador/ejercicios/nuevo?tipo=fuerza`}
-                  className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-                  <Plus className="w-4 h-4" /> Cargar ejercicio
-                </Link>
+                <div className="flex items-center gap-3 justify-center">
+                  <button onClick={loadDefaults} disabled={seeding}
+                    className="inline-flex items-center gap-2 bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-orange-400 disabled:opacity-50 transition shadow-lg shadow-orange-500/20">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    {seeding ? "Cargando..." : "🚀 Cargar plantilla por defecto"}
+                  </button>
+                  <Link href={`/entrenador/ejercicios/nuevo?tipo=fuerza`}
+                    className="inline-flex items-center gap-2 border border-border text-foreground px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-muted transition">
+                    <Plus className="w-4 h-4" /> Cargar manualmente
+                  </Link>
+                </div>
               )}
             </div>
           )
@@ -339,13 +392,20 @@ export default function EjerciciosPage() {
               <Flame className="w-12 h-12 text-orange-300 mx-auto mb-3" />
               <h3 className="font-semibold text-foreground">{search || cfCatFilter !== "all" ? "Sin resultados" : "Sin ejercicios CrossFit"}</h3>
               <p className="text-sm text-muted-foreground mt-1 mb-4">
-                {search ? `No se encontraron ejercicios con "${search}"` : "Cargá los movimientos para tus WODs."}
+                {search ? `No se encontraron ejercicios con "${search}"` : "Cargá los movimientos para tus WODs o usá la plantilla."}
               </p>
               {!search && cfCatFilter === "all" && (
-                <Link href="/entrenador/ejercicios/nuevo?tipo=crossfit"
-                  className="inline-flex items-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-orange-700 transition">
-                  <Plus className="w-4 h-4" /> Cargar ejercicio CF
-                </Link>
+                <div className="flex items-center gap-3 justify-center">
+                  <button onClick={loadDefaults} disabled={seeding}
+                    className="inline-flex items-center gap-2 bg-orange-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-orange-400 disabled:opacity-50 transition shadow-lg shadow-orange-500/20">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    {seeding ? "Cargando..." : "🚀 Cargar plantilla por defecto"}
+                  </button>
+                  <Link href="/entrenador/ejercicios/nuevo?tipo=crossfit"
+                    className="inline-flex items-center gap-2 border border-border text-foreground px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-muted transition">
+                    <Plus className="w-4 h-4" /> Cargar manualmente
+                  </Link>
+                </div>
               )}
             </div>
           )
