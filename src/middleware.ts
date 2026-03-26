@@ -4,7 +4,6 @@ import { createServerClient } from "@supabase/ssr";
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  // Cliente ANON para manejar la sesión del usuario (cookies)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -43,36 +42,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
-  // Cliente SERVICE ROLE para leer el rol — bypasea RLS completamente
-  // Esto evita el problema de recursión con get_my_role() en las policies
-  const supabaseAdmin = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {
-          // No necesita setear cookies — solo lectura
-        },
-      },
-    }
-  );
-
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError) {
-    console.error("[Middleware] Error DB:", profileError.message, "| user:", user.email);
-  }
-
-  const role: string | undefined = profile?.role ?? undefined;
-
-  console.log("[Middleware] user:", user.email, "| role:", role, "| path:", pathname);
+  // ✅ Leer el rol desde app_metadata (siempre disponible, no requiere DB)
+  const role: string | undefined = user.app_metadata?.role ?? undefined;
 
   // Super admin puede acceder a todo
   if (role === "super_admin") {

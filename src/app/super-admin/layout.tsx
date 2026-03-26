@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import LogoutButton from "./LogoutButton";
 
 export default async function SuperAdminLayout({
@@ -7,18 +7,14 @@ export default async function SuperAdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createAdminClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "super_admin") redirect("/");
+  // ✅ Leer el rol desde app_metadata (no requiere DB query)
+  const role = user.app_metadata?.role;
+  if (role !== "super_admin") redirect("/");
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] flex">
