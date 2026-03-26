@@ -11,12 +11,19 @@ const PLAN_LIMITS: Record<string, { max_students: number; max_professors: number
 };
 
 export async function POST(request: NextRequest) {
+  // Use service role client (bypasses RLS) for all admin operations
+  const adminSupabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   // Verify caller is super_admin
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "No auth" }, { status: 401 });
 
-  const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single();
+  // Use adminSupabase (service role) to check role — bypasses RLS
+  const { data: profile } = await adminSupabase.from("users").select("role").eq("id", user.id).single();
   if (profile?.role !== "super_admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
@@ -28,12 +35,6 @@ export async function POST(request: NextRequest) {
 
   const selectedPlan = plan || "starter";
   const limits = PLAN_LIMITS[selectedPlan] || PLAN_LIMITS.starter;
-
-  // Use service role to create user without switching sessions
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
 
   // 1. Create auth user
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
