@@ -18,6 +18,8 @@ import {
   Check,
   Palette,
   Eye,
+  Copy,
+  Loader2,
 } from "lucide-react";
 import type { BoxScheduleSlot, DayOfWeek } from "@/types";
 
@@ -50,6 +52,22 @@ const emptySlot: EditingSlot = {
   activity_id: "",
 };
 
+// ─── Helper: add minutes to "HH:MM" ─────────────────────────
+function addMinutes(time: string, mins: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const totalMins = h * 60 + m + mins;
+  const hh = Math.floor(totalMins / 60) % 24;
+  const mm = totalMins % 60;
+  return `${hh.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
+}
+
+// ─── Helper: diff in minutes between two "HH:MM" ────────────
+function diffMinutes(start: string, end: string): number {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  return (eh * 60 + em) - (sh * 60 + sm);
+}
+
 // ─── Slot form component (reused in create & edit) ─────────
 function SlotForm({
   form, setForm, onSave, onCancel, saving, isNew,
@@ -61,6 +79,17 @@ function SlotForm({
   saving: boolean;
   isNew: boolean;
 }) {
+  // When start_time changes in a NEW form, auto-adjust end_time keeping same duration
+  const handleStartChange = (newStart: string) => {
+    if (isNew) {
+      const currentDuration = diffMinutes(form.start_time, form.end_time);
+      const duration = currentDuration > 0 ? currentDuration : 60;
+      setForm({ ...form, start_time: newStart, end_time: addMinutes(newStart, duration) });
+    } else {
+      setForm({ ...form, start_time: newStart });
+    }
+  };
+
   return (
     <div className={`px-5 py-4 ${isNew ? "bg-green-50/50 border-t border-green-100" : "bg-primary/5"}`}>
       {isNew && (
@@ -72,7 +101,7 @@ function SlotForm({
         <div>
           <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">Inicio</label>
           <input type="time" value={form.start_time}
-            onChange={e => setForm({ ...form, start_time: e.target.value })}
+            onChange={e => handleStartChange(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
         </div>
         <div>
@@ -110,6 +139,103 @@ function SlotForm({
   );
 }
 
+// ─── Copy Day Modal ─────────────────────────────────────────
+function CopyDayModal({
+  targetDay,
+  days,
+  slotsByDay,
+  onCopy,
+  onClose,
+  copying,
+}: {
+  targetDay: number;
+  days: typeof DAYS;
+  slotsByDay: Record<number, BoxScheduleSlot[]>;
+  onCopy: (sourceDay: number, replace: boolean) => void;
+  onClose: () => void;
+  copying: boolean;
+}) {
+  const [replaceExisting, setReplaceExisting] = useState(true);
+  const targetLabel = days.find(d => d.value === targetDay)?.label || "";
+  const sourceDays = days.filter(d => d.value !== targetDay && (slotsByDay[d.value]?.length || 0) > 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-border">
+          <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <Copy className="w-5 h-5 text-primary" />
+            Copiar horarios a {targetLabel}
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Elegí un día para copiar todos sus turnos
+          </p>
+        </div>
+
+        <div className="p-6">
+          {sourceDays.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No hay otros días con horarios cargados para copiar.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {sourceDays.map(d => {
+                const count = slotsByDay[d.value]?.filter(s => s.active).length || 0;
+                const firstSlot = slotsByDay[d.value]?.[0];
+                const lastSlot = slotsByDay[d.value]?.[slotsByDay[d.value].length - 1];
+                const timeRange = firstSlot && lastSlot
+                  ? `${firstSlot.start_time.slice(0, 5)} – ${lastSlot.end_time.slice(0, 5)}`
+                  : "";
+
+                return (
+                  <button
+                    key={d.value}
+                    disabled={copying}
+                    onClick={() => onCopy(d.value, replaceExisting)}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-all text-left group disabled:opacity-50"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">{d.short}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{d.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {count} {count === 1 ? "turno" : "turnos"} · {timeRange}
+                      </p>
+                    </div>
+                    <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {sourceDays.length > 0 && (
+            <label className="flex items-center gap-2 mt-4 px-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={replaceExisting}
+                onChange={e => setReplaceExisting(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <span className="text-xs text-muted-foreground">
+                Reemplazar horarios existentes de {targetLabel}
+              </span>
+            </label>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-border flex justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted transition">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────
 export default function HorariosPage() {
   const [slots, setSlots] = useState<BoxScheduleSlot[]>([]);
@@ -121,6 +247,8 @@ export default function HorariosPage() {
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [slotForm, setSlotForm] = useState<EditingSlot>(emptySlot);
   const [saving, setSaving] = useState(false);
+  const [copyDayTarget, setCopyDayTarget] = useState<number | null>(null);
+  const [copying, setCopying] = useState(false);
 
   useEffect(() => { loadSlots(); }, []);
 
@@ -162,7 +290,31 @@ export default function HorariosPage() {
   function startAddingToDay(day: number) {
     setAddingToDay(day);
     setEditingSlotId(null);
-    setSlotForm({ ...emptySlot, activity_id: activeTab === "calendar" ? "" : activeTab });
+
+    // Smart auto-fill: continue from last slot of this day
+    const activityId = activeTab === "calendar" ? "" : activeTab;
+    const daySlots = slots
+      .filter(s => s.day_of_week === day && (activeTab === "calendar" || (s as any).activity_id === activeTab))
+      .sort((a, b) => a.end_time.localeCompare(b.end_time));
+
+    if (daySlots.length > 0) {
+      const lastSlot = daySlots[daySlots.length - 1];
+      const lastDuration = diffMinutes(lastSlot.start_time.slice(0, 5), lastSlot.end_time.slice(0, 5));
+      const duration = lastDuration > 0 ? lastDuration : 60;
+      const newStart = lastSlot.end_time.slice(0, 5);
+      const newEnd = addMinutes(newStart, duration);
+
+      setSlotForm({
+        start_time: newStart,
+        end_time: newEnd,
+        max_capacity: lastSlot.max_capacity,
+        label: lastSlot.label,
+        activity_id: activityId,
+      });
+    } else {
+      setSlotForm({ ...emptySlot, activity_id: activityId });
+    }
+
     setExpandedDays(prev => new Set(prev).add(day));
   }
 
@@ -214,9 +366,30 @@ export default function HorariosPage() {
       if (error) toast.error("Error: " + error.message);
       else toast.success("Horario creado");
     }
+
+    // After saving, prepare form for next slot (smart continuation)
+    const savedEnd = slotForm.end_time;
+    const savedDuration = diffMinutes(slotForm.start_time, slotForm.end_time);
+    const savedCapacity = slotForm.max_capacity;
+    const savedLabel = slotForm.label;
+    const savedActivityId = slotForm.activity_id;
+
     cancelEditing();
-    loadSlots();
+    await loadSlots();
     setSaving(false);
+
+    // Auto-open form for next slot if we were adding (not editing)
+    if (!editingSlotId) {
+      setAddingToDay(dayOfWeek);
+      setSlotForm({
+        start_time: savedEnd,
+        end_time: addMinutes(savedEnd, savedDuration > 0 ? savedDuration : 60),
+        max_capacity: savedCapacity,
+        label: savedLabel,
+        activity_id: savedActivityId,
+      });
+      setExpandedDays(prev => new Set(prev).add(dayOfWeek));
+    }
   }
 
   async function toggleSlot(id: string, active: boolean) {
@@ -234,12 +407,89 @@ export default function HorariosPage() {
     loadSlots();
   }
 
+  // ─── Copy day function ────────────────────────────────────
+  async function copyDaySlots(sourceDay: number, targetDay: number, replace: boolean) {
+    setCopying(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setCopying(false); return; }
+
+    try {
+      // Get source day slots (filtered by current activity if not calendar view)
+      const sourceSlots = slots.filter(s =>
+        s.day_of_week === sourceDay &&
+        (activeTab === "calendar" || (s as any).activity_id === activeTab)
+      );
+
+      if (sourceSlots.length === 0) {
+        toast.error("No hay horarios para copiar");
+        setCopying(false);
+        return;
+      }
+
+      // Delete existing slots from target day if replacing
+      if (replace) {
+        const targetSlotIds = slots
+          .filter(s =>
+            s.day_of_week === targetDay &&
+            (activeTab === "calendar" || (s as any).activity_id === activeTab)
+          )
+          .map(s => s.id);
+
+        if (targetSlotIds.length > 0) {
+          const { error } = await supabase
+            .from("box_schedule_slots")
+            .delete()
+            .in("id", targetSlotIds);
+          if (error) throw new Error(error.message);
+        }
+      }
+
+      // Insert copies
+      const toInsert = sourceSlots.map(s => ({
+        trainer_id: user.id,
+        day_of_week: targetDay,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        max_capacity: s.max_capacity,
+        label: s.label,
+        activity_id: (s as any).activity_id,
+        active: true,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("box_schedule_slots")
+        .insert(toInsert);
+
+      if (insertError) throw new Error(insertError.message);
+
+      const sourceLabel = DAYS.find(d => d.value === sourceDay)?.label || "";
+      const targetLabel = DAYS.find(d => d.value === targetDay)?.label || "";
+      toast.success(`${sourceSlots.length} horarios copiados de ${sourceLabel} a ${targetLabel}`);
+
+      setCopyDayTarget(null);
+      await loadSlots();
+    } catch (err: any) {
+      toast.error("Error al copiar: " + (err.message || ""));
+    } finally {
+      setCopying(false);
+    }
+  }
+
   // ─── Filter & group ──────────────────────────────────────
   const filteredSlots = activeTab === "calendar"
     ? slots
     : slots.filter(s => (s as any).activity_id === activeTab);
 
   const slotsByDay = filteredSlots.reduce((acc, slot) => {
+    const d = slot.day_of_week as number;
+    if (!acc[d]) acc[d] = [];
+    acc[d].push(slot);
+    return acc;
+  }, {} as Record<number, BoxScheduleSlot[]>);
+
+  // All slots by day (for copy modal)
+  const allSlotsByDay = slots.reduce((acc, slot) => {
     const d = slot.day_of_week as number;
     if (!acc[d]) acc[d] = [];
     acc[d].push(slot);
@@ -355,12 +605,23 @@ export default function HorariosPage() {
                   </span>
                 )}
               </div>
-              <button onClick={(e) => { e.stopPropagation(); startAddingToDay(dayValue); }}
-                className="p-1.5 rounded-lg transition-colors hover:bg-primary/10"
-                style={currentActivity ? { color: currentActivity.color } : { color: 'var(--primary)' }}
-                title={`Agregar horario al ${dayLabel}`}>
-                <Plus className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                {/* Copy day button */}
+                <button
+                  onClick={() => setCopyDayTarget(dayValue)}
+                  className="p-1.5 rounded-lg transition-colors text-muted-foreground hover:text-primary hover:bg-primary/10"
+                  title={`Copiar horarios de otro día a ${dayLabel}`}
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                {/* Add slot button */}
+                <button onClick={() => startAddingToDay(dayValue)}
+                  className="p-1.5 rounded-lg transition-colors hover:bg-primary/10"
+                  style={currentActivity ? { color: currentActivity.color } : { color: 'var(--primary)' }}
+                  title={`Agregar horario al ${dayLabel}`}>
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </button>
 
             {/* Expanded */}
@@ -501,6 +762,18 @@ export default function HorariosPage() {
             {" "}para poder asignarles horarios.
           </p>
         </div>
+      )}
+
+      {/* Copy Day Modal */}
+      {copyDayTarget !== null && (
+        <CopyDayModal
+          targetDay={copyDayTarget}
+          days={DAYS}
+          slotsByDay={activeTab === "calendar" ? allSlotsByDay : slotsByDay}
+          onCopy={(sourceDay, replace) => copyDaySlots(sourceDay, copyDayTarget, replace)}
+          onClose={() => setCopyDayTarget(null)}
+          copying={copying}
+        />
       )}
     </div>
   );

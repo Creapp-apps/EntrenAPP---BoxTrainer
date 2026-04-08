@@ -685,8 +685,6 @@ function ComplexCard({
                 />
                 {justSaved ? (
                   <span className="text-xs text-green-600 font-semibold">✓ guardado</span>
-                ) : calcWeight ? (
-                  <span className="text-xs text-primary font-semibold">≈ {calcWeight} kg</span>
                 ) : null}
               </div>
               {/* Reps override button */}
@@ -784,9 +782,7 @@ function ExerciseRow({
               onChange={e => onUpdate(blockId, ex.id, "percentage_1rm", e.target.value ? parseFloat(e.target.value) : null)}
               placeholder="75"
               className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
-            {calculatedWeight && (
-              <p className="text-xs text-primary font-medium mt-0.5 text-center">≈ {calculatedWeight} kg</p>
-            )}
+
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Descanso (seg)</label>
@@ -988,6 +984,16 @@ export default function CicloDetailPage() {
   const [transferTarget, setTransferTarget] = useState<{ studentId: string; studentCycleId: string } | null>(null);
   const [allCycles, setAllCycles] = useState<{ id: string; name: string; student_id: string | null; is_template: boolean }[]>([]);
   const [weekMenuOpen, setWeekMenuOpen] = useState<string | null>(null);
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set());
+
+  const toggleBlock = (blockId: string) => {
+    setCollapsedBlocks(prev => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  };
 
   const loadData = useCallback(async () => {
     const supabase = createClient();
@@ -995,7 +1001,7 @@ export default function CicloDetailPage() {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    const [{ data: cycleData }, { data: weeksData }, { data: exData }, { data: ormsData }, { data: studentsData }] = await Promise.all([
+    const [{ data: cycleData }, { data: weeksData }, { data: exData }, { data: studentsData }] = await Promise.all([
       supabase.from("training_cycles")
         .select("*, users!training_cycles_student_id_fkey(full_name)")
         .eq("id", id).single(),
@@ -1005,13 +1011,26 @@ export default function CicloDetailPage() {
       supabase.from("exercises")
         .select("*, exercise_variants(*)")
         .eq("archived", false).order("name"),
-      supabase.from("student_one_rm").select("*"),
       supabase.from("users")
         .select("id, full_name, training_cycles!training_cycles_student_id_fkey(id, name, active, is_template)")
         .eq("role", "student")
         .eq("created_by", user!.id)
         .order("full_name"),
     ]);
+
+    // Fetch the 1RMs scoped individually to the cycle student
+    if (cycleData?.student_id) {
+      const { data: ormsData } = await supabase
+        .from("student_one_rm")
+        .select("*")
+        .eq("student_id", cycleData.student_id);
+        
+      if (ormsData) {
+        const map: Record<string, number> = {};
+        ormsData.forEach((r: { exercise_id: string; weight_kg: number }) => { map[r.exercise_id] = r.weight_kg; });
+        setStudentOneRMs(map);
+      }
+    }
 
     if (cycleData) {
       setCycle({
@@ -1029,12 +1048,6 @@ export default function CicloDetailPage() {
         id: e.id, name: e.name, category: e.category, muscle_group: e.muscle_group,
         variants: (e.exercise_variants || []) as Variant[],
       })));
-    }
-
-    if (ormsData) {
-      const map: Record<string, number> = {};
-      ormsData.forEach((r: { exercise_id: string; weight_kg: number }) => { map[r.exercise_id] = r.weight_kg; });
-      setStudentOneRMs(map);
     }
 
     if (studentsData) {
@@ -1315,6 +1328,8 @@ export default function CicloDetailPage() {
         if (dayError) throw new Error("Error al copiar día: " + dayError.message);
 
         const newBlocks: Block[] = [];
+        const dailyComplexIdMap = new Map<string, string>();
+        const exerciseIdMap = new Map<string, string>(); // old training_exercise.id -> new training_exercise.id
 
         for (const sourceBlock of sourceDay.blocks) {
           const { data: newBlock, error: blockError } = await supabase
@@ -1326,9 +1341,6 @@ export default function CicloDetailPage() {
             }).select().single();
           if (blockError) throw new Error("Error al copiar bloque: " + blockError.message);
 
-          // Map old complex_id → new complex_id
-          const complexIdMap = new Map<string, string>();
-
           const exercisesToInsert = sourceBlock.training_exercises.map(te => {
             let newPct = te.percentage_1rm;
             if (newPct !== undefined && newPct !== null && pctDelta !== 0) {
@@ -1336,10 +1348,10 @@ export default function CicloDetailPage() {
             }
             let newComplexId: string | null = null;
             if (te.complex_id) {
-              if (!complexIdMap.has(te.complex_id)) {
-                complexIdMap.set(te.complex_id, crypto.randomUUID());
+              if (!dailyComplexIdMap.has(te.complex_id)) {
+                dailyComplexIdMap.set(te.complex_id, crypto.randomUUID());
               }
-              newComplexId = complexIdMap.get(te.complex_id)!;
+              newComplexId = dailyComplexIdMap.get(te.complex_id)!;
             }
             return {
               block_id: newBlock.id,
@@ -1363,6 +1375,12 @@ export default function CicloDetailPage() {
               .from("training_exercises").insert(exercisesToInsert).select();
             if (exError) throw new Error("Error al copiar ejercicios: " + exError.message);
 
+            sourceBlock.training_exercises.forEach((oldTe, i) => {
+              if (insertedExs && insertedExs[i]) {
+                exerciseIdMap.set(oldTe.id, insertedExs[i].id);
+              }
+            });
+
             newExercises = (insertedExs || []).map((te, i) => ({
               ...te,
               exercise: sourceBlock.training_exercises[i]?.exercise,
@@ -1373,14 +1391,41 @@ export default function CicloDetailPage() {
           newBlocks.push({ ...newBlock, training_exercises: newExercises });
         }
 
+        // Copy complex sets for the day
+        const setsToInsert: any[] = [];
+        for (const [oldComplexId, newComplexId] of dailyComplexIdMap.entries()) {
+          const oldSets = complexSets[oldComplexId] || [];
+          for (const oldSet of oldSets) {
+            let newPct = oldSet.percentage_1rm;
+            if (newPct !== undefined && newPct !== null && pctDelta !== 0) {
+              newPct = Math.min(110, Math.max(10, newPct + pctDelta));
+            }
+
+            // Update reps_overrides
+            const newOverrides = oldSet.reps_overrides.map(override => ({
+              training_exercise_id: exerciseIdMap.get(override.training_exercise_id) || override.training_exercise_id,
+              reps: override.reps
+            }));
+
+            setsToInsert.push({
+              complex_id: newComplexId,
+              day_id: newDay.id,
+              set_number: oldSet.set_number,
+              percentage_1rm: newPct,
+              reps_overrides: newOverrides
+            });
+          }
+        }
+
+        if (setsToInsert.length > 0) {
+          const { error: setsError } = await supabase.from("training_complex_sets").insert(setsToInsert);
+          if (setsError) throw new Error("Error al copiar series del complex: " + setsError.message);
+        }
+
         newDays.push({ ...newDay, blocks: newBlocks, expanded: false });
       }
 
-      setWeeks(prev => prev.map(w => w.id === targetWeekId
-        ? { ...w, days: newDays.sort((a, b) => a.day_of_week - b.day_of_week) }
-        : w
-      ));
-
+      await loadData();
       const pctMsg = pctDelta !== 0 ? ` (porcentajes ${pctDelta > 0 ? "+" : ""}${pctDelta}%)` : "";
       toast.success(`Semana copiada correctamente${pctMsg}`);
     } catch (err: unknown) {
@@ -1928,64 +1973,98 @@ export default function CicloDetailPage() {
 
                   {!day.is_rest && day.expanded && (
                     <div className="px-5 pb-4 space-y-4">
-                      {day.blocks.map(block => (
-                        <div key={block.id} className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-semibold text-foreground flex-1">{block.name}</h4>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize">{block.type}</span>
-                            <button onClick={() => deleteBlock(day.id, block.id)}
-                              className="p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          {/* Render exercises (singles + complexes) */}
-                          <div className="space-y-2">
-                            {getBlockItems(block.training_exercises).map(item =>
-                              item.type === "single" ? (
-                                <ExerciseRow
-                                  key={item.ex.id}
-                                  ex={item.ex}
-                                  blockId={block.id}
-                                  onUpdate={updateExercise}
-                                  onDelete={deleteExercise}
-                                  oneRM={!cycle?.is_template && item.ex.exercise_id ? studentOneRMs[item.ex.exercise_id] : undefined}
-                                />
-                              ) : (
-                                <ComplexCard
-                                  key={item.complexId}
-                                  exs={item.exs}
-                                  complexId={item.complexId}
-                                  blockId={block.id}
-                                  dayId={day.id}
-                                  sets={complexSets[item.complexId] || []}
-                                  onUpdateField={updateExercise}
-                                  onUpdateSetPercentage={updateComplexSetPercentage}
-                                  onUpdateSetRepsOverride={updateComplexSetRepsOverride}
-                                  onAddSet={addComplexSet}
-                                  onRemoveSet={removeComplexSet}
-                                  onUpdateRest={updateComplexRest}
-                                  onDelete={deleteExercise}
-                                  onUngroup={ungroupComplex}
-                                  studentOneRMs={cycle?.is_template ? {} : studentOneRMs}
-                                />
-                              )
+                      {day.blocks.map(block => {
+                        const isCollapsed = collapsedBlocks.has(block.id);
+                        const exerciseCount = block.training_exercises.length;
+                        return (
+                        <div key={block.id} className={`rounded-xl border transition-all duration-200 ${
+                          isCollapsed
+                            ? "border-border/60 bg-muted/20 hover:bg-muted/30"
+                            : "border-transparent bg-transparent"
+                        }`}>
+                          {/* Block header — always visible, clickable accordion */}
+                          <button
+                            onClick={() => exerciseCount > 0 && toggleBlock(block.id)}
+                            className={`w-full flex items-center gap-2 text-left transition-colors ${
+                              isCollapsed ? "px-4 py-3" : "py-1"
+                            } ${exerciseCount > 0 ? "cursor-pointer" : "cursor-default"}`}
+                          >
+                            {exerciseCount > 0 && (
+                              isCollapsed
+                                ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                                : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                             )}
-                          </div>
+                            <h4 className={`text-sm font-semibold flex-1 ${
+                              isCollapsed ? "text-foreground" : "text-foreground"
+                            }`}>{block.name}</h4>
+                            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize shrink-0">{block.type === "fuerza" ? "Fuerza" : "Prep. Física"}</span>
+                            {isCollapsed && exerciseCount > 0 && (
+                              <span className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium shrink-0">
+                                <Check className="w-3 h-3" />
+                                {exerciseCount} ej.
+                              </span>
+                            )}
+                            {!isCollapsed && (
+                              <span onClick={(e) => { e.stopPropagation(); deleteBlock(day.id, block.id); }}
+                                className="p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </button>
 
-                          {/* Add buttons */}
-                          <div className="flex gap-3 flex-wrap">
-                            <button onClick={() => setPickerBlock(block.id)}
-                              className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
-                              <Plus className="w-4 h-4" /> Agregar ejercicio
-                            </button>
-                            <button onClick={() => setComplexPickerBlock(block.id)}
-                              className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium hover:text-primary transition-colors">
-                              <Link2 className="w-4 h-4" /> Complex / Trepada
-                            </button>
-                          </div>
+                          {/* Block content — collapsible */}
+                          {!isCollapsed && (
+                            <div className="space-y-3 mt-1">
+                              {/* Render exercises (singles + complexes) */}
+                              <div className="space-y-2">
+                                {getBlockItems(block.training_exercises).map(item =>
+                                  item.type === "single" ? (
+                                    <ExerciseRow
+                                      key={item.ex.id}
+                                      ex={item.ex}
+                                      blockId={block.id}
+                                      onUpdate={updateExercise}
+                                      onDelete={deleteExercise}
+                                      oneRM={!cycle?.is_template && item.ex.exercise_id ? studentOneRMs[item.ex.exercise_id] : undefined}
+                                    />
+                                  ) : (
+                                    <ComplexCard
+                                      key={item.complexId}
+                                      exs={item.exs}
+                                      complexId={item.complexId}
+                                      blockId={block.id}
+                                      dayId={day.id}
+                                      sets={complexSets[item.complexId] || []}
+                                      onUpdateField={updateExercise}
+                                      onUpdateSetPercentage={updateComplexSetPercentage}
+                                      onUpdateSetRepsOverride={updateComplexSetRepsOverride}
+                                      onAddSet={addComplexSet}
+                                      onRemoveSet={removeComplexSet}
+                                      onUpdateRest={updateComplexRest}
+                                      onDelete={deleteExercise}
+                                      onUngroup={ungroupComplex}
+                                      studentOneRMs={cycle?.is_template ? {} : studentOneRMs}
+                                    />
+                                  )
+                                )}
+                              </div>
+
+                              {/* Add buttons */}
+                              <div className="flex gap-3 flex-wrap">
+                                <button onClick={() => setPickerBlock(block.id)}
+                                  className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
+                                  <Plus className="w-4 h-4" /> Agregar ejercicio
+                                </button>
+                                <button onClick={() => setComplexPickerBlock(block.id)}
+                                  className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium hover:text-primary transition-colors">
+                                  <Link2 className="w-4 h-4" /> Complex / Trepada
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                      );
+                      })}
 
                       {day.blocks.length === 0 && (
                         <p className="text-sm text-muted-foreground italic">Sin bloques. Agregá uno:</p>
