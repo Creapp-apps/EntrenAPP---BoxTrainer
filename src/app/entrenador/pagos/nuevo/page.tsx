@@ -1,21 +1,162 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { ArrowLeft, Loader2, CreditCard, Search, X, Check, User } from "lucide-react";
 import Link from "next/link";
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
+type Student = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  monthly_price: number | null;
+};
+
+// ─── Combobox buscador de alumno ──────────────────────────────
+function StudentSearch({
+  students,
+  selectedId,
+  onSelect,
+}: {
+  students: Student[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = students.find(s => s.id === selectedId);
+
+  // Cerrar al click afuera
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const filtered = query.trim().length === 0
+    ? students
+    : students.filter(s => {
+        const q = query.toLowerCase();
+        return (
+          s.full_name.toLowerCase().includes(q) ||
+          s.email.toLowerCase().includes(q) ||
+          (s.phone && s.phone.replace(/\s/g, "").includes(q.replace(/\s/g, "")))
+        );
+      });
+
+  function handleSelect(id: string) {
+    onSelect(id);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function handleClear() {
+    onSelect("");
+    setQuery("");
+    setOpen(true);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Si hay alumno seleccionado y el dropdown está cerrado → mostrar chip */}
+      {selected && !open ? (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary bg-primary/5 cursor-pointer"
+          onClick={() => { setOpen(true); }}>
+          <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+            {selected.full_name[0].toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate">{selected.full_name}</p>
+            <p className="text-xs text-muted-foreground truncate">{selected.email}</p>
+          </div>
+          <button type="button"
+            onClick={e => { e.stopPropagation(); handleClear(); }}
+            className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            placeholder={selected ? selected.full_name : "Buscar por nombre, email o teléfono..."}
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            autoComplete="off"
+            autoFocus={open && !selected}
+          />
+          {query && (
+            <button type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => setQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-muted transition-colors">
+              <X className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Dropdown resultados */}
+      {open && (
+        <div className="absolute z-30 w-full mt-1.5 bg-white border border-border rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <User className="w-8 h-8 text-muted-foreground mx-auto mb-1.5" />
+              <p className="text-sm text-muted-foreground">
+                No se encontró ningún alumno con "{query}"
+              </p>
+            </div>
+          ) : (
+            filtered.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleSelect(s.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 transition-colors text-left border-b border-border/50 last:border-0"
+              >
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                  {s.full_name[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{s.full_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {s.email}{s.phone ? ` · ${s.phone}` : ""}
+                  </p>
+                </div>
+                {s.monthly_price && (
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    ${s.monthly_price.toLocaleString("es-AR")}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────
 export default function NuevoPagoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedStudent = searchParams.get("alumno");
 
   const [loading, setLoading] = useState(false);
-  const [students, setStudents] = useState<{ id: string; full_name: string; monthly_price: number | null }[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const now = new Date();
   const [form, setForm] = useState({
     student_id: preselectedStudent || "",
@@ -32,9 +173,12 @@ export default function NuevoPagoPage() {
     const fetchStudents = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      const { data } = await supabase.from("users").select("id, full_name, monthly_price")
-        .eq("role", "student").eq("created_by", user!.id).eq("active", true).order("full_name");
-      setStudents(data || []);
+      const { data } = await supabase
+        .from("users")
+        .select("id, full_name, email, phone, monthly_price")
+        .eq("role", "student").eq("created_by", user!.id).eq("active", true)
+        .order("full_name");
+      setStudents((data || []) as Student[]);
     };
     fetchStudents();
   }, []);
@@ -57,7 +201,6 @@ export default function NuevoPagoPage() {
 
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-
     const period_label = `${MONTHS[form.month]} ${form.year}`;
 
     const { error } = await supabase.from("student_payments").insert({
@@ -97,14 +240,17 @@ export default function NuevoPagoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-border p-6 space-y-5">
-        {/* Alumno */}
+
+        {/* Alumno — buscador */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Alumno *</label>
-          <select value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })}
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary" required>
-            <option value="">Seleccioná un alumno...</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-          </select>
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            Alumno *
+          </label>
+          <StudentSearch
+            students={students}
+            selectedId={form.student_id}
+            onSelect={id => setForm({ ...form, student_id: id })}
+          />
         </div>
 
         {/* Período */}
@@ -126,8 +272,12 @@ export default function NuevoPagoPage() {
         {/* Monto */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">Monto (ARS) *</label>
-          <input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
-            placeholder="50000" className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary" required />
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
+            <input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
+              placeholder="50000"
+              className="w-full pl-8 pr-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary" required />
+          </div>
         </div>
 
         {/* Estado */}
@@ -135,9 +285,9 @@ export default function NuevoPagoPage() {
           <label className="block text-sm font-medium text-foreground mb-1.5">Estado</label>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { value: "pagado", label: "Pagado" },
-              { value: "pendiente", label: "Pendiente" },
-              { value: "vencido", label: "Vencido" },
+              { value: "pagado", label: "✅ Pagado" },
+              { value: "pendiente", label: "⏳ Pendiente" },
+              { value: "vencido", label: "🔴 Vencido" },
             ].map(s => (
               <button key={s.value} type="button" onClick={() => setForm({ ...form, status: s.value })}
                 className={`py-2.5 rounded-xl border text-sm font-medium transition-all ${
@@ -163,7 +313,9 @@ export default function NuevoPagoPage() {
 
         {/* Notas */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Notas <span className="text-muted-foreground text-xs">(opcional)</span></label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">
+            Notas <span className="text-muted-foreground text-xs">(opcional)</span>
+          </label>
           <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
             placeholder="Alguna aclaración..."
             className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -176,7 +328,9 @@ export default function NuevoPagoPage() {
           </Link>
           <button type="submit" disabled={loading}
             className="flex-1 bg-primary hover:bg-primary/90 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Guardando...</> : <><CreditCard className="w-4 h-4" />Registrar pago</>}
+            {loading
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Guardando...</>
+              : <><CreditCard className="w-4 h-4" />Registrar pago</>}
           </button>
         </div>
       </form>

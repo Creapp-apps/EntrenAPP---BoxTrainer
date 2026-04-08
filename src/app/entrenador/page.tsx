@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { Users, Calendar, CreditCard, TrendingUp, AlertCircle, Activity } from "lucide-react";
+import { Users, CreditCard, TrendingUp, AlertCircle, Activity } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
@@ -7,12 +7,19 @@ export default async function TrainerDashboard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  const todayStr = today.toISOString().split("T")[0];
+
   // Métricas
   const [
     { count: totalStudents },
     { count: activeStudents },
     { data: overduePayments },
     { data: recentStudents },
+    { data: paidThisMonth },
+    { count: todayBookings },
   ] = await Promise.all([
     supabase.from("users").select("*", { count: "exact", head: true })
       .eq("role", "student").eq("created_by", user!.id),
@@ -23,7 +30,20 @@ export default async function TrainerDashboard() {
     supabase.from("users").select("*")
       .eq("role", "student").eq("created_by", user!.id)
       .order("created_at", { ascending: false }).limit(5),
+    // Ingresos del mes: pagos marcados como "pagado" en el mes actual
+    supabase.from("student_payments").select("amount")
+      .eq("trainer_id", user!.id)
+      .eq("status", "pagado")
+      .gte("paid_at", monthStart)
+      .lte("paid_at", monthEnd),
+    // Turnos hoy: bookings confirmados para hoy
+    supabase.from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_date", todayStr)
+      .eq("status", "confirmada"),
   ]);
+
+  const monthlyIncome = (paidThisMonth || []).reduce((sum, p) => sum + (p.amount || 0), 0);
 
   const stats = [
     {
@@ -46,19 +66,19 @@ export default async function TrainerDashboard() {
     },
     {
       label: "Ingresos del mes",
-      value: formatCurrency(0),
+      value: formatCurrency(monthlyIncome),
       icon: CreditCard,
       color: "text-green-600",
       bg: "bg-green-50",
       href: "/entrenador/pagos",
     },
     {
-      label: "Sesiones hoy",
-      value: 0,
+      label: "Turnos hoy",
+      value: todayBookings ?? 0,
       icon: Activity,
       color: "text-orange-600",
       bg: "bg-orange-50",
-      href: "/entrenador/alumnos",
+      href: "/entrenador/tu-box/calendario",
     },
   ];
 
@@ -68,7 +88,7 @@ export default async function TrainerDashboard() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+          {today.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
         </p>
       </div>
 
