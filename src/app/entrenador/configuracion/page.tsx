@@ -53,7 +53,7 @@ export default function ConfiguracionPage() {
     const { data: studs } = await supabase
       .from("users")
       .select("id, full_name, email, can_edit_own_rms")
-      .eq("created_by", user!.id)
+      
       .eq("role", "student")
       .eq("active", true)
       .order("full_name");
@@ -82,7 +82,7 @@ export default function ConfiguracionPage() {
     const { data: profs } = await supabase
       .from("users")
       .select("id, full_name, email, active")
-      .eq("created_by", user!.id)
+      
       .eq("role", "professor")
       .order("full_name");
     setProfessors((profs || []) as any[]);

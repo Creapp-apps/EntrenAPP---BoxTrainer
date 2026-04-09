@@ -176,7 +176,7 @@ export default function NuevoPagoPage() {
       const { data } = await supabase
         .from("users")
         .select("id, full_name, email, phone, monthly_price")
-        .eq("role", "student").eq("created_by", user!.id).eq("active", true)
+        .eq("role", "student").eq("active", true)
         .order("full_name");
       setStudents((data || []) as Student[]);
     };

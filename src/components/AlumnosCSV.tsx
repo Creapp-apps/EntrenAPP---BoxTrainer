@@ -36,7 +36,7 @@ export default function AlumnosCSV() {
       .from("users")
       .select("full_name, email, phone, birth_date, weight_kg, height_cm, monthly_price, payment_due_day, modality, goals, injuries")
       .eq("role", "student")
-      .eq("created_by", user.id)
+      
       .order("full_name");
 
     if (!students || students.length === 0) {

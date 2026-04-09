@@ -22,13 +22,13 @@ export default async function TrainerDashboard() {
     { count: todayBookings },
   ] = await Promise.all([
     supabase.from("users").select("*", { count: "exact", head: true })
-      .eq("role", "student").eq("created_by", user!.id),
+      .eq("role", "student"),
     supabase.from("users").select("*", { count: "exact", head: true })
-      .eq("role", "student").eq("created_by", user!.id).eq("active", true),
+      .eq("role", "student").eq("active", true),
     supabase.from("student_payments").select("*, users(full_name, email)")
       .eq("trainer_id", user!.id).eq("status", "vencido"),
     supabase.from("users").select("*")
-      .eq("role", "student").eq("created_by", user!.id)
+      .eq("role", "student")
       .order("created_at", { ascending: false }).limit(5),
     // Ingresos del mes: pagos marcados como "pagado" en el mes actual
     supabase.from("student_payments").select("amount")

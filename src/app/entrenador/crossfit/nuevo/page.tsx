@@ -57,7 +57,7 @@ export default function NuevoCicloCFPage() {
       const { data: { user } } = await supabase.auth.getUser();
       const [{ data: studs }, { data: tmplts }] = await Promise.all([
         supabase.from("users").select("id, full_name")
-          .eq("role", "student").eq("created_by", user!.id).eq("active", true).order("full_name"),
+          .eq("role", "student").eq("active", true).order("full_name"),
         supabase.from("training_cycles").select("id, name, total_weeks, phase_structure")
           .eq("trainer_id", user!.id).eq("is_template", true).eq("cycle_type", "crossfit").order("name"),
       ]);

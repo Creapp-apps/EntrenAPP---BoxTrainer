@@ -30,7 +30,7 @@ export default async function AlumnosPage() {
     .from("users")
     .select("*")
     .eq("role", "student")
-    .eq("created_by", user!.id)
+    
     .order("full_name");
 
   // Fetch active subscriptions and overdue payments for all students in parallel

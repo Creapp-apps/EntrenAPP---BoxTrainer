@@ -1014,7 +1014,7 @@ export default function CicloDetailPage() {
       supabase.from("users")
         .select("id, full_name, training_cycles!training_cycles_student_id_fkey(id, name, active, is_template)")
         .eq("role", "student")
-        .eq("created_by", user!.id)
+        
         .order("full_name"),
     ]);
 
