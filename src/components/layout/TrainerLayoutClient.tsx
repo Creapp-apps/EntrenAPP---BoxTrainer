@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Dumbbell, Menu } from "lucide-react";
 import TrainerSidebar from "@/components/layout/TrainerSidebar";
+import TrainerBottomNav from "@/components/layout/TrainerBottomNav";
 import BoxOnboarding from "@/components/BoxOnboarding";
 
 export default function TrainerLayoutClient({
@@ -38,7 +39,7 @@ export default function TrainerLayoutClient({
           onComplete={() => { setShowOnboarding(false); router.refresh(); }}
         />
       )}
-      <div className="flex h-screen bg-muted/30 overflow-hidden">
+      <div className="flex h-[100dvh] bg-muted/30 overflow-hidden">
 
       {/* Mobile backdrop */}
       {sidebarOpen && (
@@ -66,11 +67,6 @@ export default function TrainerLayoutClient({
 
         {/* Mobile top bar */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 pt-safe bg-sidebar border-b border-sidebar-border shrink-0">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0">
-            <Menu className="w-5 h-5" />
-          </button>
           <div className="flex items-center gap-2 min-w-0">
             {boxData?.logo_url ? (
               <img src={boxData.logo_url} alt="" className="w-7 h-7 rounded-lg object-cover shrink-0" />
@@ -84,7 +80,7 @@ export default function TrainerLayoutClient({
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
           <div className="p-4 lg:p-6 max-w-7xl mx-auto">
             {children}
           </div>
@@ -92,6 +88,9 @@ export default function TrainerLayoutClient({
 
       </div>
       </div>
+      
+      {/* Mobile Bottom Nav */}
+      <TrainerBottomNav onMenuClick={() => setSidebarOpen(true)} />
     </>
   );
 }
