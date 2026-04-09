@@ -473,28 +473,28 @@ export default function ConfiguracionPage() {
                   toast.error("Completá todos los campos (contraseña mín 6 chars)"); return;
                 }
                 setSavingProf(true);
-                const supabase = createClient();
-                const { data: { user } } = await supabase.auth.getUser();
-                // Sign up the professor
-                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                  email: profForm.email,
-                  password: profForm.password,
-                });
-                if (signUpError) { toast.error(signUpError.message); setSavingProf(false); return; }
-                // Insert user profile
-                const { error: insertError } = await supabase.from("users").insert({
-                  id: signUpData.user!.id,
-                  email: profForm.email,
-                  full_name: profForm.name.trim(),
-                  role: "professor",
-                  created_by: user!.id,
-                  box_id: (await supabase.from("users").select("box_id").eq("id", user!.id).single()).data?.box_id,
-                  active: true,
-                });
-                if (insertError) { toast.error(insertError.message); setSavingProf(false); return; }
-                toast.success(`Profesor "${profForm.name}" creado`);
-                setShowProfModal(false);
-                loadSettings();
+                try {
+                  const res = await fetch("/api/create-professor", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      name: profForm.name,
+                      email: profForm.email,
+                      password: profForm.password,
+                    }),
+                  });
+                  const result = await res.json();
+                  if (!res.ok) {
+                    toast.error(result.error || "Error al crear profesor");
+                    setSavingProf(false);
+                    return;
+                  }
+                  toast.success(`Profesor "${profForm.name}" creado correctamente`);
+                  setShowProfModal(false);
+                  loadSettings();
+                } catch (err: any) {
+                  toast.error("Error de conexión");
+                }
                 setSavingProf(false);
               }}
                 className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-50">

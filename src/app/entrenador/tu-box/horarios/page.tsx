@@ -70,7 +70,7 @@ function diffMinutes(start: string, end: string): number {
 
 // ─── Slot form component (reused in create & edit) ─────────
 function SlotForm({
-  form, setForm, onSave, onCancel, saving, isNew,
+  form, setForm, onSave, onCancel, saving, isNew, activities, activeTab
 }: {
   form: EditingSlot;
   setForm: (f: EditingSlot) => void;
@@ -78,6 +78,8 @@ function SlotForm({
   onCancel: () => void;
   saving: boolean;
   isNew: boolean;
+  activities: { id: string; name: string }[];
+  activeTab: string;
 }) {
   // When start_time changes in a NEW form, auto-adjust end_time keeping same duration
   const handleStartChange = (newStart: string) => {
@@ -97,7 +99,7 @@ function SlotForm({
           <Plus className="w-3.5 h-3.5" /> Nuevo horario
         </p>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div>
           <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">Inicio</label>
           <input type="time" value={form.start_time}
@@ -123,6 +125,21 @@ function SlotForm({
             placeholder="Ej: Turno Mañana"
             className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
         </div>
+        {activeTab === "calendar" && (
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block mb-1">Actividad</label>
+            <select
+              value={form.activity_id}
+              onChange={e => setForm({ ...form, activity_id: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white"
+            >
+              <option value="" disabled>Seleccionar...</option>
+              {activities.map(act => (
+                <option key={act.id} value={act.id}>{act.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
       <div className="flex gap-2 mt-3">
         <button onClick={onSave} disabled={saving}
@@ -340,6 +357,7 @@ export default function HorariosPage() {
   async function saveSlot(dayOfWeek: number) {
     if (!slotForm.label.trim()) { toast.error("Ingresá una etiqueta"); return; }
     if (slotForm.start_time >= slotForm.end_time) { toast.error("Hora inicio debe ser anterior a fin"); return; }
+    if (activeTab === "calendar" && !slotForm.activity_id) { toast.error("Seleccioná la actividad de este turno"); return; }
 
     setSaving(true);
     const supabase = createClient();
@@ -634,7 +652,7 @@ export default function HorariosPage() {
                         {editingSlotId === slot.id ? (
                           <SlotForm form={slotForm} setForm={setSlotForm}
                             onSave={() => saveSlot(dayValue)} onCancel={cancelEditing}
-                            saving={saving} isNew={false} />
+                            saving={saving} isNew={false} activities={activities} activeTab={activeTab} />
                         ) : (
                           <div className={`flex items-center gap-4 px-5 py-3.5 group ${!slot.active ? "opacity-40" : ""}`}>
                             <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -685,7 +703,7 @@ export default function HorariosPage() {
                 {addingToDay === dayValue && (
                   <SlotForm form={slotForm} setForm={setSlotForm}
                     onSave={() => saveSlot(dayValue)} onCancel={cancelEditing}
-                    saving={saving} isNew={true} />
+                    saving={saving} isNew={true} activities={activities} activeTab={activeTab} />
                 )}
               </div>
             )}

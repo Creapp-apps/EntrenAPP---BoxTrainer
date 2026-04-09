@@ -39,37 +39,40 @@ export default async function HistorialPage() {
             const date = new Date(s.completed_at);
 
             return (
-              <div key={s.id} className="bg-white rounded-2xl shadow-sm border border-border p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Dumbbell className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground text-sm">
-                      {(day?.label as string) || "Entrenamiento"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {cycle?.name} · Semana {week?.week_number as number}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="text-xs bg-muted px-2 py-1 rounded-full">
-                        {(s.exercise_logs as unknown[])?.length || 0} ejercicios
-                      </span>
-                      {s.rpe_overall && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
-                          RPE {s.rpe_overall}/10
+              <Link key={s.id} href={`/alumno/historial/${s.id}`} className="block">
+                <div className="bg-white rounded-2xl shadow-sm border border-border p-4 hover:border-primary/40 hover:shadow-md transition-all group">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Dumbbell className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground text-sm group-hover:text-primary transition-colors">
+                        {(day?.label as string) || "Entrenamiento"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {cycle?.name} · Semana {week?.week_number as number}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {date.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-xs bg-muted px-2 py-1 rounded-full">
+                          {(s.exercise_logs as unknown[])?.length || 0} ejercicios
                         </span>
+                        {s.rpe_overall && (
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+                            RPE {s.rpe_overall}/10
+                          </span>
+                        )}
+                      </div>
+                      {s.comments && (
+                        <p className="text-xs text-muted-foreground mt-2 italic">"{s.comments}"</p>
                       )}
                     </div>
-                    {s.comments && (
-                      <p className="text-xs text-muted-foreground mt-2 italic">"{s.comments}"</p>
-                    )}
+                    <ChevronRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0 mt-3" />
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })
         ) : (
