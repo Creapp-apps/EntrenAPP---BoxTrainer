@@ -101,7 +101,8 @@ export default async function StudentHome() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-sidebar text-white px-4 pt-12 pb-8">
+      <div className="bg-sidebar text-white px-4 pt-safe pb-8">
+        <div className="pt-6">
         <p className="text-white/60 text-sm">{dateCapitalized}</p>
         <h1 className="text-2xl font-bold mt-1">¡Hola, {profile?.full_name?.split(" ")[0]}!</h1>
         {currentWeek && (
@@ -114,6 +115,7 @@ export default async function StudentHome() {
             </span>
           </div>
         )}
+        </div>
       </div>
 
       <div className="px-4 -mt-4 space-y-4 pb-8">

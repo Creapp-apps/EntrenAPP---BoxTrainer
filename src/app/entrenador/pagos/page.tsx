@@ -382,13 +382,13 @@ export default function PagosPage() {
                     )}
                     {/* Editar */}
                     <button onClick={() => setEditingPayment(payment)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors lg:opacity-0 lg:group-hover:opacity-100"
                       title="Editar pago">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     {/* Eliminar */}
                     <button onClick={() => deletePayment(payment)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors lg:opacity-0 lg:group-hover:opacity-100"
                       title="Eliminar pago">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

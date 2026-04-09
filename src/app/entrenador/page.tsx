@@ -36,11 +36,12 @@ export default async function TrainerDashboard() {
       .eq("status", "pagado")
       .gte("paid_at", monthStart)
       .lte("paid_at", monthEnd),
-    // Turnos hoy: bookings confirmados para hoy
+    // Turnos hoy: bookings confirmados para hoy en slots del trainer
     supabase.from("bookings")
-      .select("id", { count: "exact", head: true })
+      .select("id, box_schedule_slots!inner(trainer_id)", { count: "exact", head: true })
       .eq("booking_date", todayStr)
-      .eq("status", "confirmada"),
+      .eq("status", "confirmada")
+      .eq("box_schedule_slots.trainer_id", user!.id),
   ]);
 
   const monthlyIncome = (paidThisMonth || []).reduce((sum, p) => sum + (p.amount || 0), 0);
@@ -93,7 +94,7 @@ export default async function TrainerDashboard() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {stats.map(({ label, value, total, icon: Icon, color, bg, href, alert }) => (
           <Link key={label} href={href}
             className="bg-white rounded-2xl p-5 shadow-sm border border-border hover:shadow-md transition-shadow">

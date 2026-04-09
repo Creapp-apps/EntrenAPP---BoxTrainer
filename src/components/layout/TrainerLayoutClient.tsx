@@ -65,7 +65,7 @@ export default function TrainerLayoutClient({
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* Mobile top bar */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-sidebar border-b border-sidebar-border shrink-0">
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 pt-safe bg-sidebar border-b border-sidebar-border shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0">

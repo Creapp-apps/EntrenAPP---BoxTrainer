@@ -66,7 +66,8 @@ export default async function DetalleHistorialPage({ params }: { params: { id: s
       {/* Header */}
       <div className="bg-sidebar text-white shadow-md relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent pointer-events-none" />
-        <div className="px-4 pt-12 pb-6 relative z-10">
+        <div className="px-4 pt-safe pb-6 relative z-10">
+          <div className="pt-4">
           <Link href="/alumno/historial" className="inline-flex items-center gap-2 text-white/70 hover:text-white mb-5 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Volver al historial
           </Link>
@@ -90,6 +91,7 @@ export default async function DetalleHistorialPage({ params }: { params: { id: s
           <p className="text-primary-foreground/70 text-xs mt-1">
             {cycle?.name} · Semana {week?.week_number as number}
           </p>
+          </div>
         </div>
       </div>
 
