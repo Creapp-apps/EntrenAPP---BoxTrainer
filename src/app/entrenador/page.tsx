@@ -94,22 +94,22 @@ export default async function TrainerDashboard() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }} className="lg:!grid-cols-4">
         {stats.map(({ label, value, total, icon: Icon, color, bg, href, alert }) => (
           <Link key={label} href={href}
-            className="bg-white rounded-2xl p-5 shadow-sm border border-border hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`${bg} p-2.5 rounded-xl`}>
-                <Icon className={`w-5 h-5 ${color}`} />
+            className="bg-white rounded-2xl p-3 sm:p-5 shadow-sm border border-border hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2 sm:mb-4">
+              <div className={`${bg} p-2 sm:p-2.5 rounded-xl`}>
+                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${color}`} />
               </div>
               {alert && (value as number) > 0 && (
-                <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                  Urgente
+                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  !
                 </span>
               )}
             </div>
-            <p className="text-2xl font-bold text-foreground">{value}</p>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="text-xl sm:text-2xl font-bold text-foreground">{value}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               {label}
               {total !== undefined && (
                 <span className="text-xs ml-1">/ {total} total</span>

@@ -86,10 +86,11 @@
 
 /* PWA safe area support */
 .pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .pt-safe {
-  padding-top: env(safe-area-inset-top);
+  /* min 12px even on non-notch devices, but respects notch when present */
+  padding-top: max(12px, env(safe-area-inset-top, 12px));
 }
 
 /* ─── Box Theme Presets ─── */
