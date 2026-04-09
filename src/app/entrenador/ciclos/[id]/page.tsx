@@ -984,10 +984,11 @@ export default function CicloDetailPage() {
   const [transferTarget, setTransferTarget] = useState<{ studentId: string; studentCycleId: string } | null>(null);
   const [allCycles, setAllCycles] = useState<{ id: string; name: string; student_id: string | null; is_template: boolean }[]>([]);
   const [weekMenuOpen, setWeekMenuOpen] = useState<string | null>(null);
-  const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set());
+  // tracks which blocks are EXPANDED (empty = all collapsed by default)
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
 
   const toggleBlock = (blockId: string) => {
-    setCollapsedBlocks(prev => {
+    setExpandedBlocks(prev => {
       const next = new Set(prev);
       if (next.has(blockId)) next.delete(blockId);
       else next.add(blockId);
@@ -1974,7 +1975,7 @@ export default function CicloDetailPage() {
                   {!day.is_rest && day.expanded && (
                     <div className="px-5 pb-4 space-y-4">
                       {day.blocks.map(block => {
-                        const isCollapsed = collapsedBlocks.has(block.id);
+                        const isCollapsed = !expandedBlocks.has(block.id);
                         const exerciseCount = block.training_exercises.length;
                         return (
                         <div key={block.id} className={`rounded-xl border transition-all duration-200 ${

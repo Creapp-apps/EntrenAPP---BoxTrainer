@@ -216,9 +216,10 @@ export default function CrossfitCycleEditorPage() {
   const [showNewEx, setShowNewEx] = useState(false);
   const [newExForm, setNewExForm] = useState({ name: "", category: "weightlifting", default_unit: "reps" });
   
-  const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set());
+  // tracks which blocks are EXPANDED (empty set = all collapsed by default)
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const toggleBlock = (blockId: string) => {
-    setCollapsedBlocks(prev => {
+    setExpandedBlocks(prev => {
       const next = new Set(prev);
       if (next.has(blockId)) next.delete(blockId);
       else next.add(blockId);
@@ -697,41 +698,66 @@ export default function CrossfitCycleEditorPage() {
                           const blockMeta = BLOCK_TYPES.find(bt => bt.value === block.type);
                           const Icon = blockMeta?.icon || Flame;
 
-                          const isCollapsed = collapsedBlocks.has(block.id);
+                          const isCollapsed = !expandedBlocks.has(block.id);
                           const hasExercises = block.cf_exercises.length > 0;
+                          const exCount = block.cf_exercises.length;
 
                           return (
                             <div key={block.id} className={`border transition-all duration-200 rounded-xl overflow-hidden ${isCollapsed ? "border-border/60 bg-muted/20 hover:bg-muted/30" : "border-border bg-white"}`}>
-                              {/* Block header */}
-                              <div className={`flex items-center gap-2 ${isCollapsed ? "px-4 py-3" : "px-4 py-3 bg-muted/30"}`}>
-                                <button onClick={() => hasExercises && toggleBlock(block.id)}
-                                  className={`flex items-center gap-2 flex-1 text-left ${hasExercises ? "cursor-pointer" : "cursor-default"}`}>
-                                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${blockMeta?.color || "bg-gray-100"}`}>
-                                    <Icon className="w-3.5 h-3.5" />
-                                  </div>
-                                  <span className="text-sm font-semibold text-foreground flex-1">{block.name}</span>
-                                </button>
-
-                                {/* WOD type selector for metcon */}
-                                {block.type === "metcon" && (
-                                  <select
-                                    value={block.wod_type || ""}
-                                    onChange={e => updateWodType(week.id, day.id, block.id, e.target.value)}
-                                    className="text-xs px-2 py-1 rounded-lg border border-border bg-white font-medium focus:ring-2 focus:ring-orange-500 focus:outline-none">
-                                    {WOD_TYPES.map(wt => (
-                                      <option key={wt.value} value={wt.value}>{wt.icon} {wt.label}</option>
-                                    ))}
-                                  </select>
+                              {/* Block header — always visible accordion */}
+                              <button
+                                onClick={() => toggleBlock(block.id)}
+                                className="w-full flex items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/40">
+                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${blockMeta?.color || "bg-gray-100"}`}>
+                                  <Icon className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="text-sm font-semibold text-foreground flex-1">{block.name}</span>
+                                {/* Exercise count badge when collapsed */}
+                                {isCollapsed && exCount > 0 && (
+                                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+                                    {exCount} ej.
+                                  </span>
                                 )}
-
-                                <button onClick={() => deleteBlock(week.id, day.id, block.id)}
-                                  className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors z-10 shrink-0">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                                {block.type === "metcon" && block.wod_type && isCollapsed && (
+                                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+                                    {block.wod_type.toUpperCase()}
+                                  </span>
+                                )}
+                                {isCollapsed
+                                  ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                                  : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                                }
+                              </button>
 
                               {!isCollapsed && (
                                 <>
+                                  {/* WOD type selector for metcon — shown when expanded */}
+                                  {block.type === "metcon" && (
+                                    <div className="px-4 pb-2 flex items-center gap-2 bg-muted/20 border-t border-border/40">
+                                      <span className="text-xs text-muted-foreground">Tipo WOD:</span>
+                                      <select
+                                        value={block.wod_type || ""}
+                                        onClick={e => e.stopPropagation()}
+                                        onChange={e => updateWodType(week.id, day.id, block.id, e.target.value)}
+                                        className="text-xs px-2 py-1 rounded-lg border border-border bg-white font-medium focus:ring-2 focus:ring-orange-500 focus:outline-none flex-1">
+                                        {WOD_TYPES.map(wt => (
+                                          <option key={wt.value} value={wt.value}>{wt.icon} {wt.label}</option>
+                                        ))}
+                                      </select>
+                                      <button onClick={() => deleteBlock(week.id, day.id, block.id)}
+                                        className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                  {block.type !== "metcon" && (
+                                    <div className="flex justify-end px-3 pb-1 -mt-1">
+                                      <button onClick={() => deleteBlock(week.id, day.id, block.id)}
+                                        className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
                                   {/* WOD config fields */}
                                   {block.type === "metcon" && block.wod_type && (
                                     <div className="px-4 py-3 border-b border-border/50 bg-orange-50/50">
