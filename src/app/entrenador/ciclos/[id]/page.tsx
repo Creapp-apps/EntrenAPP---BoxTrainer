@@ -1974,7 +1974,7 @@ export default function CicloDetailPage() {
                   {!day.is_rest && day.expanded && (
                     <div className="px-5 pb-4 space-y-4">
                       {day.blocks.map(block => {
-                        const isCollapsed = !expandedBlocks.has(block.id);
+                        const isCollapsed = collapsedBlocks.has(block.id);
                         const exerciseCount = block.training_exercises.length;
                         return (
                         <div key={block.id} className={`rounded-xl border transition-all duration-200 ${

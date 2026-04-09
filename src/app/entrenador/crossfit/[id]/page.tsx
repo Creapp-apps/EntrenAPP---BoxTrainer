@@ -215,6 +215,16 @@ export default function CrossfitCycleEditorPage() {
   // New exercise inline creation
   const [showNewEx, setShowNewEx] = useState(false);
   const [newExForm, setNewExForm] = useState({ name: "", category: "weightlifting", default_unit: "reps" });
+  
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set());
+  const toggleBlock = (blockId: string) => {
+    setCollapsedBlocks(prev => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  };
 
   const supabase = createClient();
 
@@ -687,14 +697,20 @@ export default function CrossfitCycleEditorPage() {
                           const blockMeta = BLOCK_TYPES.find(bt => bt.value === block.type);
                           const Icon = blockMeta?.icon || Flame;
 
+                          const isCollapsed = collapsedBlocks.has(block.id);
+                          const hasExercises = block.cf_exercises.length > 0;
+
                           return (
-                            <div key={block.id} className="border border-border rounded-xl overflow-hidden">
+                            <div key={block.id} className={`border transition-all duration-200 rounded-xl overflow-hidden ${isCollapsed ? "border-border/60 bg-muted/20 hover:bg-muted/30" : "border-border bg-white"}`}>
                               {/* Block header */}
-                              <div className="flex items-center gap-2 px-4 py-3 bg-muted/30">
-                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${blockMeta?.color || "bg-gray-100"}`}>
-                                  <Icon className="w-3.5 h-3.5" />
-                                </div>
-                                <span className="text-sm font-semibold text-foreground flex-1">{block.name}</span>
+                              <div className={`flex items-center gap-2 ${isCollapsed ? "px-4 py-3" : "px-4 py-3 bg-muted/30"}`}>
+                                <button onClick={() => hasExercises && toggleBlock(block.id)}
+                                  className={`flex items-center gap-2 flex-1 text-left ${hasExercises ? "cursor-pointer" : "cursor-default"}`}>
+                                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${blockMeta?.color || "bg-gray-100"}`}>
+                                    <Icon className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-sm font-semibold text-foreground flex-1">{block.name}</span>
+                                </button>
 
                                 {/* WOD type selector for metcon */}
                                 {block.type === "metcon" && (
@@ -709,15 +725,17 @@ export default function CrossfitCycleEditorPage() {
                                 )}
 
                                 <button onClick={() => deleteBlock(week.id, day.id, block.id)}
-                                  className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                  className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors z-10 shrink-0">
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
 
-                              {/* WOD config fields */}
-                              {block.type === "metcon" && block.wod_type && (
-                                <div className="px-4 py-3 border-b border-border/50 bg-orange-50/50">
-                                  <WodConfigFields
+                              {!isCollapsed && (
+                                <>
+                                  {/* WOD config fields */}
+                                  {block.type === "metcon" && block.wod_type && (
+                                    <div className="px-4 py-3 border-b border-border/50 bg-orange-50/50">
+                                      <WodConfigFields
                                     wodType={block.wod_type}
                                     config={block.wod_config || {}}
                                     onChange={(config) => updateWodConfig(week.id, day.id, block.id, config)}
@@ -770,14 +788,15 @@ export default function CrossfitCycleEditorPage() {
                                   </div>
                                 ))}
 
-                                {/* Add exercise button */}
-                                <button
-                                  onClick={() => setShowExPicker({ blockId: block.id, dayId: day.id })}
-                                  className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-orange-600 hover:bg-orange-50 transition-colors">
-                                  <Plus className="w-4 h-4" />
-                                  Agregar ejercicio
-                                </button>
-                              </div>
+                                  {/* Add exercise button */}
+                                  <button
+                                    onClick={() => setShowExPicker({ blockId: block.id, dayId: day.id })}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-orange-600 hover:bg-orange-50 transition-colors">
+                                    <Plus className="w-4 h-4" />
+                                    Agregar ejercicio
+                                  </button>
+                                </div>
+                              </>)}
                             </div>
                           );
                         })}
