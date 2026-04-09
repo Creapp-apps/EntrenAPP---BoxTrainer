@@ -39,7 +39,7 @@ export default function TrainerLayoutClient({
           onComplete={() => { setShowOnboarding(false); router.refresh(); }}
         />
       )}
-      <div className="flex h-[100dvh] bg-muted/30 overflow-hidden">
+      <div className="flex flex-col lg:flex-row min-h-[100dvh] bg-muted/30 overflow-x-hidden">
 
       {/* Mobile backdrop */}
       {sidebarOpen && (
@@ -63,10 +63,10 @@ export default function TrainerLayoutClient({
       </div>
 
       {/* Right side: mobile header + content */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col min-w-0">
 
         {/* Mobile top bar */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 pt-safe bg-sidebar border-b border-sidebar-border shrink-0">
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 pt-safe bg-sidebar border-b border-sidebar-border sticky top-0 z-30">
           <div className="flex items-center gap-2 min-w-0">
             {boxData?.logo_url ? (
               <img src={boxData.logo_url} alt="" className="w-7 h-7 rounded-lg object-cover shrink-0" />
@@ -80,7 +80,7 @@ export default function TrainerLayoutClient({
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+        <main className="flex-1 pb-24 lg:pb-6 overflow-y-auto">
           <div className="p-4 lg:p-6 max-w-7xl mx-auto">
             {children}
           </div>
