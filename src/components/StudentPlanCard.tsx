@@ -50,7 +50,7 @@ export default function StudentPlanCard({ studentId, modality }: { studentId: st
         .limit(1),
       supabase.from("plans")
         .select("*")
-        .eq("trainer_id", user.id)
+        
         .eq("active", true)
         .order("name"),
       supabase.from("bookings")

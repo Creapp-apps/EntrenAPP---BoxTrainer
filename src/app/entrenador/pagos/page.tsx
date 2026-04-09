@@ -182,7 +182,7 @@ export default function PagosPage() {
     const { data, error } = await supabase
       .from("student_payments")
       .select("*, users!student_payments_student_id_fkey(full_name, email)")
-      .eq("trainer_id", user.id)
+      
       .order("due_date", { ascending: false });
 
     if (error) toast.error("Error cargando pagos");

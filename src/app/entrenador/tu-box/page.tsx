@@ -39,13 +39,13 @@ export default function TuBoxPage() {
     const [slotsRes, plansRes, bookingsRes] = await Promise.all([
       supabase.from("box_schedule_slots")
         .select("*")
-        .eq("trainer_id", user.id)
+        
         .eq("active", true)
         .order("day_of_week")
         .order("start_time"),
       supabase.from("plans")
         .select("*")
-        .eq("trainer_id", user.id)
+        
         .eq("active", true),
       supabase.from("bookings")
         .select("*, users!bookings_student_id_fkey(full_name, email), box_schedule_slots(label, start_time, end_time)")

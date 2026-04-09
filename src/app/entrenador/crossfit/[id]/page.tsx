@@ -330,7 +330,7 @@ export default function CrossfitCycleEditorPage() {
     const { data: cfExs } = await supabase
       .from("cf_exercises")
       .select("id, name, category, default_unit, video_url")
-      .eq("trainer_id", user.id)
+      
       .eq("archived", false)
       .order("name");
     setCfExercises(cfExs || []);

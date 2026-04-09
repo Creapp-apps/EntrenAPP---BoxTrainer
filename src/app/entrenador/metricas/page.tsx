@@ -68,7 +68,7 @@ export default function MetricasPage() {
     const { data: typeData } = await supabase
       .from("adherence_by_cycle_type")
       .select("*")
-      .eq("trainer_id", user.id);
+      ;
     if (typeData) setByType(typeData as unknown as AdherenceByType[]);
 
     setLoading(false);

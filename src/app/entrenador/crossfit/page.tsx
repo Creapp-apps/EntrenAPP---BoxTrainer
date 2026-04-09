@@ -33,7 +33,7 @@ export default function CrossfitPage() {
       const { data } = await supabase
         .from("training_cycles")
         .select("*, users!training_cycles_student_id_fkey(full_name)")
-        .eq("trainer_id", user!.id)
+        
         .eq("cycle_type", "crossfit")
         .order("created_at", { ascending: false });
       setCycles((data as Cycle[]) || []);

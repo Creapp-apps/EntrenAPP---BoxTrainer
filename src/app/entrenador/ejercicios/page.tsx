@@ -57,9 +57,9 @@ export default function EjerciciosPage() {
     const { data: { user } } = await supabase.auth.getUser();
     const [{ data: exs }, { data: cfs }] = await Promise.all([
       supabase.from("exercises").select("id, name, category, muscle_group, video_url")
-        .eq("trainer_id", user!.id).eq("archived", false).order("name"),
+        .eq("archived", false).order("name"),
       supabase.from("cf_exercises").select("id, name, category, default_unit, video_url")
-        .eq("trainer_id", user!.id).eq("archived", false).order("name"),
+        .eq("archived", false).order("name"),
     ]);
     setExercises(exs || []);
     setCfExercises(cfs || []);

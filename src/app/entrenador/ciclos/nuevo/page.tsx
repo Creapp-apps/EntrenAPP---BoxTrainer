@@ -59,7 +59,7 @@ export default function NuevoCicloPage() {
         supabase.from("users").select("id, full_name")
           .eq("role", "student").eq("active", true).order("full_name"),
         supabase.from("training_cycles").select("id, name, total_weeks, phase_structure")
-          .eq("trainer_id", user!.id).eq("is_template", true).order("name"),
+          .eq("is_template", true).order("name"),
       ]);
       setStudents(studs || []);
       setTemplates((tmplts as Template[]) || []);

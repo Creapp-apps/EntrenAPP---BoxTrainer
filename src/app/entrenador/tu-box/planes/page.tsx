@@ -52,8 +52,8 @@ export default function PlanesPage() {
     if (!user) return;
 
     const [plansRes, actRes] = await Promise.all([
-      supabase.from("plans").select("*").eq("trainer_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("box_activities").select("id, name, color").eq("trainer_id", user.id).eq("active", true).order("name"),
+      supabase.from("plans").select("*").order("created_at", { ascending: false }),
+      supabase.from("box_activities").select("id, name, color").eq("active", true).order("name"),
     ]);
     setPlans((plansRes.data || []) as Plan[]);
     setActivities((actRes.data || []) as Activity[]);

@@ -62,7 +62,7 @@ export default function ConfiguracionPage() {
     const { data: cycles } = await supabase
       .from("training_cycles")
       .select("student_id, cycle_type")
-      .eq("trainer_id", user!.id)
+      
       .eq("active", true)
       .eq("is_template", false);
 
@@ -91,7 +91,7 @@ export default function ConfiguracionPage() {
     const { data, error } = await supabase
       .from("trainer_settings")
       .select("common_variants")
-      .eq("trainer_id", user!.id)
+      
       .single();
 
     setVariants(error || !data ? DEFAULT_VARIANTS : (data.common_variants || DEFAULT_VARIANTS));

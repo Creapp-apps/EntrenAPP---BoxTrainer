@@ -35,7 +35,7 @@ export default function ActividadesPage() {
     const { data } = await supabase
       .from("box_activities")
       .select("*")
-      .eq("trainer_id", user!.id)
+      
       .order("created_at");
     setActivities((data || []) as Activity[]);
     setLoading(false);

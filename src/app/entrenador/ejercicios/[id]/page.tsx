@@ -71,7 +71,7 @@ export default function EjercicioDetailPage() {
       const [{ data: ex }, { data: vars }, { data: settings }] = await Promise.all([
         supabase.from("exercises").select("*").eq("id", id).single(),
         supabase.from("exercise_variants").select("*").eq("exercise_id", id).order("order"),
-        supabase.from("trainer_settings").select("common_variants").eq("trainer_id", user!.id).single(),
+        supabase.from("trainer_settings").select("common_variants").single(),
       ]);
       setExercise(ex);
       setEditForm(ex);

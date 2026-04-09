@@ -276,9 +276,9 @@ export default function HorariosPage() {
 
     const [slotsRes, actRes] = await Promise.all([
       supabase.from("box_schedule_slots").select("*")
-        .eq("trainer_id", user.id).order("day_of_week").order("start_time"),
+        .order("day_of_week").order("start_time"),
       supabase.from("box_activities").select("id, name, color")
-        .eq("trainer_id", user.id).eq("active", true).order("name"),
+        .eq("active", true).order("name"),
     ]);
     setSlots((slotsRes.data || []) as BoxScheduleSlot[]);
     const acts = (actRes.data || []) as Activity[];

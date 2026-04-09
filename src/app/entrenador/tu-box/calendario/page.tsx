@@ -59,7 +59,7 @@ export default function CalendarioPage() {
       supabase.rpc("get_available_slots", { p_trainer_id: user.id, p_date: dateStr }),
       supabase.from("box_blocked_dates")
         .select("*")
-        .eq("trainer_id", user.id)
+        
         .eq("blocked_date", dateStr),
     ]);
 

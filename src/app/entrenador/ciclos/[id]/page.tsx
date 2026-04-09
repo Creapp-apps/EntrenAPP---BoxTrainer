@@ -1138,7 +1138,7 @@ export default function CicloDetailPage() {
     const { data: allCyclesData } = await supabase
       .from("training_cycles")
       .select("id, name, student_id, is_template")
-      .eq("trainer_id", user!.id)
+      
       .order("name");
     if (allCyclesData) setAllCycles(allCyclesData);
 
