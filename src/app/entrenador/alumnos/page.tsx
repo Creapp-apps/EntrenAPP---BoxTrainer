@@ -3,6 +3,7 @@ import { Users, Plus, Search, MessageCircle, Ticket, AlertCircle, Clock } from "
 import Link from "next/link";
 import { getInitials, formatCurrency } from "@/lib/utils";
 import AlumnosCSV from "@/components/AlumnosCSV";
+import InviteStudentModal from "@/components/InviteStudentModal";
 
 function whatsappUrl(phone: string) {
   const clean = phone.replace(/[^\d+]/g, "");
@@ -25,6 +26,13 @@ function daysUntil(dateStr: string): number {
 export default async function AlumnosPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  // Obtener los datos del entrenador para sacar el box_id
+  const { data: trainer } = await supabase
+    .from("users")
+    .select("box_id")
+    .eq("id", user?.id)
+    .single();
 
   const { data: students } = await supabase
     .from("users")
@@ -80,11 +88,14 @@ export default async function AlumnosPage() {
           <h1 className="text-2xl font-bold text-foreground">Alumnos</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{students?.length ?? 0} alumnos registrados</p>
         </div>
-        <Link href="/entrenador/alumnos/nuevo"
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-          <Plus className="w-4 h-4" />
-          Nuevo alumno
-        </Link>
+        <div className="flex items-center gap-2">
+          <InviteStudentModal boxId={trainer?.box_id} />
+          <Link href="/entrenador/alumnos/nuevo"
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
+            <Plus className="w-4 h-4" />
+            Nuevo alumno
+          </Link>
+        </div>
       </div>
 
       {/* CSV Actions */}

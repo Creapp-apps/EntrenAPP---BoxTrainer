@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, X, Settings, RotateCcw, Loader2, Check, Shield, Users, Trophy, Search, GraduationCap, Trash2 } from "lucide-react";
+import { Plus, X, Settings, RotateCcw, Loader2, Check, Shield, Users, Trophy, Search, GraduationCap, Trash2, DownloadCloud } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_VARIANTS = [
@@ -42,6 +42,7 @@ export default function ConfiguracionPage() {
   const [showProfModal, setShowProfModal] = useState(false);
   const [profForm, setProfForm] = useState({ name: "", email: "", password: "" });
   const [savingProf, setSavingProf] = useState(false);
+  const [downloadingBackup, setDownloadingBackup] = useState(false);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -186,6 +187,42 @@ export default function ConfiguracionPage() {
     if (!confirm("¿Restaurar variantes por defecto?")) return;
     setVariants(DEFAULT_VARIANTS);
     saveVariants(DEFAULT_VARIANTS);
+  }
+
+  async function handleDownloadBackup() {
+    setDownloadingBackup(true);
+    try {
+      const response = await fetch("/api/backup");
+      if (!response.ok) {
+        throw new Error("Error al generar el respaldo.");
+      }
+
+      // Leer blob del stream y activar descarga en el cliente
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      // Extraer filename opcional del header
+      const disposition = response.headers.get("content-disposition");
+      let filename = "backup_entrenapp.json";
+      if (disposition && disposition.indexOf("filename=") !== -1) {
+        filename = disposition.split("filename=")[1].replace(/"/g, "");
+      }
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success("¡Copia de seguridad generada y descargada!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Ocurrió un error generando el archivo de respaldo.");
+    } finally {
+      setDownloadingBackup(false);
+    }
   }
 
   if (loading) {
@@ -506,6 +543,40 @@ export default function ConfiguracionPage() {
           </div>
         </div>
       )}
+      {/* ─── Copia de Seguridad y Respaldo ──────────────────── */}
+      <div className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+            <DownloadCloud className="w-5 h-5 text-blue-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-semibold text-foreground">Copia de Seguridad / Respaldo</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Generá y descargá un archivo con toda tu información: planificación, alumnos, variantes y cobros. Este archivo te permite tener un resguardo local frente a pérdidas de datos catastróficas.
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <button
+            onClick={handleDownloadBackup}
+            disabled={downloadingBackup}
+            className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 px-4 rounded-xl transition disabled:opacity-60 shadow-sm shadow-slate-100"
+          >
+            {downloadingBackup ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Agrupando información...
+              </>
+            ) : (
+              <>
+                <DownloadCloud className="w-4 h-4" />
+                Descargar Backup del Box
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { Database, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SuperAdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -16,6 +19,40 @@ export default function SuperAdminDashboard() {
       setLoading(false);
     })();
   }, []);
+
+  const handleDownloadBackup = async () => {
+    setDownloading(true);
+    try {
+      const response = await fetch("/api/backup");
+      if (!response.ok) {
+        throw new Error("Fallo en la descarga del Backup.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      const disposition = response.headers.get("content-disposition");
+      let filename = "backup_global_total.json";
+      if (disposition && disposition.indexOf("filename=") !== -1) {
+        filename = disposition.split("filename=")[1].replace(/"/g, "");
+      }
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success("¡Respaldo global de base de datos descargado!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error generando la copia de seguridad del tenant.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -84,8 +121,8 @@ export default function SuperAdminDashboard() {
         ))}
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Quick stats & tools */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
           <h3 className="text-sm font-medium text-white/60 mb-4">Resumen</h3>
           <div className="space-y-3">
@@ -117,6 +154,27 @@ export default function SuperAdminDashboard() {
             Abrir gestión →
           </span>
         </Link>
+
+        <button
+          onClick={handleDownloadBackup}
+          disabled={downloading}
+          className="rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] p-6 flex flex-col items-center justify-center text-center gap-4 transition-all disabled:opacity-50 group"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+            {downloading ? (
+              <Loader2 className="w-7 h-7 text-orange-400 animate-spin" />
+            ) : (
+              <Database className="w-7 h-7 text-orange-400" />
+            )}
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-white">Backup del Sistema</p>
+            <p className="text-sm text-white/40 mt-0.5">Generar respaldo completo JSON global</p>
+          </div>
+          <span className="text-sm text-orange-400 font-medium">
+            {downloading ? "Preparando datos..." : "Generar Respaldo →"}
+          </span>
+        </button>
       </div>
     </div>
   );
