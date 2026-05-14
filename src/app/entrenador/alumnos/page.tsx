@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getInitials, formatCurrency } from "@/lib/utils";
 import AlumnosCSV from "@/components/AlumnosCSV";
 import InviteStudentModal from "@/components/InviteStudentModal";
+import StudentActionMenu from "@/components/StudentActionMenu";
 
 function whatsappUrl(phone: string) {
   const clean = phone.replace(/[^\d+]/g, "");
@@ -124,7 +125,8 @@ export default async function AlumnosPage() {
 
             return (
               <div key={student.id} className="relative group bg-white rounded-2xl shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all overflow-hidden">
-                
+                <StudentActionMenu studentId={student.id} studentName={student.full_name || ""} currentStatus={student.status} />
+
                 {/* Payment urgency top stripe */}
                 {alert && alert.overdue > 0 && (
                   <div className="h-1 bg-gradient-to-r from-red-500 to-red-400 w-full" />
@@ -144,11 +146,17 @@ export default async function AlumnosPage() {
 
                       {/* Tags row: estado + modalidad */}
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                          student.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          {student.active ? "Activo" : "Inactivo"}
-                        </span>
+                        {student.status === "paused" ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">Pausado</span>
+                        ) : student.status === "suspended" ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Suspendido</span>
+                        ) : (
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                            student.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {student.active ? "Activo" : "Inactivo"}
+                          </span>
+                        )}
                         {modalityConf && (
                           <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${modalityConf.color}`}>
                             {modalityConf.label}

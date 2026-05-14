@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Users, CreditCard, TrendingUp, AlertCircle, Activity } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
+import QuickAnnouncementPanel from "@/components/QuickAnnouncementPanel";
 
 export default async function TrainerDashboard() {
   const supabase = await createClient();
@@ -12,7 +13,14 @@ export default async function TrainerDashboard() {
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59).toISOString();
   const todayStr = today.toISOString().split("T")[0];
 
-  // Métricas
+  // Obtener Perfil para sacar box_id
+  const { data: profile } = await supabase
+    .from("users")
+    .select("box_id")
+    .eq("id", user!.id)
+    .single();
+
+  // Métricas + Listas de Apoyo
   const [
     { count: totalStudents },
     { count: activeStudents },
@@ -20,29 +28,51 @@ export default async function TrainerDashboard() {
     { data: recentStudents },
     { data: paidThisMonth },
     { count: todayBookings },
+    studentsListRes,
+    announcementsRes,
   ] = await Promise.all([
     supabase.from("users").select("*", { count: "exact", head: true })
-      .eq("role", "student"),
+      .eq("role", "student")
+      .eq("box_id", profile?.box_id),
     supabase.from("users").select("*", { count: "exact", head: true })
-      .eq("role", "student").eq("active", true),
-    supabase.from("student_payments").select("*, users(full_name, email)")
-      .eq("status", "vencido"),
+      .eq("role", "student")
+      .eq("active", true)
+      .eq("box_id", profile?.box_id),
+    supabase.from("student_payments").select("*, users!inner(full_name, email, box_id)")
+      .eq("status", "vencido")
+      .eq("users.box_id", profile?.box_id),
     supabase.from("users").select("*")
       .eq("role", "student")
+      .eq("box_id", profile?.box_id)
       .order("created_at", { ascending: false }).limit(5),
-    // Ingresos del mes: pagos marcados como "pagado" en el mes actual
-    supabase.from("student_payments").select("amount")
-      
+    // Ingresos del mes
+    supabase.from("student_payments").select("amount, users!inner(box_id)")
       .eq("status", "pagado")
+      .eq("users.box_id", profile?.box_id)
       .gte("paid_at", monthStart)
       .lte("paid_at", monthEnd),
-    // Turnos hoy: bookings confirmados para hoy en slots del trainer
+    // Turnos hoy
     supabase.from("bookings")
       .select("id, box_schedule_slots!inner(trainer_id)", { count: "exact", head: true })
       .eq("booking_date", todayStr)
       .eq("status", "confirmada")
       .eq("box_schedule_slots.trainer_id", user!.id),
+    // Lista de estudiantes para selectores
+    supabase.from("users")
+      .select("id, full_name")
+      .eq("role", "student")
+      .eq("box_id", profile?.box_id)
+      .order("full_name"),
+    // Anuncios recientes del Box
+    supabase.from("box_announcements")
+      .select("*")
+      .eq("box_id", profile?.box_id)
+      .order("created_at", { ascending: false })
+      .limit(10),
   ]);
+
+  const boxStudents = studentsListRes.data || [];
+  const recentAnnouncements = announcementsRes.data || [];
 
   const monthlyIncome = (paidThisMonth || []).reduce((sum, p) => sum + (p.amount || 0), 0);
 
@@ -199,6 +229,19 @@ export default async function TrainerDashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* 📢 Cartelera y Comunicados del Box */}
+      <hr className="border-border my-2" />
+      
+      <div className="space-y-2">
+        <div>
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <span className="bg-slate-900 text-white p-1.5 rounded-lg text-xs">📢</span> Cartelera del Box
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Notifica a tu comunidad o deja anotaciones individuales del WOD.</p>
+        </div>
+        <QuickAnnouncementPanel students={boxStudents} initialAnnouncements={recentAnnouncements as any} />
       </div>
     </div>
   );

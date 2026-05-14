@@ -29,17 +29,25 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Rutas públicas
-  if (pathname.startsWith("/auth")) {
-    if (user) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-    return supabaseResponse;
+  // 1. Definir rutas públicas permitidas sin sesión
+  const isPublicRoute = 
+    pathname === "/" || 
+    pathname.startsWith("/auth") || 
+    pathname.startsWith("/invite");
+
+  // 2. Si es una ruta de login/auth y YA está logueado, redirigir a la raíz
+  if (pathname.startsWith("/auth") && user) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Rutas protegidas — redirigir a login si no hay sesión
+  // 3. Control de sesión y rutas protegidas
   if (!user) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    if (!isPublicRoute) {
+      // Si no es pública y no hay sesión -> Redirigir a Login
+      return NextResponse.redirect(new URL("/auth/login", request.url));
+    }
+    // Si SÍ es pública y no hay sesión -> Dejar pasar de inmediato y frenar middleware
+    return supabaseResponse;
   }
 
   // ✅ Leer el rol desde app_metadata (siempre disponible, no requiere DB)
@@ -70,6 +78,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|workbox-|icons|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

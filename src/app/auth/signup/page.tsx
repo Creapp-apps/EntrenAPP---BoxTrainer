@@ -64,13 +64,19 @@ export default function SignupPage() {
       toast.error("Este correo ya se encuentra registrado.");
       setLoading(false);
     } else {
+      // 🔥 Disparar Mail de Bienvenida Premium en background vía Resend
+      try {
+        fetch("/api/auth/welcome-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, fullName }),
+        });
+      } catch (mailErr) {
+        console.error("Fallo silencioso enviando bienvenida:", mailErr);
+      }
+
       setIsSignedUp(true);
       setLoading(false);
-      
-      // Limpiar el localStorage ya procesado
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("pending_invite_box_id");
-      }
     }
   };
 

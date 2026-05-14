@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, cn } from "@/lib/utils";
-import { Dumbbell, AlertCircle, Moon, ChevronRight, CheckCircle2, Ticket, CalendarCheck } from "lucide-react";
+import { Dumbbell, AlertCircle, Moon, ChevronRight, CheckCircle2, Ticket, CalendarCheck, Megaphone, Pin, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 const DAY_ABBR: Record<number, string> = {
@@ -11,9 +11,14 @@ export default async function StudentHome() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Perfil
+  // Perfil + Box Name
   const { data: profile } = await supabase
-    .from("users").select("*").eq("id", user!.id).single();
+    .from("users")
+    .select("*, boxes(name)")
+    .eq("id", user!.id)
+    .single();
+
+  const boxName = (profile?.boxes as any)?.name || "EntrenAPP";
 
   // Ciclo activo
   const { data: activeCycle } = await supabase
@@ -73,7 +78,7 @@ export default async function StudentHome() {
       .reduce((acc, b) => acc + (((b.training_exercises as unknown[]) || []).length), 0);
   }
 
-  const [{ data: pendingPayment }, subRes, nextBookingRes] = await Promise.all([
+  const [{ data: pendingPayment }, subRes, nextBookingRes, announcementsRes] = await Promise.all([
     supabase.from("student_payments")
       .select("id")
       .eq("student_id", user!.id)
@@ -93,43 +98,141 @@ export default async function StudentHome() {
       .gte("booking_date", new Date().toISOString().split("T")[0])
       .order("booking_date")
       .limit(1),
+    supabase.from("box_announcements")
+      .select("*, users:author_id(full_name)")
+      .order("pinned", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
   const activeSub = subRes.data?.[0];
   const nextBooking = nextBookingRes.data?.[0];
+  const announcements = announcementsRes.data || [];
+
+  // ⏳ Calcular Alerta Temprana de Cobro (10 días o menos antes del cierre)
+  let showExpirationWarning = false;
+  let daysLeftForExpiration = 0;
+  if (activeSub && activeSub.period_end) {
+    const periodEnd = new Date(activeSub.period_end as string);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const diffMs = periodEnd.getTime() - today.getTime();
+    daysLeftForExpiration = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    showExpirationWarning = daysLeftForExpiration >= 0 && daysLeftForExpiration <= 10;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-sidebar text-white px-4 pt-safe pb-8">
-        <div className="pt-6">
-        <p className="text-white/60 text-sm">{dateCapitalized}</p>
-        <h1 className="text-2xl font-bold mt-1">¡Hola, {profile?.full_name?.split(" ")[0]}!</h1>
-        {currentWeek && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className={cn(
-              "text-xs px-2.5 py-1 rounded-full font-medium",
-              WEEK_TYPE_COLORS[(currentWeek.type as string)] ?? "bg-gray-100 text-gray-700"
-            )}>
-              {activeCycle?.name as string} · Semana {weekNumber} — {WEEK_TYPE_LABELS[(currentWeek.type as string)]}
-            </span>
+      <div className="bg-sidebar text-white px-4 pt-safe pb-8 relative overflow-hidden">
+        <div className="pt-6 relative z-10">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-white/60 text-sm font-bold uppercase tracking-wider">{boxName}</p>
+            <p className="text-white/60 text-[11px]">{dateCapitalized}</p>
           </div>
-        )}
+          <h1 className="text-2xl font-bold mt-1">¡Hola, {profile?.full_name?.split(" ")[0]}!</h1>
+          {currentWeek && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className={cn(
+                "text-xs px-2.5 py-1 rounded-full font-medium",
+                WEEK_TYPE_COLORS[(currentWeek.type as string)] ?? "bg-gray-100 text-gray-700"
+              )}>
+                {activeCycle?.name as string} · Semana {weekNumber} — {WEEK_TYPE_LABELS[(currentWeek.type as string)]}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="px-4 -mt-4 space-y-4 pb-8">
+      <div className="px-4 -mt-4 space-y-4 pb-8 relative z-20">
 
         {/* Alerta de pago vencido */}
-        {pendingPayment && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+        {pendingPayment ? (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3 animate-in slide-in-from-top duration-300">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-red-700">Pago vencido</p>
-              <p className="text-xs text-red-600 mt-0.5">
-                Tenés un pago pendiente.{" "}
-                <Link href="/alumno/pagos" className="underline font-medium">Ver detalles →</Link>
+              <p className="text-sm font-bold text-red-800">Pago Vencido</p>
+              <p className="text-xs text-red-600 mt-0.5 leading-relaxed">
+                Tienes un recibo pendiente. Por favor, ponte al día para no perder tus próximas reservas.
               </p>
+              <Link href="/alumno/pagos" className="inline-block text-xs font-bold text-red-700 mt-2 hover:underline">Ver deuda pendiente →</Link>
+            </div>
+          </div>
+        ) : showExpirationWarning ? (
+          /* ⏳ Banner de Alerta Temprana de Cobro */
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-in slide-in-from-top duration-300">
+            <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+              <AlertCircle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-amber-800">Tu abono vence pronto</p>
+              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                Faltan {daysLeftForExpiration === 0 ? "menos de 24 horas" : `exactamente ${daysLeftForExpiration} ${daysLeftForExpiration === 1 ? 'día' : 'días'}`} para el cierre de tu ciclo actual.
+              </p>
+              <Link href="/alumno/pagos" className="inline-block text-xs font-bold text-amber-900 mt-2 underline">Pagar ahora →</Link>
+            </div>
+          </div>
+        ) : null}
+
+        {/* 📢 Feed de Anuncios / Notas del Día */}
+        {announcements.length > 0 && (
+          <div className="space-y-3.5">
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2 px-1 pt-1">
+              <Megaphone className="w-4 h-4 text-primary" /> Notas de la Comunidad
+            </h2>
+            <div className="flex flex-col gap-3">
+              {announcements.map((note: any) => {
+                const isTargeted = note.scope === "targeted";
+                return (
+                  <div
+                    key={note.id}
+                    className={cn(
+                      "rounded-2xl p-5 border transition-all shadow-sm relative overflow-hidden",
+                      isTargeted 
+                        ? "bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200 shadow-indigo-100/20" 
+                        : note.pinned 
+                        ? "bg-orange-50/60 border-orange-200 shadow-orange-100/20" 
+                        : "bg-white border-border"
+                    )}
+                  >
+                    {isTargeted && (
+                      <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-widest">
+                        Nota Personal
+                      </div>
+                    )}
+                    {note.pinned && !isTargeted && (
+                      <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-widest flex items-center gap-1">
+                        <Pin className="w-2.5 h-2.5" /> Destacado
+                      </div>
+                    )}
+
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-inner",
+                        isTargeted ? "bg-indigo-100 text-indigo-600" : "bg-primary/10 text-primary"
+                      )}>
+                        {isTargeted ? <Sparkles className="w-5 h-5" /> : <Megaphone className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className={cn("font-bold leading-snug text-base", isTargeted ? "text-indigo-950" : "text-foreground")}>
+                          {note.title}
+                        </h3>
+                        <p className={cn("text-sm mt-1.5 leading-relaxed whitespace-pre-wrap", isTargeted ? "text-indigo-800/90" : "text-muted-foreground")}>
+                          {note.content}
+                        </p>
+                        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-dashed border-black/5">
+                          <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600">
+                            {note.users?.full_name?.charAt(0) || "C"}
+                          </div>
+                          <p className="text-[11px] font-medium text-muted-foreground">
+                            Por <span className="font-bold text-slate-700">{note.users?.full_name || "Coach"}</span> · {new Date(note.created_at).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

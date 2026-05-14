@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Dumbbell, ChevronRight, ShieldAlert } from "lucide-react";
 import InviteClientHandler from "./InviteClientHandler";
 
 export default async function InvitePage({ params }: { params: { box_id: string } }) {
-  const supabase = await createClient();
+  const supabase = await createAdminClient(); // 👈 Usamos Admin Client para bypassear RLS en modo anónimo
   
   // Obtener datos del Box para personalizar el saludo
   const { data: box, error } = await supabase

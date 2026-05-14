@@ -96,7 +96,9 @@ export default function MiBoxPage() {
 
   async function save() {
     if (!box || !form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
+    const selectedThemeColor = THEMES.find(t => t.id === form.theme)?.color || "#EA580C";
     setSaving(true);
+
     const { error } = await supabase.from("boxes").update({
       name: form.name.trim(),
       address: form.address.trim() || null,
@@ -104,6 +106,10 @@ export default function MiBoxPage() {
       phone: form.phone.trim() || null,
       logo_url: form.logo_url.trim() || null,
       theme: form.theme !== "default" ? form.theme : null,
+      branding_config: {
+        primary_color: selectedThemeColor,
+        welcome_message: `¡Bienvenido a ${form.name.trim()}!`
+      }
     }).eq("id", box.id);
     if (error) {
       toast.error(error.message);
