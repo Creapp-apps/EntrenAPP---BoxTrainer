@@ -75,10 +75,10 @@ export default function CiclosPage() {
             {regularCycles.length} ciclo{regularCycles.length !== 1 ? "s" : ""} · {templates.length} plantilla{templates.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Link href="/entrenador/ciclos/nuevo"
+        <Link href={tab === "plantillas" ? "/entrenador/ciclos/nuevo?template=true" : "/entrenador/ciclos/nuevo"}
           className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
           <Plus className="w-4 h-4" />
-          Nuevo ciclo
+          {tab === "plantillas" ? "Nueva plantilla" : "Nuevo ciclo"}
         </Link>
       </div>
 
@@ -212,7 +212,7 @@ export default function CiclosPage() {
               <p className="text-sm text-muted-foreground mt-1 mb-4">
                 Guardá un ciclo como plantilla desde el editor para reutilizarlo con otros alumnos.
               </p>
-              <Link href="/entrenador/ciclos/nuevo"
+              <Link href="/entrenador/ciclos/nuevo?template=true"
                 className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
                 <Plus className="w-4 h-4" /> Crear plantilla
               </Link>

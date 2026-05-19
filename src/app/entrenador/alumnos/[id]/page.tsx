@@ -139,6 +139,11 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
             <BarChart2 className="w-4 h-4" />
             <span className="hidden sm:inline">1RM</span>
           </Link>
+          <Link href={`/entrenador/alumnos/${params.id}/informe`}
+            className="flex items-center gap-2 bg-slate-900 text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-slate-800 transition">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            <span className="hidden sm:inline">Informe</span>
+          </Link>
           <Link href={`/entrenador/ciclos/nuevo?alumno=${params.id}`}
             className="flex items-center gap-2 bg-primary text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
             <Calendar className="w-4 h-4" />

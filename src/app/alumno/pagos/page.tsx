@@ -94,6 +94,7 @@ export default async function PagosAlumnoPage() {
               Tu entrenador registrará tus pagos acá.
             </p>
           </div>
+        )}
         {/* 🏷️ Planes del Box y Tarifas */}
         {availablePlans && availablePlans.length > 0 && (
           <div className="pt-4">

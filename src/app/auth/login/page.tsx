@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -12,6 +12,22 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Limpiar sesión rota si el middleware o layout nos mandó para acá
+  useEffect(() => {
+    const clearBrokenSession = async () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("error") === "profile_not_found") {
+          const supabase = createClient();
+          await supabase.auth.signOut();
+          toast.error("Tu sesión estaba atascada porque el registro de cuenta quedó por la mitad. Intenta registrarte nuevamente.");
+          window.history.replaceState(null, "", "/auth/login");
+        }
+      }
+    };
+    clearBrokenSession();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,17 +49,23 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    const supabase = createClient();
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const supabase = createClient();
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    if (error) {
-      toast.error("Error al iniciar sesión con Google.");
+      if (error) {
+        toast.error(`Error: ${error.message}`);
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error("Error catastrófico en Google Login:", err);
+      alert(`Fallo al abrir Google: ${err.message || err}`);
       setLoading(false);
     }
   };

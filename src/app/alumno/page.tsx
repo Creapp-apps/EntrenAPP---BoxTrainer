@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, cn } from "@/lib/utils";
-import { Dumbbell, AlertCircle, Moon, ChevronRight, CheckCircle2, Ticket, CalendarCheck, Megaphone, Pin, Sparkles } from "lucide-react";
+import { Dumbbell, AlertCircle, Moon, ChevronRight, CheckCircle2, Ticket, CalendarCheck, Megaphone, Pin, Sparkles, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 const DAY_ABBR: Record<number, string> = {
@@ -11,14 +11,23 @@ export default async function StudentHome() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Perfil + Box Name
+  // 📡 1. Perfil puro sin joins riesgosos para el motor de RLS
   const { data: profile } = await supabase
     .from("users")
-    .select("*, boxes(name)")
+    .select("*")
     .eq("id", user!.id)
     .single();
 
-  const boxName = (profile?.boxes as any)?.name || "EntrenAPP";
+  // 📡 2. Box condicional
+  let boxName = "EntrenAPP";
+  if (profile?.box_id) {
+    const { data: boxData } = await supabase
+      .from("boxes")
+      .select("name")
+      .eq("id", profile.box_id)
+      .single();
+    if (boxData?.name) boxName = boxData.name;
+  }
 
   // Ciclo activo
   const { data: activeCycle } = await supabase
@@ -122,29 +131,36 @@ export default async function StudentHome() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-sidebar text-white px-4 pt-safe pb-8 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50/50">
+      {/* Cabecera Premium Estilizada */}
+      <div className="bg-gradient-to-b from-zinc-950 via-zinc-900 to-sidebar text-white px-5 pt-safe pb-16 relative overflow-hidden border-b border-white/5">
+        {/* Glow ambiental del color del Box en la esquina superior derecha */}
+        <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 rounded-full blur-[60px] -translate-y-1/3 translate-x-1/3 pointer-events-none" />
+        <div className="absolute bottom-0 left-1/4 w-64 h-24 bg-zinc-800/40 rounded-full blur-3xl pointer-events-none" />
+
         <div className="pt-6 relative z-10">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-white/60 text-sm font-bold uppercase tracking-wider">{boxName}</p>
-            <p className="text-white/60 text-[11px]">{dateCapitalized}</p>
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-primary font-black text-[10px] uppercase tracking-[0.15em] drop-shadow-sm">{boxName}</p>
+            <p className="text-white/40 text-[10px] font-medium tracking-wider uppercase">{dateCapitalized}</p>
           </div>
-          <h1 className="text-2xl font-bold mt-1">¡Hola, {profile?.full_name?.split(" ")[0]}!</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight mt-0.5 bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/80">
+            ¡Hola, {profile?.full_name?.split(" ")[0]}!
+          </h1>
           {currentWeek && (
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-500">
               <span className={cn(
-                "text-xs px-2.5 py-1 rounded-full font-medium",
-                WEEK_TYPE_COLORS[(currentWeek.type as string)] ?? "bg-gray-100 text-gray-700"
+                "text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider shadow-sm border border-white/5",
+                WEEK_TYPE_COLORS[(currentWeek.type as string)] ?? "bg-white/10 text-white"
               )}>
-                {activeCycle?.name as string} · Semana {weekNumber} — {WEEK_TYPE_LABELS[(currentWeek.type as string)]}
+                {activeCycle?.name as string} · Sem {weekNumber} · {WEEK_TYPE_LABELS[(currentWeek.type as string)]}
               </span>
             </div>
           )}
         </div>
       </div>
 
-      <div className="px-4 -mt-4 space-y-4 pb-8 relative z-20">
+      {/* Contenedor de contenido con solapamiento elegante y seguro */}
+      <div className="px-4 -mt-10 space-y-5 pb-8 relative z-20">
 
         {/* Alerta de pago vencido */}
         {pendingPayment ? (
@@ -176,48 +192,60 @@ export default async function StudentHome() {
 
         {/* 📢 Feed de Anuncios / Notas del Día */}
         {announcements.length > 0 && (
-          <div className="space-y-3.5">
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2 px-1 pt-1">
-              <Megaphone className="w-4 h-4 text-primary" /> Notas de la Comunidad
-            </h2>
-            <div className="flex flex-col gap-3">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1 pt-2">
+              <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.15em] flex items-center gap-2">
+                <Megaphone className="w-3.5 h-3.5 text-primary opacity-80" /> Notas de la Comunidad
+              </h2>
+            </div>
+            
+            <div className="flex flex-col gap-4">
               {announcements.map((note: any) => {
                 const isTargeted = note.scope === "targeted";
                 return (
                   <div
                     key={note.id}
                     className={cn(
-                      "rounded-2xl p-5 border transition-all shadow-sm relative overflow-hidden",
+                      "rounded-3xl p-6 border transition-all duration-300 relative overflow-hidden",
                       isTargeted 
-                        ? "bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200 shadow-indigo-100/20" 
+                        ? "bg-gradient-to-br from-indigo-500/[0.04] to-purple-500/[0.04] border-indigo-500/20 shadow-sm" 
                         : note.pinned 
-                        ? "bg-orange-50/60 border-orange-200 shadow-orange-100/20" 
-                        : "bg-white border-border"
+                        ? "bg-primary/[0.03] border-primary/20 shadow-md shadow-primary/[0.02]" 
+                        : "bg-white border-slate-100 shadow-sm hover:shadow-md"
                     )}
                   >
+                    {/* Decoración sutil de fondo para notas destacadas */}
+                    {note.pinned && !isTargeted && (
+                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-primary/5 rounded-full blur-xl pointer-events-none" />
+                    )}
+
                     {isTargeted && (
-                      <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-widest">
+                      <div className="absolute top-0 right-0 bg-gradient-to-l from-indigo-600 to-purple-600 text-white text-[8px] font-black uppercase px-3.5 py-1.5 rounded-bl-2xl tracking-[0.15em] shadow-sm">
                         Nota Personal
                       </div>
                     )}
                     {note.pinned && !isTargeted && (
-                      <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-widest flex items-center gap-1">
+                      <div className="absolute top-0 right-0 bg-primary text-white text-[8px] font-black uppercase px-3.5 py-1.5 rounded-bl-2xl tracking-[0.15em] flex items-center gap-1 shadow-sm shadow-primary/10">
                         <Pin className="w-2.5 h-2.5" /> Destacado
                       </div>
                     )}
 
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-4">
                       <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-inner",
-                        isTargeted ? "bg-indigo-100 text-indigo-600" : "bg-primary/10 text-primary"
+                        "w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm border",
+                        isTargeted 
+                          ? "bg-indigo-50 border-indigo-100 text-indigo-600" 
+                          : note.pinned
+                          ? "bg-primary/10 border-primary/10 text-primary"
+                          : "bg-slate-50 border-slate-100 text-slate-500"
                       )}>
                         {isTargeted ? <Sparkles className="w-5 h-5" /> : <Megaphone className="w-5 h-5" />}
                       </div>
-                      <div className="flex-1">
-                        <h3 className={cn("font-bold leading-snug text-base", isTargeted ? "text-indigo-950" : "text-foreground")}>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={cn("font-black leading-snug text-base tracking-tight", isTargeted ? "text-indigo-950" : note.pinned ? "text-slate-900" : "text-slate-800")}>
                           {note.title}
                         </h3>
-                        <p className={cn("text-sm mt-1.5 leading-relaxed whitespace-pre-wrap", isTargeted ? "text-indigo-800/90" : "text-muted-foreground")}>
+                        <p className={cn("text-sm mt-2 leading-relaxed whitespace-pre-wrap font-medium", isTargeted ? "text-indigo-800/80" : "text-slate-600")}>
                           {note.content}
                         </p>
                         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-dashed border-black/5">
@@ -272,63 +300,92 @@ export default async function StudentHome() {
           </Link>
         )}
 
+        {/* Tienda del Box Banner */}
+        <Link href="/alumno/tienda" className="group bg-white rounded-2xl shadow-sm border border-border p-4 flex items-center gap-4 hover:shadow-md hover:border-primary/20 transition-all relative overflow-hidden mt-2">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/[0.02] rounded-full blur-xl pointer-events-none group-hover:bg-primary/[0.05] transition-colors" />
+          <div className="bg-primary/10 p-2.5 rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+            <ShoppingBag className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-primary font-black uppercase tracking-wider">Tienda</p>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-[9px] font-black text-primary uppercase tracking-wide leading-none animate-pulse">
+                Nuevo
+              </span>
+            </div>
+            <p className="font-extrabold text-slate-900 text-sm mt-0.5">
+              Vitrina de Suplementos & Ropa
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Mirá el stock de tu Box y comprá al instante.</p>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
+            <ChevronRight className="w-4 h-4" />
+          </div>
+        </Link>
+
         {/* Sin ciclo activo */}
         {!activeCycle && (
-          <div className="bg-white rounded-2xl p-8 shadow-sm border border-border text-center mt-4">
-            <Dumbbell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <h3 className="font-semibold text-foreground">Sin ciclo activo</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Tu entrenador aún no te asignó un ciclo de entrenamiento.
+          <div className="bg-white rounded-[2rem] p-10 shadow-sm border border-slate-100 text-center mt-2 relative overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-24 bg-slate-50 rounded-full blur-2xl -z-10 pointer-events-none" />
+            <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-slate-100 shadow-inner">
+              <Dumbbell className="w-7 h-7 text-slate-400" />
+            </div>
+            <h3 className="font-black text-slate-800 text-lg tracking-tight">Sin ciclo activo</h3>
+            <p className="text-sm text-slate-500 mt-2 leading-relaxed max-w-[260px] mx-auto font-medium">
+              Tu entrenador pronto preparará tu próxima planificación personalizada.
             </p>
           </div>
         )}
 
         {/* HOY */}
         {todayDay && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide pt-2">Hoy</h2>
+          <div className="space-y-4">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.15em] px-1 pt-2">Hoy</h2>
 
             {(todayDay.is_rest as boolean) ? (
               /* Día de descanso */
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                  <Moon className="w-6 h-6 text-blue-400" />
+              <div className="bg-blue-500/[0.04] border border-blue-100 rounded-[2rem] p-6 flex items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 shadow-sm">
+                  <Moon className="w-7 h-7 text-blue-500" />
                 </div>
                 <div>
-                  <p className="font-semibold text-blue-800">Día de descanso</p>
-                  <p className="text-sm text-blue-600 mt-0.5">Recuperate, mañana volvemos fuerte.</p>
+                  <p className="font-black text-blue-950 tracking-tight text-base">Día de descanso</p>
+                  <p className="text-sm text-blue-700/80 mt-1 font-medium">Hora de recuperar el cuerpo. Mañana volvemos con todo.</p>
                 </div>
               </div>
             ) : countExercises(todayDay) === 0 ? (
               /* Día sin ejercicios cargados */
-              <div className="bg-white border border-border rounded-2xl p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                  <Dumbbell className="w-6 h-6 text-muted-foreground" />
+              <div className="bg-white border border-slate-100 rounded-[2rem] p-6 flex items-center gap-5 shadow-sm">
+                <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                  <Dumbbell className="w-7 h-7 text-slate-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold text-foreground">{todayDay.label as string}</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">Tu entrenador aún no cargó los ejercicios de hoy.</p>
+                  <p className="font-black text-slate-800 text-base tracking-tight">{todayDay.label as string}</p>
+                  <p className="text-sm text-slate-500 mt-1 font-medium">Tu entrenador aún no cargó los ejercicios de hoy.</p>
                 </div>
               </div>
             ) : (
               /* Día con ejercicios */
               <Link
                 href={`/alumno/entrenar/${todayDay.id as string}`}
-                className="block bg-primary rounded-2xl p-5 shadow-md"
+                className="block relative overflow-hidden bg-gradient-to-br from-primary via-primary to-primary/90 hover:to-primary rounded-[2rem] p-6 shadow-xl shadow-primary/10 border border-white/10 transition-all active:scale-[0.98] duration-200"
               >
-                <div className="flex items-center justify-between">
+                {/* Brillo ambiental del botón */}
+                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-white/20 rounded-full blur-2xl pointer-events-none" />
+                
+                <div className="flex items-center justify-between relative z-10">
                   <div>
-                    <p className="font-bold text-white text-base">{todayDay.label as string}</p>
-                    <p className="text-white/70 text-sm mt-0.5">
+                    <p className="font-black text-white text-lg tracking-tight">{todayDay.label as string}</p>
+                    <p className="text-white/80 text-xs font-medium mt-1 bg-white/10 inline-block px-3 py-1 rounded-full">
                       {(todayDay.training_blocks as unknown[])?.length ?? 0} bloque{((todayDay.training_blocks as unknown[])?.length ?? 0) !== 1 ? "s" : ""} · {countExercises(todayDay)} ejercicios
                     </p>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                    <Dumbbell className="w-5 h-5 text-white" />
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center border border-white/20 backdrop-blur-sm shadow-inner">
+                    <Dumbbell className="w-6 h-6 text-white" />
                   </div>
                 </div>
-                <div className="mt-4 bg-white/20 rounded-xl py-2.5 text-center">
-                  <p className="text-white font-semibold text-sm">Empezar entrenamiento →</p>
+                <div className="mt-6 bg-white text-primary rounded-2xl py-3.5 text-center shadow-sm font-black text-xs uppercase tracking-widest transition-colors hover:bg-white/95">
+                  Empezar entrenamiento
                 </div>
               </Link>
             )}
@@ -337,11 +394,11 @@ export default async function StudentHome() {
 
         {/* SEMANA COMPLETA */}
         {currentWeek && weekDays.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide pt-2">
+          <div className="space-y-4">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.15em] px-1 pt-2">
               Esta semana
             </h2>
-            <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden divide-y divide-border">
+            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50">
               {weekDays.map(day => {
                 const isToday = (day.day_of_week as number) === todayDow;
                 const isRest = day.is_rest as boolean;
@@ -349,24 +406,36 @@ export default async function StudentHome() {
                 const isEmpty = !isRest && exCount === 0;
 
                 return (
-                  <div key={day.id as string} className={cn("flex items-center gap-4 px-4 py-3.5", isToday && "bg-primary/5")}>
+                  <div key={day.id as string} className={cn("flex items-center gap-4 px-5 py-4 transition-colors", isToday && "bg-primary/[0.02]")}>
                     {/* Day abbr */}
                     <div className={cn(
-                      "w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0",
-                      isToday ? "bg-primary text-white" : isRest ? "bg-blue-100 text-blue-500" : isEmpty ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                      "w-10 h-10 rounded-2xl flex items-center justify-center text-[11px] font-black shrink-0 shadow-sm tracking-wider border",
+                      isToday 
+                        ? "bg-gradient-to-br from-primary to-primary/90 border-primary text-white shadow-primary/10" 
+                        : isRest 
+                        ? "bg-blue-50 border-blue-100 text-blue-500" 
+                        : isEmpty 
+                        ? "bg-slate-50 border-slate-100 text-slate-400" 
+                        : "bg-primary/10 border-primary/10 text-primary"
                     )}>
-                      {isRest ? <Moon className="w-4 h-4" /> : DAY_ABBR[day.day_of_week as number]}
+                      {isRest ? <Moon className="w-4.5 h-4.5" /> : DAY_ABBR[day.day_of_week as number]}
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <p className={cn("text-sm font-medium", isToday ? "text-primary" : "text-foreground")}>
-                        {day.label as string}
-                        {isToday && <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-semibold">Hoy</span>}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <div className="flex items-center gap-2">
+                        <p className={cn("text-sm font-black tracking-tight", isToday ? "text-primary" : "text-slate-800")}>
+                          {day.label as string}
+                        </p>
+                        {isToday && (
+                          <span className="text-[8px] font-black uppercase tracking-[0.15em] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                            Hoy
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
                         {isRest
-                          ? "Descanso"
+                          ? "Día de descanso"
                           : isEmpty
                           ? "Sin ejercicios cargados"
                           : `${exCount} ejercicio${exCount !== 1 ? "s" : ""}`}
@@ -377,10 +446,10 @@ export default async function StudentHome() {
                     {!isRest && !isEmpty && (
                       <Link href={`/alumno/entrenar/${day.id as string}`}
                         className={cn(
-                          "flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0",
+                          "flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-3.5 py-2 rounded-xl transition-all duration-200 shrink-0 shadow-sm active:scale-[0.97]",
                           isToday
-                            ? "bg-primary text-white hover:bg-primary/90"
-                            : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            ? "bg-primary text-white hover:opacity-95 border border-primary shadow-primary/10"
+                            : "bg-slate-50 text-slate-600 hover:bg-primary/10 hover:text-primary border border-slate-100"
                         )}
                       >
                         {isToday ? "Empezar" : "Ver"}

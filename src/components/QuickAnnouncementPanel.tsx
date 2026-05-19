@@ -263,7 +263,7 @@ export default function QuickAnnouncementPanel({ students, initialAnnouncements 
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-semibold mb-1">
-                        <span>{new Date(item.created_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                        <span suppressHydrationWarning>{new Date(item.created_at).toLocaleDateString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
                       <h4 className="font-bold text-foreground text-lg leading-snug group-hover:text-primary transition-colors">
                         {item.title}

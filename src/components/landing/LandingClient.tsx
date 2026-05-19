@@ -170,7 +170,10 @@ export default function LandingClient() {
             )}
 
             {/* Badges Flotantes CSS 3D */}
-            <div className="absolute top-8 right-8 bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center gap-3 animate-bounce duration-[4000ms] pointer-events-none z-20 shadow-2xl">
+            <div 
+              className="absolute top-8 right-8 bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center gap-3 animate-bounce pointer-events-none z-20 shadow-2xl"
+              style={{ animationDuration: "4000ms" }}
+            >
               <div className="bg-green-500/20 p-2 rounded-xl">
                 <BarChart3 className="w-5 h-5 text-green-400" />
               </div>
@@ -180,7 +183,10 @@ export default function LandingClient() {
               </div>
             </div>
 
-            <div className="absolute bottom-12 left-8 bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center gap-3 animate-bounce duration-[5000ms] delay-1000 pointer-events-none z-20 shadow-2xl">
+            <div 
+              className="absolute bottom-12 left-8 bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center gap-3 animate-bounce pointer-events-none z-20 shadow-2xl"
+              style={{ animationDuration: "5000ms" }}
+            >
               <div className="bg-primary/20 p-2 rounded-xl">
                 <Users className="w-5 h-5 text-primary" />
               </div>

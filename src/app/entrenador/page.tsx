@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { Users, CreditCard, TrendingUp, AlertCircle, Activity } from "lucide-react";
+import { Users, CreditCard, TrendingUp, AlertCircle, Activity, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import QuickAnnouncementPanel from "@/components/QuickAnnouncementPanel";
@@ -13,6 +13,10 @@ export default async function TrainerDashboard() {
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59).toISOString();
   const todayStr = today.toISOString().split("T")[0];
 
+  const maxDueDate = new Date(today);
+  maxDueDate.setDate(today.getDate() + 10);
+  const maxDueDateStr = maxDueDate.toISOString().split("T")[0];
+
   // Obtener Perfil para sacar box_id
   const { data: profile } = await supabase
     .from("users")
@@ -25,7 +29,7 @@ export default async function TrainerDashboard() {
     { count: totalStudents },
     { count: activeStudents },
     { data: overduePayments },
-    { data: recentStudents },
+    { data: upcomingPayments },
     { data: paidThisMonth },
     { count: todayBookings },
     studentsListRes,
@@ -41,10 +45,13 @@ export default async function TrainerDashboard() {
     supabase.from("student_payments").select("*, users!inner(full_name, email, box_id)")
       .eq("status", "vencido")
       .eq("users.box_id", profile?.box_id),
-    supabase.from("users").select("*")
-      .eq("role", "student")
-      .eq("box_id", profile?.box_id)
-      .order("created_at", { ascending: false }).limit(5),
+    // Pagos a vencer (próximos 10 días)
+    supabase.from("student_payments").select("*, users!inner(full_name, email, box_id)")
+      .eq("status", "pendiente")
+      .eq("users.box_id", profile?.box_id)
+      .gte("due_date", todayStr)
+      .lte("due_date", maxDueDateStr)
+      .order("due_date", { ascending: true }).limit(5),
     // Ingresos del mes
     supabase.from("student_payments").select("amount, users!inner(box_id)")
       .eq("status", "pagado")
@@ -150,45 +157,42 @@ export default async function TrainerDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Últimos alumnos */}
+        {/* Pagos a vencer */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-border">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-foreground">Alumnos recientes</h2>
-            <Link href="/entrenador/alumnos"
+            <h2 className="font-semibold text-foreground">Próximos vencimientos</h2>
+            <Link href="/entrenador/pagos"
               className="text-sm text-primary hover:underline font-medium">
               Ver todos
             </Link>
           </div>
-          {recentStudents && recentStudents.length > 0 ? (
+          {upcomingPayments && upcomingPayments.length > 0 ? (
             <div className="space-y-3">
-              {recentStudents.map((student) => (
-                <Link key={student.id} href={`/entrenador/alumnos/${student.id}`}
-                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                    {student.full_name?.[0]?.toUpperCase() || "?"}
+              {upcomingPayments.map((payment) => (
+                <div key={payment.id}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/40 border border-amber-100/70">
+                  <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                    <Clock className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
-                      {student.full_name}
+                      {(payment.users as any)?.full_name}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate">{student.email}</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Vence el {new Date(payment.due_date + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long" })}
+                    </p>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                    student.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                  }`}>
-                    {student.active ? "Activo" : "Inactivo"}
+                  <span className="text-sm font-bold text-foreground shrink-0">
+                    {formatCurrency(payment.amount)}
                   </span>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <Users className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No hay alumnos todavía.</p>
-              <Link href="/entrenador/alumnos"
-                className="text-sm text-primary hover:underline mt-1 inline-block">
-                Agregar primer alumno →
-              </Link>
+            <div className="text-center py-10 bg-slate-50/30 rounded-xl border border-dashed border-slate-200">
+              <Clock className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground font-medium">Sin próximos vencimientos.</p>
+              <p className="text-xs text-muted-foreground/80 mt-0.5">No hay pagos pendientes por vencer en los próximos 10 días.</p>
             </div>
           )}
         </div>

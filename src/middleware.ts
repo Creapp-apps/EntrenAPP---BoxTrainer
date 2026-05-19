@@ -33,10 +33,13 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute = 
     pathname === "/" || 
     pathname.startsWith("/auth") || 
-    pathname.startsWith("/invite");
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/api");
 
   // 2. Si es una ruta de login/auth y YA está logueado, redirigir a la raíz
-  if (pathname.startsWith("/auth") && user) {
+  // EXCEPTO si trae un parámetro de error (ej: cuenta inconsistente) para evitar bucles infinitos.
+  const hasErrorParam = request.nextUrl.searchParams.has("error");
+  if (pathname.startsWith("/auth") && !pathname.startsWith("/auth/callback") && user && !hasErrorParam) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 

@@ -698,9 +698,9 @@ export default function CrossfitCycleEditorPage() {
                           const blockMeta = BLOCK_TYPES.find(bt => bt.value === block.type);
                           const Icon = blockMeta?.icon || Flame;
 
-                          const isCollapsed = !expandedBlocks.has(block.id);
                           const hasExercises = block.cf_exercises.length > 0;
                           const exCount = block.cf_exercises.length;
+                          const isCollapsed = !expandedBlocks.has(block.id) && exCount > 0;
 
                           return (
                             <div key={block.id} className={`border transition-all duration-200 rounded-xl overflow-hidden ${isCollapsed ? "border-border/60 bg-muted/20 hover:bg-muted/30" : "border-border bg-white"}`}>

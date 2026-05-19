@@ -7,16 +7,23 @@ export default async function Home() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {
-    let dashboardUrl = "/auth/login";
-    const role = user.app_metadata?.role;
+    // Intentar leer el rol definitivo desde la base de datos para máxima precisión
+    const { data: dbProfile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const role = dbProfile?.role || user.app_metadata?.role;
+    
+    let dashboardUrl = "/entrenador";
     if (role === "super_admin") {
       dashboardUrl = "/super-admin";
     } else if (role === "student") {
       dashboardUrl = "/alumno";
-    } else {
-      dashboardUrl = "/entrenador";
     }
-    // Redirigir automáticamente si el usuario ya está logueado
+    
+    // Redirigir automáticamente al dashboard correcto
     redirect(dashboardUrl);
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Share2, Copy, Check, MessageCircle, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,18 +8,19 @@ export default function InviteStudentModal({ boxId }: { boxId?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [copied, setCopied] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && boxId) {
+      setInviteUrl(`${window.location.origin}/invite/${boxId}`);
+    }
+  }, [boxId]);
 
   if (!boxId) return null;
 
-  const getInviteUrl = () => {
-    if (typeof window === "undefined") return "";
-    return `${window.location.origin}/invite/${boxId}`;
-  };
-
   const handleCopy = async () => {
-    const url = getInviteUrl();
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(inviteUrl);
       setCopied(true);
       toast.success("¡Enlace de invitación copiado!");
       setTimeout(() => setCopied(false), 2000);
@@ -31,7 +32,6 @@ export default function InviteStudentModal({ boxId }: { boxId?: string }) {
   const handleWhatsApp = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = phone.replace(/[^\d]/g, "");
-    const inviteUrl = getInviteUrl();
     const text = encodeURIComponent(
       `¡Hola! Te invito a unirte a mi Box en EntrenAPP. Registrate gratis desde el siguiente enlace para comenzar a ver tu planificación de entrenamiento:\n\n${inviteUrl}`
     );
@@ -88,7 +88,7 @@ export default function InviteStudentModal({ boxId }: { boxId?: string }) {
                   <input
                     type="text"
                     readOnly
-                    value={getInviteUrl()}
+                    value={inviteUrl}
                     className="flex-1 min-w-0 px-3 py-2 bg-muted text-muted-foreground border border-border rounded-xl text-sm truncate select-all"
                   />
                   <button

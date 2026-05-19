@@ -82,17 +82,23 @@ export default function SignupPage() {
 
   const handleGoogleSignup = async () => {
     setLoading(true);
-    const supabase = createClient();
-    
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const supabase = createClient();
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    if (error) {
-      toast.error("Error al registrarse con Google.");
+      if (error) {
+        toast.error(`Error: ${error.message}`);
+        setLoading(false);
+      }
+    } catch (err: any) {
+      console.error("Error catastrófico en Google Signup:", err);
+      alert(`Fallo al abrir Google: ${err.message || err}`);
       setLoading(false);
     }
   };

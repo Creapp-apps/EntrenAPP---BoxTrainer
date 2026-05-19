@@ -53,22 +53,33 @@ export default function MetricasPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Multi-tenant Resolve: Obtener el ID real del dueño del Box
+    const { data: ownerId, error: ownerErr } = await supabase.rpc("get_box_owner_id", { p_user_id: user.id });
+    if (ownerErr) console.error("❌ Error resolviendo dueño del box:", ownerErr);
+    const actualOwner = ownerId || user.id;
+
     // Dashboard stats
-    const { data: dashData } = await supabase.rpc("trainer_dashboard_stats", { p_trainer_id: user.id });
-    if (dashData) setStats(dashData as unknown as DashboardStats);
+    const { data: dashData, error: dashErr } = await supabase.rpc("trainer_analytics_stats", { p_trainer_id: user.id });
+    if (dashErr) {
+      console.error("❌ Error cargando trainer_analytics_stats:", dashErr);
+    } else if (dashData) {
+      setStats(dashData as unknown as DashboardStats);
+    }
 
     // Student adherence
-    const { data: adhData } = await supabase.rpc("student_adherence_list", {
+    const { data: adhData, error: adhErr } = await supabase.rpc("student_adherence_list", {
       p_trainer_id: user.id,
       p_days: 30,
     });
+    if (adhErr) console.error("❌ Error en student_adherence_list:", adhErr);
     if (adhData) setStudents(adhData as unknown as StudentAdherence[]);
 
-    // Adherence by type
-    const { data: typeData } = await supabase
+    // Adherence by type - Filtrado explícito por el dueño actual para multi-tenant
+    const { data: typeData, error: typeErr } = await supabase
       .from("adherence_by_cycle_type")
       .select("*")
-      ;
+      .eq("trainer_id", actualOwner);
+    if (typeErr) console.error("❌ Error cargando adherence_by_cycle_type:", typeErr);
     if (typeData) setByType(typeData as unknown as AdherenceByType[]);
 
     setLoading(false);

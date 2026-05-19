@@ -124,15 +124,15 @@ export default async function AlumnosPage() {
             const subDaysLeft = sub ? daysUntil(sub.period_end) : null;
 
             return (
-              <div key={student.id} className="relative group bg-white rounded-2xl shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all overflow-hidden">
+              <div key={student.id} className="relative group bg-white rounded-2xl shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all">
                 <StudentActionMenu studentId={student.id} studentName={student.full_name || ""} currentStatus={student.status} />
 
                 {/* Payment urgency top stripe */}
                 {alert && alert.overdue > 0 && (
-                  <div className="h-1 bg-gradient-to-r from-red-500 to-red-400 w-full" />
+                  <div className="h-1 bg-gradient-to-r from-red-500 to-red-400 w-full rounded-t-2xl" />
                 )}
                 {alert && alert.overdue === 0 && alert.nearDue > 0 && (
-                  <div className="h-1 bg-gradient-to-r from-amber-400 to-amber-300 w-full" />
+                  <div className="h-1 bg-gradient-to-r from-amber-400 to-amber-300 w-full rounded-t-2xl" />
                 )}
 
                 <Link href={`/entrenador/alumnos/${student.id}`} className="block p-5">

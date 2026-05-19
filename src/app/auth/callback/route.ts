@@ -17,22 +17,43 @@ export async function GET(request: Request) {
     if (!authError && authData?.user) {
       const user = authData.user;
       const cookieStore = await cookies();
+      const adminSupabase = await createAdminClient();
       
+      // 1. AUTO-SANACIÓN: Buscar si el perfil público existe
+      let { data: profile } = await adminSupabase
+        .from("users")
+        .select("box_id, role")
+        .eq("id", user.id)
+        .single();
+
       // Revisar si existía una invitación pendiente almacenada en las cookies
       const pendingBoxId = cookieStore.get("pending_invite_box_id")?.value;
+      const hasPendingBox = pendingBoxId && pendingBoxId.length > 10;
 
-      if (pendingBoxId && pendingBoxId.length > 10) {
-        const adminSupabase = await createAdminClient();
+      // 2. Si el perfil NO existe (el trigger de la BD falló o se eliminó), lo creamos nosotros:
+      if (!profile) {
+        console.log(`[Auth Callback] Perfil público no encontrado para ${user.email}. Aplicando Auto-Sanación...`);
         
-        // 1. Buscar el perfil público del usuario recién logueado
-        const { data: profile } = await adminSupabase
-          .from("users")
-          .select("box_id, role")
-          .eq("id", user.id)
-          .single();
+        const role = user.app_metadata?.role || user.user_metadata?.role || (hasPendingBox ? "student" : "trainer");
+        const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Usuario";
+        
+        const { error: insertError } = await adminSupabase.from("users").insert({
+          id: user.id,
+          email: user.email,
+          role: role,
+          full_name: fullName,
+          box_id: hasPendingBox && role === "student" ? pendingBoxId : null
+        });
 
-        // 2. Si existe el perfil y es un alumno que aún no tiene Box asignado, vincularlo
-        if (profile && !profile.box_id && profile.role === "student") {
+        if (insertError) {
+          console.error("[Auth Callback] Falla fatal al auto-sanar perfil:", insertError);
+        } else {
+          profile = { role, box_id: hasPendingBox && role === "student" ? pendingBoxId : null };
+          console.log(`[Auth Callback] Auto-Sanación exitosa para ${user.email}`);
+        }
+      } else {
+        // 3. Si el perfil YA existía pero hay una invitación pendiente y es alumno sin box
+        if (hasPendingBox && !profile.box_id && profile.role === "student") {
           const { error: updateError } = await adminSupabase
             .from("users")
             .update({ box_id: pendingBoxId })
@@ -40,17 +61,13 @@ export async function GET(request: Request) {
             
           if (!updateError) {
             console.log(`[Auth Callback] Se vinculó exitosamente al usuario ${user.email} al Box ${pendingBoxId}`);
-          } else {
-            console.error("[Auth Callback] Error vinculando Box:", updateError);
           }
         }
+      }
 
-        // 3. Eliminar la cookie de invitación pendiente ya consumida
-        try {
-          cookieStore.delete("pending_invite_box_id");
-        } catch {
-          // Ignorar fallos menores limpiando la cookie
-        }
+      // 4. Limpiar cookie residual de invitación
+      if (hasPendingBox) {
+        try { cookieStore.delete("pending_invite_box_id"); } catch {}
       }
 
       return NextResponse.redirect(`${origin}${next}`);
