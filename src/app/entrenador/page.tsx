@@ -1,11 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { Users, CreditCard, TrendingUp, AlertCircle, Activity, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import QuickAnnouncementPanel from "@/components/QuickAnnouncementPanel";
+import TodayClassesList from "@/components/TodayClassesList";
+import LiveClock from "@/components/LiveClock";
 
 export default async function TrainerDashboard() {
   const supabase = await createClient();
+  const adminSupabase = await createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   const today = new Date();
@@ -31,7 +34,8 @@ export default async function TrainerDashboard() {
     { data: overduePayments },
     { data: upcomingPayments },
     { data: paidThisMonth },
-    { count: todayBookings },
+    { data: todayBookingsData },
+    { data: todaySlotsData },
     studentsListRes,
     announcementsRes,
   ] = await Promise.all([
@@ -58,12 +62,17 @@ export default async function TrainerDashboard() {
       .eq("users.box_id", profile?.box_id)
       .gte("paid_at", monthStart)
       .lte("paid_at", monthEnd),
-    // Turnos hoy
-    supabase.from("bookings")
-      .select("id, box_schedule_slots!inner(trainer_id)", { count: "exact", head: true })
+    // Turnos hoy (Cambiado a adminSupabase para traer datos de usuarios sin problema de RLS circular)
+    adminSupabase.from("bookings")
+      .select("id, status, student_id, users(full_name, avatar_url), box_schedule_slots!inner(id, label, start_time, end_time, max_capacity, trainer_id)")
       .eq("booking_date", todayStr)
-      .eq("status", "confirmada")
+      // Remove status filter so we can see who came and who didn't
       .eq("box_schedule_slots.trainer_id", user!.id),
+    // Todos los horarios de hoy para mostrar clases vacías también
+    adminSupabase.from("box_schedule_slots")
+      .select("*, box_activities(name, color)")
+      .eq("trainer_id", user!.id)
+      .eq("day_of_week", today.getDay() === 0 ? 7 : today.getDay()),
     // Lista de estudiantes para selectores
     supabase.from("users")
       .select("id, full_name")
@@ -82,6 +91,11 @@ export default async function TrainerDashboard() {
   const recentAnnouncements = announcementsRes.data || [];
 
   const monthlyIncome = (paidThisMonth || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+  
+  // Contar turnos confirmados o completados de hoy
+  const todayBookingsCount = (todayBookingsData || []).filter(
+    (b) => b.status === "confirmada" || b.status === "completada"
+  ).length;
 
   const stats = [
     {
@@ -112,7 +126,7 @@ export default async function TrainerDashboard() {
     },
     {
       label: "Turnos hoy",
-      value: todayBookings ?? 0,
+      value: todayBookingsCount,
       icon: Activity,
       color: "text-orange-600",
       bg: "bg-orange-50",
@@ -235,8 +249,24 @@ export default async function TrainerDashboard() {
         </div>
       </div>
 
-      {/* 📢 Cartelera y Comunicados del Box */}
+      {/* 📋 Clases de Hoy */}
       <hr className="border-border my-2" />
+      
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+              <span className="bg-orange-500 text-white p-1.5 rounded-lg text-xs">⏰</span> Clases de Hoy
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Revisa tus horarios y toma asistencia rápidamente.</p>
+          </div>
+          <LiveClock />
+        </div>
+        <TodayClassesList slots={todaySlotsData || []} bookings={todayBookingsData || []} />
+      </div>
+
+      {/* 📢 Cartelera y Comunicados del Box */}
+      <hr className="border-border my-8" />
       
       <div className="space-y-2">
         <div>

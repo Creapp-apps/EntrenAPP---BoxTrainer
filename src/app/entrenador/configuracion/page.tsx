@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, X, Settings, RotateCcw, Loader2, Check, Shield, Users, Trophy, Search, GraduationCap, Trash2, DownloadCloud, Edit2 } from "lucide-react";
+import { Plus, X, Settings, RotateCcw, Loader2, Check, Shield, Users, Trophy, Search, GraduationCap, Trash2, DownloadCloud, Edit2, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_VARIANTS = [
@@ -44,12 +44,36 @@ export default function ConfiguracionPage() {
   const [editingProfId, setEditingProfId] = useState<string | null>(null);
   const [savingProf, setSavingProf] = useState(false);
   const [downloadingBackup, setDownloadingBackup] = useState(false);
+  
+  // Booking Rules
+  const [bookingDeadline, setBookingDeadline] = useState<number>(1);
+  const [userBoxId, setUserBoxId] = useState<string | null>(null);
+  const [savingDeadline, setSavingDeadline] = useState(false);
 
   useEffect(() => { loadSettings(); }, []);
 
   async function loadSettings() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
+
+    // Cargar perfil del usuario actual para obtener su box_id
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("box_id")
+      .eq("id", user!.id)
+      .single();
+
+    if (userProfile?.box_id) {
+      setUserBoxId(userProfile.box_id);
+      const { data: boxData } = await supabase
+        .from("boxes")
+        .select("branding_config")
+        .eq("id", userProfile.box_id)
+        .single();
+      
+      const config = boxData?.branding_config || {};
+      setBookingDeadline(config.booking_deadline_minutes ?? 1);
+    }
 
     // Cargar alumnos con su permiso de RM
     const { data: studs } = await supabase
@@ -223,6 +247,29 @@ export default function ConfiguracionPage() {
       toast.error("Ocurrió un error generando el archivo de respaldo.");
     } finally {
       setDownloadingBackup(false);
+    }
+  }
+
+  async function saveBookingDeadline() {
+    if (!userBoxId) return;
+    setSavingDeadline(true);
+    try {
+      const res = await fetch("/api/manage-box", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateBookingDeadline",
+          boxId: userBoxId,
+          minutes: bookingDeadline
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      toast.success("Límite de reserva actualizado");
+    } catch (err: any) {
+      toast.error(err.message || "Error al guardar el límite de reserva");
+    } finally {
+      setSavingDeadline(false);
     }
   }
 
@@ -613,6 +660,50 @@ export default function ConfiguracionPage() {
           </div>
         </div>
       )}
+      {/* ─── Reglas de Reserva ──────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
+            <Clock className="w-5 h-5 text-orange-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-semibold text-foreground">Reglas de Reserva</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Configura hasta cuántos minutos antes de que empiece la clase los alumnos pueden reservar su lugar.
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-2 flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="flex-1">
+            <label className="text-xs font-medium text-muted-foreground block mb-1">
+              Límite para reservar (minutos)
+            </label>
+            <div className="relative">
+              <input 
+                type="number" 
+                min="0"
+                value={bookingDeadline} 
+                onChange={e => setBookingDeadline(Number(e.target.value))}
+                className="w-full pl-4 pr-12 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" 
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">min</span>
+            </div>
+          </div>
+          <button 
+            onClick={saveBookingDeadline}
+            disabled={savingDeadline}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary text-white py-2.5 px-6 rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition"
+          >
+            {savingDeadline ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Guardando</>
+            ) : (
+              "Guardar regla"
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* ─── Copia de Seguridad y Respaldo ──────────────────── */}
       <div className="bg-white rounded-2xl border border-border shadow-sm p-6 space-y-4">
         <div className="flex items-start gap-4">

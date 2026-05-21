@@ -94,6 +94,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    case "updateBookingDeadline": {
+      const { data: currentBox } = await admin.from("boxes").select("branding_config").eq("id", boxId).single();
+      const currentConfig = currentBox?.branding_config || {};
+      const newConfig = { ...currentConfig, booking_deadline_minutes: payload.minutes };
+      
+      const { error: dbErr } = await admin.from("boxes").update({ branding_config: newConfig }).eq("id", boxId);
+      if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+
     case "toggleStatus": {
       const newStatus = payload.currentStatus === "suspended" ? "active" : "suspended";
       await admin.from("boxes").update({ status: newStatus }).eq("id", boxId);

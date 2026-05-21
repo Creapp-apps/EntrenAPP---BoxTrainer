@@ -36,6 +36,7 @@ type ComplexSet = {
   set_number: number;
   percentage_1rm: number | null;
   reps_overrides: { training_exercise_id: string; reps: string }[];
+  rounds?: number;
 };
 
 type BlockItem =
@@ -555,6 +556,7 @@ function ComplexPicker({
 function ComplexCard({
   exs, complexId, blockId, dayId,
   sets, onUpdateField, onUpdateSetPercentage, onUpdateSetRepsOverride,
+  onUpdateSetRounds,
   onAddSet, onRemoveSet, onUpdateRest, onDelete, onUngroup,
   studentOneRMs,
 }: {
@@ -566,6 +568,7 @@ function ComplexCard({
   onUpdateField: (blockId: string, exId: string, field: string, value: unknown) => void;
   onUpdateSetPercentage: (setId: string, pct: number | null) => void;
   onUpdateSetRepsOverride: (setId: string, overrides: { training_exercise_id: string; reps: string }[]) => void;
+  onUpdateSetRounds: (setId: string, r: number) => void;
   onAddSet: (complexId: string, dayId: string) => void;
   onRemoveSet: (setId: string) => void;
   onUpdateRest: (blockId: string, complexId: string, value: number | null) => void;
@@ -691,18 +694,33 @@ function ComplexCard({
             <div key={s.id} className="flex items-center gap-2">
               <span className="text-xs font-bold text-primary/60 w-14 shrink-0">Serie {s.set_number}</span>
               <div className="flex-1 flex items-center gap-2">
-                <input
-                  type="number" min="0" max="200"
-                  value={pctVal}
-                  onChange={e => handlePctChange(s.id, s.percentage_1rm, e.target.value)}
-                  onBlur={() => savePct(s.id, pctInputs[s.id] ?? "", s.percentage_1rm)}
-                  onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
-                  placeholder="%"
-                  className="w-20 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                {justSaved ? (
-                  <span className="text-xs text-green-600 font-semibold">✓ guardado</span>
-                ) : null}
+                <div className="relative flex items-center">
+                  <input
+                    type="number" min="0" max="200"
+                    value={pctVal}
+                    onChange={e => handlePctChange(s.id, s.percentage_1rm, e.target.value)}
+                    onBlur={() => savePct(s.id, pctInputs[s.id] ?? "", s.percentage_1rm)}
+                    onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+                    placeholder="%"
+                    className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  {justSaved && (
+                    <span className="absolute left-full ml-1 text-xs text-green-600 font-semibold whitespace-nowrap">✓</span>
+                  )}
+                </div>
+
+                {/* Control de Rondas */}
+                <div className="flex items-center gap-1 border border-border bg-muted/40 rounded-lg px-2 py-1">
+                  <input
+                    type="number" min="1" max="20"
+                    value={s.rounds ?? 1}
+                    onChange={e => onUpdateSetRounds(s.id, parseInt(e.target.value) || 1)}
+                    placeholder="Rondas"
+                    className="w-8 bg-transparent border-0 text-sm text-center font-bold focus:outline-none text-primary"
+                    title="Cantidad de rondas de este complex"
+                  />
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider select-none">ron.</span>
+                </div>
               </div>
               {/* Reps override button */}
               <button
@@ -1145,6 +1163,7 @@ export default function CicloDetailPage() {
               set_number: s.set_number,
               percentage_1rm: s.percentage_1rm ?? null,
               reps_overrides: (s.reps_overrides as { training_exercise_id: string; reps: string }[]) || [],
+              rounds: s.rounds ?? 1,
             });
           }
           setComplexSets(grouped);
@@ -1430,7 +1449,8 @@ export default function CicloDetailPage() {
               day_id: newDay.id,
               set_number: oldSet.set_number,
               percentage_1rm: newPct,
-              reps_overrides: newOverrides
+              reps_overrides: newOverrides,
+              rounds: oldSet.rounds
             });
           }
         }
@@ -1525,6 +1545,7 @@ export default function CicloDetailPage() {
       set_number: n,
       percentage_1rm: null,
       reps_overrides: [],
+      rounds: 1,
     }));
     const { data: setsData, error: setsError } = await supabase
       .from("training_complex_sets").insert(defaultSets).select("*");
@@ -1543,6 +1564,7 @@ export default function CicloDetailPage() {
       set_number: s.set_number,
       percentage_1rm: s.percentage_1rm ?? null,
       reps_overrides: s.reps_overrides || [],
+      rounds: s.rounds ?? 1,
     }));
 
     setWeeks(weeks.map(w => ({
@@ -1630,6 +1652,19 @@ export default function CicloDetailPage() {
     });
   };
 
+  // ─── Actualizar rondas de una serie ───────────────────────
+  const updateComplexSetRounds = async (setId: string, r: number) => {
+    const supabase = createClient();
+    await supabase.from("training_complex_sets").update({ rounds: r }).eq("id", setId);
+    setComplexSets(prev => {
+      const next = { ...prev };
+      for (const cid in next) {
+        next[cid] = next[cid].map(s => s.id === setId ? { ...s, rounds: r } : s);
+      }
+      return next;
+    });
+  };
+
   // ─── Agregar serie al complex ─────────────────────────────
   const addComplexSet = async (complexId: string, dayId: string) => {
     const currentSets = complexSets[complexId] || [];
@@ -1639,13 +1674,14 @@ export default function CicloDetailPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("training_complex_sets")
-      .insert({ complex_id: complexId, day_id: dayId, set_number: nextNumber, percentage_1rm: null, reps_overrides: [] })
+      .insert({ complex_id: complexId, day_id: dayId, set_number: nextNumber, percentage_1rm: null, reps_overrides: [], rounds: 1 })
       .select("*").single();
     if (error) { toast.error("Error al agregar serie"); return; }
     const newSet: ComplexSet = {
       id: data.id, complex_id: data.complex_id, day_id: data.day_id,
       set_number: data.set_number, percentage_1rm: data.percentage_1rm ?? null,
       reps_overrides: data.reps_overrides || [],
+      rounds: data.rounds ?? 1,
     };
     setComplexSets(prev => ({ ...prev, [complexId]: [...(prev[complexId] || []), newSet] }));
   };
@@ -2056,6 +2092,7 @@ export default function CicloDetailPage() {
                                       onUpdateField={updateExercise}
                                       onUpdateSetPercentage={updateComplexSetPercentage}
                                       onUpdateSetRepsOverride={updateComplexSetRepsOverride}
+                                      onUpdateSetRounds={updateComplexSetRounds}
                                       onAddSet={addComplexSet}
                                       onRemoveSet={removeComplexSet}
                                       onUpdateRest={updateComplexRest}

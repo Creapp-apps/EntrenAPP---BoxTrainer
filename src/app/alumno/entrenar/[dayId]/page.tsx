@@ -52,6 +52,7 @@ type ComplexSet = {
   set_number: number;
   percentage_1rm: number | null;
   reps_overrides: { training_exercise_id: string; reps: string }[];
+  rounds?: number;
 };
 
 // ─── Inline Weight Edit ──────────────────────────────────────
@@ -263,18 +264,18 @@ export default function EntrenarPage() {
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      // Usamos el API route server-side que usa el admin client
+      // para bypassear el RLS que bloquea el join training_exercises → exercises
+      // (el nombre del ejercicio aparecía como "undefined" para el alumno)
+      const res = await fetch(`/api/training/${dayId}`);
+      if (!res.ok) {
+        console.error("[entrenar] Error al cargar el entrenamiento:", res.status);
+        setLoading(false);
+        return;
+      }
 
-      const [{ data: blocksData }, { data: dayData }, { data: ormsData }] = await Promise.all([
-        supabase.from("training_blocks")
-          .select(`*, training_exercises(*, exercises(id, name, category, video_url), exercise_variants(id, name, video_url))`)
-          .eq("day_id", dayId).order("order"),
-        supabase.from("training_days")
-          .select(`*, training_weeks(week_number, type, training_cycles(id, name))`)
-          .eq("id", dayId).single(),
-        supabase.from("student_one_rm").select("exercise_id, weight_kg").eq("student_id", user!.id),
-      ]);
+      const json = await res.json();
+      const { blocks: blocksData, complexSets: setsData, oneRMs: ormsData, dayInfo: di } = json;
 
       if (blocksData) {
         const sorted = (blocksData as unknown as Block[]).map(b => ({
@@ -283,38 +284,35 @@ export default function EntrenarPage() {
         }));
         setBlocks(sorted);
 
-        const { data: setsData } = await supabase
-          .from("training_complex_sets")
-          .select("id, complex_id, set_number, percentage_1rm, reps_overrides")
-          .eq("day_id", dayId)
-          .order("set_number");
         if (setsData) {
           const grouped: Record<string, ComplexSet[]> = {};
           for (const s of setsData as ComplexSet[]) {
             if (!grouped[s.complex_id]) grouped[s.complex_id] = [];
             grouped[s.complex_id].push({
               id: s.id, complex_id: s.complex_id,
-              set_number: s.set_number, percentage_1rm: s.percentage_1rm ?? null,
+              set_number: s.set_number,
+              percentage_1rm: s.percentage_1rm ?? null,
               reps_overrides: (s.reps_overrides as { training_exercise_id: string; reps: string }[]) || [],
+              rounds: s.rounds ?? 1,
             });
           }
           setComplexSets(grouped);
         }
       }
 
-      if (dayData) {
-        const week = (dayData as Record<string, unknown>).training_weeks as Record<string, unknown>;
-        const cycle = week?.training_cycles as Record<string, unknown>;
+      if (di) {
         setDayInfo({
-          cycle_id: cycle?.id as string,
-          cycle_name: cycle?.name as string,
-          week_number: week?.week_number as number,
+          cycle_id: di.cycle_id,
+          cycle_name: di.cycle_name,
+          week_number: di.week_number,
         });
       }
 
       if (ormsData) {
         const map: Record<string, number> = {};
-        ormsData.forEach(r => { map[r.exercise_id] = r.weight_kg; });
+        (ormsData as { exercise_id: string; weight_kg: number }[]).forEach(r => {
+          map[r.exercise_id] = r.weight_kg;
+        });
         setOneRMs(map);
       }
 
@@ -322,6 +320,9 @@ export default function EntrenarPage() {
     };
     load();
   }, [dayId]);
+
+
+
 
   // ─── Single exercise tap ───────────────────────────────
   const handleExerciseTap = (te: TrainingExercise) => {
@@ -774,12 +775,16 @@ export default function EntrenarPage() {
                       const isEditing = editingSeriesWeight === s.id;
 
                       // Build reps line: "1× Arranque C1 + 1× Arranque C3"
-                      const repsLine = items.map(te => {
+                      let repsLine = items.map(te => {
                         const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
                         const r = ov ? ov.reps : te.reps;
                         const v = te.exercise_variants?.name ?? "";
                         return `${r}× ${v || te.exercises?.name}`;
                       }).join(" + ");
+
+                      if (s.rounds && s.rounds > 1) {
+                        repsLine = `${s.rounds} rondas de: ${repsLine}`;
+                      }
 
                       return (
                         <div key={s.id} className={`px-4 py-3 ${seriesDone ? "bg-green-50/50" : ""}`}>
@@ -800,6 +805,11 @@ export default function EntrenarPage() {
                                 <span className={`text-xs font-bold ${seriesDone ? "text-muted-foreground" : "text-primary/70"}`}>
                                   Serie {s.set_number}
                                 </span>
+                                {s.rounds && s.rounds > 1 && (
+                                  <span className="text-[10px] bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm animate-pulse shrink-0">
+                                    {s.rounds} Rondas
+                                  </span>
+                                )}
                                 {s.percentage_1rm ? (
                                   <span className={`text-sm font-bold ${seriesDone ? "text-muted-foreground" : "text-foreground"}`}>
                                     {s.percentage_1rm}%
@@ -913,12 +923,16 @@ export default function EntrenarPage() {
       {/* Series confirmation modal */}
       {pendingSeriesConfirm && (() => {
         const { set, items, calcWeight } = pendingSeriesConfirm;
-        const repsLine = items.map(te => {
+        let repsLine = items.map(te => {
           const ov = set.reps_overrides.find(o => o.training_exercise_id === te.id);
           const r = ov ? ov.reps : te.reps;
           const v = te.exercise_variants?.name ?? "";
           return `${r}× ${v || te.exercises?.name}`;
         }).join(" + ");
+
+        if (set.rounds && set.rounds > 1) {
+          repsLine = `${set.rounds} rondas de: ${repsLine}`;
+        }
 
         return (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">

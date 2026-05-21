@@ -49,60 +49,47 @@ export default function TurnosAlumnoPage() {
   const [booking, setBooking] = useState(false);
   const [trainerId, setTrainerId] = useState<string | null>(null);
   const [justBooked, setJustBooked] = useState<any | null>(null); // confirmation state
+  const [bookingDeadlineMinutes, setBookingDeadlineMinutes] = useState(1);
 
   useEffect(() => { loadInitial(); }, []);
   useEffect(() => { if (trainerId) loadSlots(); }, [selectedDate, trainerId]);
 
   async function loadInitial() {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const res = await fetch("/api/turnos/load");
+      if (!res.ok) {
+        setLoading(false);
+        return;
+      }
 
-    const { data: profile } = await supabase
-      .from("users")
-      .select("created_by, modality")
-      .eq("id", user.id)
-      .single();
+      const data = await res.json();
+      if (!data.trainerId) {
+        setLoading(false);
+        return;
+      }
 
-    if (!profile?.created_by) {
+      setTrainerId(data.trainerId);
+
+      if (data.subscription) {
+        setSubscription({
+          ...data.subscription,
+          credits_remaining: data.subscription.credits_total - data.subscription.credits_used,
+        } as StudentPlanSubscription);
+      } else {
+        setSubscription(null);
+      }
+
+      setMyBookings(data.myBookings || []);
+      setPastBookings(data.pastBookings || []);
+      if (data.bookingDeadlineMinutes !== undefined) {
+        setBookingDeadlineMinutes(data.bookingDeadlineMinutes);
+      }
+      
+    } catch (err) {
+      console.error("Error cargando datos de turnos:", err);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setTrainerId(profile.created_by);
-
-    const [subRes, bookingsRes, pastRes] = await Promise.all([
-      supabase.from("student_plan_subscriptions")
-        .select("*, plans(name, modality, sessions_per_week)")
-        .eq("student_id", user.id)
-        .eq("status", "activo")
-        .order("period_start", { ascending: false })
-        .limit(1),
-      supabase.from("bookings")
-        .select("*, box_schedule_slots(label, start_time, end_time, day_of_week)")
-        .eq("student_id", user.id)
-        .eq("status", "confirmada")
-        .gte("booking_date", formatDateISO(new Date()))
-        .order("booking_date"),
-      supabase.from("bookings")
-        .select("*, box_schedule_slots(label, start_time, end_time, day_of_week)")
-        .eq("student_id", user.id)
-        .or(`booking_date.lt.${formatDateISO(new Date())},status.neq.confirmada`)
-        .order("booking_date", { ascending: false })
-        .limit(30),
-    ]);
-
-    if (subRes.data && subRes.data.length > 0) {
-      const sub = subRes.data[0];
-      setSubscription({
-        ...sub,
-        credits_remaining: sub.credits_total - sub.credits_used,
-      } as StudentPlanSubscription);
-    }
-
-    setMyBookings(bookingsRes.data || []);
-    setPastBookings(pastRes.data || []);
-    setLoading(false);
   }
 
   async function loadSlots() {
@@ -346,6 +333,11 @@ export default function TurnosAlumnoPage() {
               <div className="space-y-2">
                 {availableSlots.map(slot => {
                   const isFull = slot.spots_available <= 0;
+                  const hasBookedThisSlot = myBookings.some(b => 
+                    b.slot_id === slot.slot_id && 
+                    b.booking_date === formatDateISO(selectedDate)
+                  );
+
                   return (
                     <div
                       key={slot.slot_id}
@@ -375,14 +367,35 @@ export default function TurnosAlumnoPage() {
                           }`}>
                             {isFull ? "Completo" : `${slot.spots_available} lugares`}
                           </span>
-                          {!isFull && subscription && subscription.credits_remaining > 0 && (
+                          
+                          {hasBookedThisSlot ? (
                             <button
-                              onClick={() => makeBooking(slot.slot_id, slot)}
-                              disabled={booking}
-                              className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary/90 transition disabled:opacity-50"
+                              disabled
+                              className="bg-green-100 text-green-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-1.5"
                             >
-                              {booking ? "..." : "Reservar"}
+                              <CheckCircle2 className="w-4 h-4" />
+                              Reservado
                             </button>
+                          ) : (
+                            !isFull && subscription && subscription.credits_remaining > 0 && (
+                              (() => {
+                                const slotDate = new Date(`${formatDateISO(selectedDate)}T${slot.start_time}`);
+                                const now = new Date();
+                                const minutesUntil = (slotDate.getTime() - now.getTime()) / 60000;
+                                const isPastDeadline = minutesUntil < bookingDeadlineMinutes;
+
+                                return (
+                                  <button
+                                    onClick={() => makeBooking(slot.slot_id, slot)}
+                                    disabled={booking || isPastDeadline}
+                                    title={isPastDeadline ? `Las reservas cierran ${bookingDeadlineMinutes} min antes` : ""}
+                                    className={`${isPastDeadline ? "bg-slate-100 text-slate-400" : "bg-primary text-white hover:bg-primary/90"} px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50`}
+                                  >
+                                    {booking ? "..." : isPastDeadline ? "Cerrado" : "Reservar"}
+                                  </button>
+                                );
+                              })()
+                            )
                           )}
                         </div>
                       </div>
