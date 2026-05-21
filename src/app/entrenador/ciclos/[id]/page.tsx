@@ -708,32 +708,43 @@ function ComplexCard({
                     <span className="absolute left-full ml-1 text-xs text-green-600 font-semibold whitespace-nowrap">✓</span>
                   )}
                 </div>
-
-                {/* Control de Rondas */}
-                <div className="flex items-center gap-1 border border-border bg-muted/40 rounded-lg px-2 py-1">
+              </div>
+              
+              {/* Controles de la derecha (Rondas y Reps) alineados y con estilos similares */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Rondas Control */}
+                <div 
+                  className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg border transition-colors ${
+                    s.rounds && s.rounds > 1
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary focus-within:border-primary focus-within:text-primary"
+                  }`}
+                  title="Cantidad de rondas de este complex"
+                >
                   <input
                     type="number" min="1" max="20"
                     value={s.rounds ?? 1}
                     onChange={e => onUpdateSetRounds(s.id, parseInt(e.target.value) || 1)}
-                    placeholder="Rondas"
-                    className="w-8 bg-transparent border-0 text-sm text-center font-bold focus:outline-none text-primary"
-                    title="Cantidad de rondas de este complex"
+                    className="w-4 bg-transparent border-0 text-xs text-center font-bold focus:outline-none"
                   />
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider select-none">ron.</span>
+                  <span className="text-xs font-medium select-none cursor-default">
+                    {s.rounds && s.rounds > 1 ? "Ron ✓" : "Ron"}
+                  </span>
                 </div>
+
+                {/* Reps override button */}
+                <button
+                  onClick={() => setOverrideModalSet(s)}
+                  title="Cambiar reps de esta serie"
+                  className={`px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                    hasOverride
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+                  }`}
+                >
+                  {hasOverride ? "Rep ✓" : "Reps"}
+                </button>
               </div>
-              {/* Reps override button */}
-              <button
-                onClick={() => setOverrideModalSet(s)}
-                title="Cambiar reps de esta serie"
-                className={`p-1.5 rounded-lg border text-xs font-medium transition-colors shrink-0 ${
-                  hasOverride
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:border-primary hover:text-primary"
-                }`}
-              >
-                {hasOverride ? "Rep ✓" : "Reps"}
-              </button>
               <button onClick={() => onRemoveSet(s.id)}
                 className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors shrink-0">
                 <X className="w-3.5 h-3.5" />

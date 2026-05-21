@@ -22,6 +22,7 @@ type OneRM = {
 
 const CATEGORY_LABELS: Record<string, string> = {
   fuerza: "Fuerza",
+  olimpico: "Levantamientos Olímpicos",
   prep_fisica: "Preparación Física",
   accesorio: "Accesorio",
 };
@@ -120,9 +121,9 @@ export default function StudentOneRMPage() {
     CATEGORY_LABELS[ex.category]?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Group by category
+  // Group by category (treat olimpico muscle_group as a category)
   const grouped = filtered.reduce((acc, ex) => {
-    const cat = ex.category;
+    const cat = ex.muscle_group === 'olimpico' ? 'olimpico' : ex.category;
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(ex);
     return acc;
