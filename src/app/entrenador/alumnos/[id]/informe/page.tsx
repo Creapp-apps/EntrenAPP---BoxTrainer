@@ -28,8 +28,8 @@ export default async function AlumnoInformePage({ params }: { params: { id: stri
 
   if (!student) notFound();
 
-  // 📡 Consultas auxiliares de apoyo (Pagos reales y PRs reales)
-  const [{ data: dbPayments }, { data: dbPRs }] = await Promise.all([
+  // 📡 Consultas auxiliares de apoyo (Pagos reales, PRs reales y Consumos reales)
+  const [{ data: dbPayments }, { data: dbPRs }, { data: dbSales }] = await Promise.all([
     supabase.from("student_payments")
       .select("*")
       .eq("student_id", params.id)
@@ -37,6 +37,14 @@ export default async function AlumnoInformePage({ params }: { params: { id: stri
     supabase.from("personal_records")
       .select("*, exercises(name)")
       .eq("student_id", params.id)
+      .order("created_at", { ascending: false }),
+    supabase.from("box_product_sales")
+      .select(`
+        *,
+        product:box_products(name)
+      `)
+      .eq("student_id", params.id)
+      .eq("status", "completado")
       .order("created_at", { ascending: false })
   ]);
 
@@ -54,14 +62,17 @@ export default async function AlumnoInformePage({ params }: { params: { id: stri
     ]
   };
 
-  // Mock de consumos en el E-commerce
-  const mockStorePurchases = [
-    { date: "2026-05-10", item: "Gatorade 500ml", price: 2500, method: "MercadoPago QR" },
-    { date: "2026-05-02", item: "Proteína Whey 1kg", price: 45000, method: "Efectivo" },
-    { date: "2026-04-15", item: "Remera Wolfpack L", price: 22000, method: "MercadoPago QR" },
-  ];
+  // Consumos en el E-commerce reales
+  const storePurchases = (dbSales || []).map(sale => ({
+    date: sale.created_at.split('T')[0],
+    item: (sale.product as any)?.name || "Producto comprado",
+    price: Number(sale.total_price),
+    method: sale.payment_method === 'mercadopago' ? 'MercadoPago QR' :
+            sale.payment_method === 'efectivo' ? 'Efectivo' :
+            sale.payment_method === 'transferencia' ? 'Transferencia' : 'Otro'
+  }));
 
-  const totalSpentInStore = mockStorePurchases.reduce((acc, curr) => acc + curr.price, 0);
+  const totalSpentInStore = storePurchases.reduce((acc, curr) => acc + curr.price, 0);
 
   return (
     <div className="space-y-8 max-w-5xl pb-16 print:p-0 print:bg-white">
@@ -232,18 +243,22 @@ export default async function AlumnoInformePage({ params }: { params: { id: stri
               </h3>
               
               <div className="space-y-3">
-                {mockStorePurchases.map((purchase, idx) => (
-                  <div key={idx} className="flex justify-between items-center py-2 border-b border-dashed border-slate-100 last:border-0">
-                    <div>
-                      <p className="font-bold text-sm text-slate-800">{purchase.item}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-slate-400">{new Date(purchase.date + "T12:00:00").toLocaleDateString("es-AR")}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-100">{purchase.method}</span>
+                {storePurchases.length > 0 ? (
+                  storePurchases.map((purchase, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-2 border-b border-dashed border-slate-100 last:border-0">
+                      <div>
+                        <p className="font-bold text-sm text-slate-800">{purchase.item}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-slate-400">{new Date(purchase.date + "T12:00:00").toLocaleDateString("es-AR")}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-100">{purchase.method}</span>
+                        </div>
                       </div>
+                      <span className="font-extrabold text-sm text-slate-900">{formatCurrency(purchase.price)}</span>
                     </div>
-                    <span className="font-extrabold text-sm text-slate-900">{formatCurrency(purchase.price)}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-400 py-4 text-center">Aún no posee consumos registrados en la tienda.</p>
+                )}
               </div>
 
               <div className="mt-4 bg-purple-50 border border-purple-100 rounded-xl p-3 flex justify-between items-center text-purple-950">

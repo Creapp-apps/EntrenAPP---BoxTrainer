@@ -1,35 +1,36 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Dumbbell, ChevronRight, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import InviteClientHandler from "./InviteClientHandler";
+import PortalClient from "./PortalClient";
 
 export default async function InvitePage({ params }: { params: { box_id: string } }) {
   const supabase = await createAdminClient(); // 👈 Usamos Admin Client para bypassear RLS en modo anónimo
   
-  // Obtener datos del Box para personalizar el saludo
+  // 1. Obtener datos del Box
   const { data: box, error } = await supabase
     .from("boxes")
-    .select("name")
+    .select("name, owner_id, logo_url, theme")
     .eq("id", params.box_id)
     .single();
 
-  // Si el Box no existe, mostramos una UI amigable indicando el error en lugar de romper la app
+  // Si el Box no existe, mostramos una UI amigable indicando el error
   if (error || !box) {
     return (
-      <div className="min-h-screen bg-[#0e1217] flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 text-center relative overflow-hidden border border-border">
-          <div className="w-20 h-20 mx-auto rounded-3xl bg-red-50 flex items-center justify-center shadow-inner mb-6">
+      <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md bg-zinc-950 rounded-3xl shadow-2xl p-8 text-center border border-zinc-900">
+          <div className="w-20 h-20 mx-auto rounded-3xl bg-red-500/10 flex items-center justify-center mb-6">
             <ShieldAlert className="w-10 h-10 text-red-500" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
+          <h1 className="text-2xl font-bold text-white tracking-tight">
             Invitación Inválida
           </h1>
-          <p className="text-muted-foreground mt-4 text-sm leading-relaxed">
+          <p className="text-zinc-400 mt-4 text-sm leading-relaxed">
             El código de invitación es incorrecto o ha expirado. Por favor, solicita a tu entrenador que te envíe un nuevo enlace.
           </p>
           <div className="mt-8">
-            <Link href="/auth/login" className="inline-flex items-center justify-center w-full bg-primary text-white py-3.5 px-4 rounded-2xl font-semibold hover:bg-primary/90 transition">
+            <Link href="/auth/login" className="inline-flex items-center justify-center w-full bg-red-600 text-white py-3.5 px-4 rounded-2xl font-semibold hover:bg-red-500 transition">
               Ir al Inicio de Sesión
             </Link>
           </div>
@@ -38,54 +39,73 @@ export default async function InvitePage({ params }: { params: { box_id: string 
     );
   }
 
+  // 2. Intentar buscar el ID de entrenador
+  let ownerId = box.owner_id;
+  if (!ownerId) {
+    const { data: trainer } = await supabase
+      .from("users")
+      .select("id")
+      .eq("box_id", params.box_id)
+      .eq("role", "trainer")
+      .limit(1)
+      .single();
+    ownerId = trainer?.id;
+  }
+
+  // 3. Obtener productos activos de la tienda del Box
+  const { data: productsRes } = await supabase
+    .from("box_products")
+    .select("*")
+    .eq("box_id", params.box_id)
+    .eq("active", true)
+    .order("name");
+  
+  const products = (productsRes || []).map(p => ({
+    ...p,
+    price: Number(p.price)
+  }));
+
+  // 4. Obtener planes de precios activos del Box
+  let plans: any[] = [];
+  if (ownerId) {
+    const { data: plansRes } = await supabase
+      .from("plans")
+      .select("*")
+      .eq("trainer_id", ownerId)
+      .eq("active", true)
+      .order("price");
+    plans = (plansRes || []).map(p => ({
+      ...p,
+      price: Number(p.price)
+    }));
+  }
+
+  // 5. Obtener horarios de clases activas del Box
+  let slots: any[] = [];
+  if (ownerId) {
+    const { data: slotsRes } = await supabase
+      .from("box_schedule_slots")
+      .select("*, activity:box_activities(name, color)")
+      .eq("trainer_id", ownerId)
+      .eq("active", true);
+    slots = slotsRes || [];
+  }
+
   return (
-    <div className="min-h-screen bg-[#0e1217] flex flex-col items-center justify-center p-4 select-none">
-      {/* Capturador cliente del Box ID */}
+    <>
+      {/* Capturador cliente del Box ID para el flujo de autenticación */}
       <InviteClientHandler boxId={params.box_id} />
-
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 text-center relative overflow-hidden border border-border">
-        {/* Círculos decorativos */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-primary/5 rounded-full blur-3xl" />
-
-        <div className="relative">
-          <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 flex items-center justify-center shadow-inner mb-6">
-            <Dumbbell className="w-10 h-10 text-primary" />
-          </div>
-
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">
-            Te invitaron a unirte a
-          </h1>
-          <h2 className="text-3xl font-extrabold text-primary mt-1.5 px-2 truncate" title={box.name}>
-            {box.name}
-          </h2>
-
-          <p className="text-muted-foreground mt-4 text-sm leading-relaxed">
-            Crea tu cuenta o inicia sesión para acceder a tu planificación, registrar tus cargas reales y gestionar tus reservas de turnos.
-          </p>
-
-          <div className="mt-8 flex flex-col gap-3">
-            <Link
-              href="/auth/signup"
-              className="w-full flex items-center justify-center gap-2 bg-primary text-white py-4 px-4 rounded-2xl font-semibold hover:bg-primary/90 transition shadow-lg shadow-primary/20 group"
-            >
-              Crear cuenta gratis
-              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Link>
-
-            <Link
-              href="/auth/login"
-              className="w-full text-foreground bg-muted/50 border border-border py-4 px-4 rounded-2xl font-semibold hover:bg-muted transition"
-            >
-              Ya tengo cuenta, Iniciar sesión
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      <p className="text-white/20 text-[10px] mt-8 font-bold tracking-[0.2em] uppercase">
-        POWERED BY ENTRENAPP
-      </p>
-    </div>
+      
+      {/* Portal Interactivo 3D Blueprint Client */}
+      <PortalClient 
+        boxId={params.box_id}
+        boxName={box.name}
+        products={products}
+        plans={plans}
+        slots={slots}
+        logoUrl={box.logo_url}
+        theme={box.theme || "default"}
+      />
+    </>
   );
 }

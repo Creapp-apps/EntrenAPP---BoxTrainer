@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, X, Settings, RotateCcw, Loader2, Check, Shield, Users, Trophy, Search, GraduationCap, Trash2, DownloadCloud } from "lucide-react";
+import { Plus, X, Settings, RotateCcw, Loader2, Check, Shield, Users, Trophy, Search, GraduationCap, Trash2, DownloadCloud, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_VARIANTS = [
@@ -41,6 +41,7 @@ export default function ConfiguracionPage() {
   const [professors, setProfessors] = useState<{id:string;full_name:string;email:string;active:boolean}[]>([]);
   const [showProfModal, setShowProfModal] = useState(false);
   const [profForm, setProfForm] = useState({ name: "", email: "", password: "" });
+  const [editingProfId, setEditingProfId] = useState<string | null>(null);
   const [savingProf, setSavingProf] = useState(false);
   const [downloadingBackup, setDownloadingBackup] = useState(false);
 
@@ -223,6 +224,36 @@ export default function ConfiguracionPage() {
     } finally {
       setDownloadingBackup(false);
     }
+  }
+
+  async function handleDeleteProf(id: string, name: string) {
+    if (!confirm(`¿Estás seguro de que deseas eliminar al profesor "${name}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      const res = await fetch(`/api/professors?professor_id=${id}`, {
+        method: "DELETE"
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        toast.error(result.error || "Error al eliminar profesor");
+        return;
+      }
+      toast.success(`Profesor "${name}" eliminado correctamente`);
+      loadSettings();
+    } catch (err) {
+      toast.error("Error de conexión");
+    }
+  }
+
+  function openEditProf(p: { id: string; full_name: string; email: string }) {
+    setEditingProfId(p.id);
+    setProfForm({ name: p.full_name, email: p.email, password: "" });
+    setShowProfModal(true);
+  }
+
+  function closeProfModal() {
+    setShowProfModal(false);
+    setEditingProfId(null);
+    setProfForm({ name: "", email: "", password: "" });
   }
 
   if (loading) {
@@ -445,7 +476,7 @@ export default function ConfiguracionPage() {
               <p className="text-sm text-muted-foreground">Usuarios con acceso para planificar</p>
             </div>
           </div>
-          <button onClick={() => { setShowProfModal(true); setProfForm({ name: "", email: "", password: "" }); }}
+          <button onClick={() => { closeProfModal(); setShowProfModal(true); }}
             className="flex items-center gap-1.5 bg-primary text-white px-3 py-2 rounded-xl text-xs font-medium hover:bg-primary/90 transition">
             <Plus className="w-3.5 h-3.5" /> Agregar
           </button>
@@ -455,16 +486,18 @@ export default function ConfiguracionPage() {
           <div className="space-y-1">
             {professors.map(p => (
               <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/30 transition-colors">
-                <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
                   <GraduationCap className="w-4 h-4 text-purple-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{p.full_name}</p>
                   <p className="text-xs text-muted-foreground truncate">{p.email}</p>
                 </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${p.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${p.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
                   {p.active ? "Activo" : "Inactivo"}
                 </span>
+                
+                {/* Active Toggle Switch */}
                 <button onClick={async () => {
                   const supabase = createClient();
                   await supabase.from("users").update({ active: !p.active }).eq("id", p.id);
@@ -474,6 +507,18 @@ export default function ConfiguracionPage() {
                   className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${p.active ? "bg-green-500" : "bg-muted"}`}>
                   <span className={`block w-4 h-4 rounded-full bg-white shadow-md transform transition-transform duration-200 ${p.active ? "translate-x-5" : "translate-x-1"}`} />
                 </button>
+
+                {/* Edit Button */}
+                <button onClick={() => openEditProf(p)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+
+                {/* Delete Button */}
+                <button onClick={() => handleDeleteProf(p.id, p.full_name)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-500 transition-colors shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>
@@ -482,11 +527,13 @@ export default function ConfiguracionPage() {
         )}
       </div>
 
-      {/* ─── Modal crear profesor ────────────────────────── */}
+      {/* ─── Modal crear/editar profesor ────────────────────────── */}
       {showProfModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowProfModal(false)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeProfModal}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground mb-4">Nuevo profesor</h3>
+            <h3 className="text-lg font-bold text-foreground mb-4">
+              {editingProfId ? "Editar profesor" : "Nuevo profesor"}
+            </h3>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">Nombre completo</label>
@@ -498,36 +545,59 @@ export default function ConfiguracionPage() {
                 <input type="email" value={profForm.email} onChange={e => setProfForm({ ...profForm, email: e.target.value })}
                   placeholder="profesor@email.com" className="w-full px-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">Contraseña temporal</label>
-                <input type="text" value={profForm.password} onChange={e => setProfForm({ ...profForm, password: e.target.value })}
-                  placeholder="Min 6 caracteres" className="w-full px-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
+              {!editingProfId && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Contraseña temporal</label>
+                  <input type="text" value={profForm.password} onChange={e => setProfForm({ ...profForm, password: e.target.value })}
+                    placeholder="Min 6 caracteres" className="w-full px-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                </div>
+              )}
             </div>
             <div className="flex gap-2 mt-5">
               <button disabled={savingProf} onClick={async () => {
-                if (!profForm.name.trim() || !profForm.email.trim() || profForm.password.length < 6) {
-                  toast.error("Completá todos los campos (contraseña mín 6 chars)"); return;
+                if (!profForm.name.trim() || !profForm.email.trim() || (!editingProfId && profForm.password.length < 6)) {
+                  toast.error("Completá todos los campos" + (!editingProfId ? " (contraseña mín 6 chars)" : "")); return;
                 }
                 setSavingProf(true);
                 try {
-                  const res = await fetch("/api/create-professor", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      name: profForm.name,
-                      email: profForm.email,
-                      password: profForm.password,
-                    }),
-                  });
-                  const result = await res.json();
-                  if (!res.ok) {
-                    toast.error(result.error || "Error al crear profesor");
-                    setSavingProf(false);
-                    return;
+                  if (editingProfId) {
+                    // EDIT
+                    const res = await fetch("/api/professors", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        professor_id: editingProfId,
+                        name: profForm.name,
+                        email: profForm.email
+                      }),
+                    });
+                    const result = await res.json();
+                    if (!res.ok) {
+                      toast.error(result.error || "Error al editar profesor");
+                      setSavingProf(false);
+                      return;
+                    }
+                    toast.success(`Profesor "${profForm.name}" actualizado correctamente`);
+                  } else {
+                    // CREATE
+                    const res = await fetch("/api/create-professor", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        name: profForm.name,
+                        email: profForm.email,
+                        password: profForm.password,
+                      }),
+                    });
+                    const result = await res.json();
+                    if (!res.ok) {
+                      toast.error(result.error || "Error al crear profesor");
+                      setSavingProf(false);
+                      return;
+                    }
+                    toast.success(`Profesor "${profForm.name}" creado correctamente`);
                   }
-                  toast.success(`Profesor "${profForm.name}" creado correctamente`);
-                  setShowProfModal(false);
+                  closeProfModal();
                   loadSettings();
                 } catch (err: any) {
                   toast.error("Error de conexión");
@@ -535,9 +605,9 @@ export default function ConfiguracionPage() {
                 setSavingProf(false);
               }}
                 className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-                {savingProf ? "Creando..." : "Crear profesor"}
+                {savingProf ? "Guardando..." : (editingProfId ? "Guardar cambios" : "Crear profesor")}
               </button>
-              <button onClick={() => setShowProfModal(false)}
+              <button onClick={closeProfModal}
                 className="px-4 py-2.5 rounded-xl text-sm text-muted-foreground hover:bg-muted">Cancelar</button>
             </div>
           </div>

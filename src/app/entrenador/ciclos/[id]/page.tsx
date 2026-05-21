@@ -153,6 +153,7 @@ function CopyWeekModal({
 // ─── Exercise Picker Modal (single) ──────────────────────────
 const CATEGORY_TABS = [
   { value: "all", label: "Todos" },
+  { value: "olimpico", label: "Olímpicos" },
   { value: "fuerza", label: "Fuerza" },
   { value: "prep_fisica", label: "Prep. Física" },
   { value: "accesorio", label: "Accesorio" },
@@ -171,13 +172,21 @@ function ExercisePicker({
 
   const filtered = exercises.filter(e => {
     const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
-    const matchesCat = category === "all" || e.category === category;
+    const matchesCat = category === "all"
+      ? true
+      : category === "olimpico"
+        ? e.muscle_group === "olimpico"
+        : e.category === category && e.muscle_group !== "olimpico";
     return matchesSearch && matchesCat;
   });
 
   // Count per category for badges
   const counts = exercises.reduce((acc: Record<string, number>, e) => {
-    acc[e.category] = (acc[e.category] || 0) + 1;
+    if (e.muscle_group === "olimpico") {
+      acc["olimpico"] = (acc["olimpico"] || 0) + 1;
+    } else {
+      acc[e.category] = (acc[e.category] || 0) + 1;
+    }
     return acc;
   }, {});
 
@@ -194,7 +203,7 @@ function ExercisePicker({
         {!selected ? (
           <>
             {/* Search */}
-            <div className="px-3 pt-3 pb-2">
+            <div className="px-3 pt-3 pb-2 shrink-0">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
@@ -204,7 +213,7 @@ function ExercisePicker({
             </div>
 
             {/* Category tabs */}
-            <div className="px-3 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
+            <div className="px-3 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide shrink-0">
               {CATEGORY_TABS.map(tab => {
                 const count = tab.value === "all" ? exercises.length : (counts[tab.value] || 0);
                 return (
@@ -238,7 +247,7 @@ function ExercisePicker({
                     <p className="text-sm font-semibold text-foreground">{ex.name}</p>
                     {category === "all" && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {CATEGORY_TABS.find(t => t.value === ex.category)?.label ?? ex.category}
+                        {ex.muscle_group === "olimpico" ? "Olímpico" : (CATEGORY_TABS.find(t => t.value === ex.category)?.label ?? ex.category)}
                       </p>
                     )}
                   </div>
@@ -368,12 +377,20 @@ function ComplexPicker({
 
   const filtered = exercises.filter(e => {
     const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
-    const matchesCat = category === "all" || e.category === category;
+    const matchesCat = category === "all"
+      ? true
+      : category === "olimpico"
+        ? e.muscle_group === "olimpico"
+        : e.category === category && e.muscle_group !== "olimpico";
     return matchesSearch && matchesCat;
   });
 
   const counts = exercises.reduce((acc: Record<string, number>, e) => {
-    acc[e.category] = (acc[e.category] || 0) + 1;
+    if (e.muscle_group === "olimpico") {
+      acc["olimpico"] = (acc["olimpico"] || 0) + 1;
+    } else {
+      acc[e.category] = (acc[e.category] || 0) + 1;
+    }
     return acc;
   }, {});
 
@@ -433,7 +450,7 @@ function ComplexPicker({
         {/* Browse / Variant selection */}
         {!pickingVariantFor ? (
           <>
-            <div className="px-3 pt-3 pb-2">
+            <div className="px-3 pt-3 pb-2 shrink-0">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input autoFocus={selectedItems.length === 0} value={search}
@@ -443,7 +460,7 @@ function ComplexPicker({
               </div>
             </div>
 
-            <div className="px-3 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide">
+            <div className="px-3 pb-2 flex gap-1.5 overflow-x-auto scrollbar-hide shrink-0">
               {CATEGORY_TABS.map(tab => {
                 const count = tab.value === "all" ? exercises.length : (counts[tab.value] || 0);
                 return (
@@ -479,7 +496,7 @@ function ComplexPicker({
                     <p className="text-sm font-semibold text-foreground">{ex.name}</p>
                     {category === "all" && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {CATEGORY_TABS.find(t => t.value === ex.category)?.label ?? ex.category}
+                        {ex.muscle_group === "olimpico" ? "Olímpico" : (CATEGORY_TABS.find(t => t.value === ex.category)?.label ?? ex.category)}
                       </p>
                     )}
                   </div>

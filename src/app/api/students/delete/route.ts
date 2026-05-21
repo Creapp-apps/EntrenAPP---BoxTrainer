@@ -17,13 +17,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const { data: trainerProfile } = await supabaseUser
+      .from("users")
+      .select("id, role, box_id")
+      .eq("id", trainer.id)
+      .single();
+
+    if (!trainerProfile || !["trainer", "co_trainer", "professor"].includes(trainerProfile.role)) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
     const { data: student } = await supabaseUser
       .from("users")
-      .select("id, created_by")
+      .select("id, box_id")
       .eq("id", student_id)
       .single();
 
-    if (!student || student.created_by !== trainer.id) {
+    if (!student || student.box_id !== trainerProfile.box_id) {
       return NextResponse.json({ error: "No tenés permiso para eliminar este alumno" }, { status: 403 });
     }
 

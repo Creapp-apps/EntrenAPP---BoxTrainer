@@ -20,6 +20,7 @@ import {
   Flame,
   BarChart3,
   Building2,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/entrenador/crossfit", label: "Cross / Funcional", icon: Flame },
   { href: "/entrenador/metricas", label: "Métricas", icon: BarChart3 },
   { href: "/entrenador/pagos", label: "Pagos", icon: CreditCard },
+  { href: "/entrenador/tienda", label: "Tienda del Box", icon: ShoppingBag },
   { href: "/entrenador/tu-box", label: "Tu Espacio", icon: Warehouse },
   { href: "/entrenador/mi-box", label: "Mi Box", icon: Building2 },
 ];
