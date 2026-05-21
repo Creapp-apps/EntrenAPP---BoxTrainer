@@ -725,7 +725,7 @@ function ComplexCard({
                     type="number" min="1" max="20"
                     value={s.rounds ?? 1}
                     onChange={e => onUpdateSetRounds(s.id, parseInt(e.target.value) || 1)}
-                    className="w-4 bg-transparent border-0 text-xs text-center font-bold focus:outline-none"
+                    className="w-6 bg-transparent border-0 text-xs text-center font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="text-xs font-medium select-none cursor-default">
                     {s.rounds && s.rounds > 1 ? "Ron ✓" : "Ron"}
