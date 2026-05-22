@@ -316,10 +316,40 @@ export default function EntrenarPage() {
         setOneRMs(map);
       }
 
+      // Cargar progreso previo de localStorage antes de marcar loading como false
+      try {
+        const saved = localStorage.getItem(`entrenapp_progress_${dayId}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.checkedExercises) setCheckedExercises(new Set(parsed.checkedExercises));
+          if (parsed.checkedSeries) setCheckedSeries(new Set(parsed.checkedSeries));
+          if (parsed.exerciseLogs) setExerciseLogs(parsed.exerciseLogs);
+          if (parsed.seriesWeights) setSeriesWeights(parsed.seriesWeights);
+        }
+      } catch (e) {
+        console.error("Error al cargar progreso guardado:", e);
+      }
+
       setLoading(false);
     };
     load();
   }, [dayId]);
+
+  // Sincronizar cambios en localStorage cuando cambie el estado del entrenamiento
+  useEffect(() => {
+    if (loading) return;
+    try {
+      const data = {
+        checkedExercises: Array.from(checkedExercises),
+        checkedSeries: Array.from(checkedSeries),
+        exerciseLogs,
+        seriesWeights,
+      };
+      localStorage.setItem(`entrenapp_progress_${dayId}`, JSON.stringify(data));
+    } catch (e) {
+      console.error("Error al guardar progreso:", e);
+    }
+  }, [checkedExercises, checkedSeries, exerciseLogs, seriesWeights, loading, dayId]);
 
 
 
@@ -497,6 +527,7 @@ export default function EntrenarPage() {
         }
       }
 
+      localStorage.removeItem(`entrenapp_progress_${dayId}`);
       setPhase("done");
     } catch (err: unknown) {
       toast.error("Error al guardar el entrenamiento");
@@ -779,7 +810,8 @@ export default function EntrenarPage() {
                         const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
                         const r = ov ? ov.reps : te.reps;
                         const v = te.exercise_variants?.name ?? "";
-                        return `${r}× ${v || te.exercises?.name}`;
+                        const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
+                        return `${r}× ${displayName}`;
                       }).join(" + ");
 
                       if (s.rounds && s.rounds > 1) {
@@ -927,7 +959,8 @@ export default function EntrenarPage() {
           const ov = set.reps_overrides.find(o => o.training_exercise_id === te.id);
           const r = ov ? ov.reps : te.reps;
           const v = te.exercise_variants?.name ?? "";
-          return `${r}× ${v || te.exercises?.name}`;
+          const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
+          return `${r}× ${displayName}`;
         }).join(" + ");
 
         if (set.rounds && set.rounds > 1) {

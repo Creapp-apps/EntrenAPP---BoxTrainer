@@ -2,396 +2,612 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { 
-  Dumbbell, ArrowRight, CheckCircle2, Star, Trophy, BarChart3, 
-  Users, Calendar, Settings, ChevronDown, ShieldCheck, Sparkles, Zap, Clock, CreditCard
+import {
+  Dumbbell, ArrowRight, CheckCircle2, BarChart3,
+  Users, Calendar, ChevronDown, Sparkles, Zap, CreditCard,
+  Trophy, MessageCircle, Activity, ShieldCheck, Clock,
 } from "lucide-react";
 
+// ─── Palabras que rotan en el H1 ────────────────────────────────
+const ROTATING_WORDS = [
+  "Box",
+  "Gimnasio",
+  "Centro de Pilates",
+  "Espacio de Yoga",
+  "Centro Funcional",
+  "Centro de Halterofilia",
+  "Espacio CrossFit",
+];
+
+function RotatingWord() {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex(i => (i + 1) % ROTATING_WORDS.length);
+        setVisible(true);
+      }, 400);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <span
+      className="bg-gradient-to-r from-primary via-orange-400 to-yellow-400 bg-clip-text text-transparent block transition-all duration-400"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(10px)",
+        transition: "opacity 0.35s ease, transform 0.35s ease",
+        display: "inline-block",
+        minWidth: "1px",
+      }}
+    >
+      {ROTATING_WORDS[index]}
+    </span>
+  );
+}
+
+// ─── Datos de los tabs de disciplinas ───────────────────────────
+const DISCIPLINES = [
+  {
+    key: "crossfit",
+    label: "CrossFit",
+    emoji: "🏋️",
+    title: "Boxes de CrossFit",
+    desc: "Control total de WODs por niveles, asignación masiva de ciclos, benchmarks históricos y reservas por hora en tiempo real con lista de espera automática.",
+    color: "from-orange-500 to-red-600",
+    glow: "bg-orange-500/15",
+    features: ["WODs por niveles", "Cálculo automático de RMs", "Benchmarks históricos", "Lista de espera WA"],
+  },
+  {
+    key: "halterofilia",
+    label: "Halterofilia",
+    emoji: "🥇",
+    title: "Entrenamiento de Fuerza",
+    desc: "Planificación de ciclos de fuerza con porcentajes de 1RM, complexes, trepadas y seguimiento de récords por ejercicio. Diseñado para programación seria.",
+    color: "from-blue-500 to-indigo-600",
+    glow: "bg-blue-500/15",
+    features: ["Ciclos con % de 1RM", "Complexes y trepadas", "Récords personales", "Historial de sesiones"],
+  },
+  {
+    key: "funcional",
+    label: "Funcional",
+    emoji: "⚡",
+    title: "Entrenamiento Funcional",
+    desc: "Gestión de circuitos, rotaciones y cronómetros. Clases diferenciadas por nivel y cobros automatizados por cuota mensual o pase libre.",
+    color: "from-cyan-500 to-teal-600",
+    glow: "bg-cyan-500/15",
+    features: ["Circuitos por nivel", "Clases y cupos", "Cobro por cuota", "App para socios"],
+  },
+  {
+    key: "pilates",
+    label: "Pilates / Yoga",
+    emoji: "🧘",
+    title: "Studios de Pilates & Yoga",
+    desc: "Control estricto de cupos limitados por reformer, reservas fijas semanales y gestión personalizada de cada alumno. Perfecto para studios íntimos.",
+    color: "from-purple-500 to-pink-600",
+    glow: "bg-purple-500/15",
+    features: ["Cupos por reformer", "Turnos fijos semanales", "Gestión personalizada", "Planes a medida"],
+  },
+  {
+    key: "musculacion",
+    label: "Musculación",
+    emoji: "💪",
+    title: "Gimnasios de Musculación",
+    desc: "Rutinas digitales autogestionables para cada alumno, cobros automatizados por débito y métricas financieras en tiempo real desde el panel web.",
+    color: "from-green-500 to-emerald-600",
+    glow: "bg-green-500/15",
+    features: ["Rutinas digitales", "Cobros automáticos", "Panel web del entrenador", "Métricas MRR"],
+  },
+];
+
+// ─── Plan features (iguales en los 3 planes) ────────────────────
+const PLAN_FEATURES = [
+  "App móvil para atletas (PWA)",
+  "Panel web para entrenadores",
+  "Planificación de ciclos de entrenamiento",
+  "Gestión de turnos y reservas",
+  "Cobros y control de cuotas",
+  "Métricas financieras en tiempo real",
+  "Récords personales y benchmarks",
+  "Soporte por WhatsApp 24/7",
+  "Migración de datos incluida",
+  "Identidad visual personalizable",
+];
+
+// ─── FAQ ────────────────────────────────────────────────────────
+const FAQS = [
+  {
+    q: "¿Es una app nativa para Android e iOS?",
+    a: "Usamos la tecnología líder del mercado (PWA — Progressive Web App). Tus alumnos instalan una WebApp ultra-rápida directo desde el navegador, ocupa 100x menos que una app nativa y se actualiza automáticamente. Sin pasar por las tiendas.",
+  },
+  {
+    q: "¿Es difícil migrar mis datos desde otro software?",
+    a: "¡Para nada! Nuestro equipo te ayuda gratis a importar tu listado de alumnos y planes desde Excel o cualquier sistema que uses, para que estés facturando desde el día 1.",
+  },
+  {
+    q: "¿Puedo probar antes de pagar?",
+    a: "Sí. Ofrecemos un período de prueba sin costo y sin compromiso de permanencia. Usás todas las funciones completas y decidís si es lo que tu centro necesita.",
+  },
+  {
+    q: "¿Cómo se configuran los horarios y cupos?",
+    a: "Desde el panel web configurás plantillas de horarios, cupos máximos por clase, tiempos de cancelación y lista de espera automática. Tarda menos de 10 minutos en estar listo.",
+  },
+  {
+    q: "¿Qué pasa si supero el límite de alumnos de mi plan?",
+    a: "Te avisamos con anticipación y podés cambiar de plan cuando quieras, sin cargos extra ni penalidades. Siempre se adapta a tu crecimiento.",
+  },
+];
+
+// ─── Componente Principal ─────────────────────────────────────────
 export default function LandingClient() {
-  const [activeTab, setActiveTab] = useState("crossfit");
+  const [activeTab, setActiveTab] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    const onScroll = () => setScrolled(window.scrollY > 30);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Datos de disciplinas
-  const disciplines = {
-    crossfit: {
-      title: "Boxes de Crossfit",
-      desc: "Control total de WODs por niveles, cálculo masivo de RMs, benchmarks y reservas por hora en tiempo real.",
-      icon: Trophy,
-      color: "from-orange-500 to-red-500",
-    },
-    funcional: {
-      title: "Entrenamiento Funcional",
-      desc: "Gestión fluida de circuitos, rotaciones, cronómetros y listas de espera automatizadas en horas pico.",
-      icon: Zap,
-      color: "from-blue-500 to-cyan-500",
-    },
-    pilates: {
-      title: "Estudios de Pilates / Yoga",
-      desc: "Control estricto de cupos limitados por reformer, reservas fijas semanales y gestión personalizada.",
-      icon: Sparkles,
-      color: "from-purple-500 to-pink-500",
-    },
-    musculacion: {
-      title: "Gimnasios de Musculación",
-      desc: "Rutinas digitales autogestionables, cobros automatizados por débito y monitoreo en tiempo real de ingresos.",
-      icon: Dumbbell,
-      color: "from-green-500 to-emerald-500",
-    }
-  };
+  const disc = DISCIPLINES[activeTab];
 
   return (
-    <div className="min-h-screen bg-[#050507] text-white selection:bg-primary/30 font-sans overflow-x-hidden">
-      {/* 🌌 Fondo Cósmico Resplandeciente */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/10 blur-[120px] animate-pulse" />
-        <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-violet-600/10 blur-[120px]" />
-        <div className="absolute bottom-[10%] left-[20%] w-[60%] h-[30%] rounded-full bg-primary/5 blur-[150px]" />
+    <div className="min-h-screen bg-[#060608] text-white font-sans overflow-x-hidden selection:bg-primary/30">
+
+      {/* ── Fondo Ambiental Global ── */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-indigo-600/8 blur-[150px]" />
+        <div className="absolute top-[30%] right-[-15%] w-[45%] h-[45%] rounded-full bg-primary/8 blur-[130px]" />
+        <div className="absolute bottom-0 left-[10%] w-[70%] h-[40%] rounded-full bg-violet-700/5 blur-[180px]" />
       </div>
 
-      {/* 🧭 Navbar de Élite */}
-      <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-[#050507]/70 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      {/* ══════════════════════════════════════════════════
+          NAVBAR
+      ══════════════════════════════════════════════════ */}
+      <header
+        className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+          scrolled
+            ? "bg-[#060608]/90 backdrop-blur-2xl border-b border-white/8 shadow-2xl shadow-black/50"
+            : "bg-transparent"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between">
+          {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="bg-gradient-to-br from-primary to-orange-600 p-2.5 rounded-2xl shadow-lg shadow-primary/20 group-hover:scale-105 transition duration-300">
-              <Dumbbell className="w-6 h-6 text-white" />
+            <div className="bg-gradient-to-br from-primary to-orange-600 p-2.5 rounded-[14px] shadow-lg shadow-primary/30 group-hover:scale-105 transition-all duration-300">
+              <Dumbbell className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-extrabold tracking-tight text-white bg-clip-text">
+            <span className="text-xl font-black tracking-tight text-white">
               EntrenAPP
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
-            <a href="#features" className="hover:text-white transition">Funcionalidades</a>
-            <a href="#disciplines" className="hover:text-white transition">Disciplinas</a>
-            <a href="#pricing" className="hover:text-white transition">Precios</a>
-            <a href="#faq" className="hover:text-white transition">Preguntas</a>
+          {/* Nav links — desktop */}
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-white/50">
+            <a href="#features" className="hover:text-white transition-colors">Funcionalidades</a>
+            <a href="#disciplines" className="hover:text-white transition-colors">Disciplinas</a>
+            <a href="#pricing" className="hover:text-white transition-colors">Planes</a>
+            <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
           </nav>
 
-          <div className="flex items-center gap-4">
-            <Link 
-              href="/auth/login" 
-              className="text-sm font-semibold text-white/80 hover:text-white px-4 py-2 transition"
+          {/* CTA buttons */}
+          <div className="flex items-center justify-end gap-1 sm:gap-3">
+            <div className="flex items-center gap-0 sm:gap-2">
+              <Link
+                href="/buscar-box"
+                className="text-xs sm:text-sm font-bold text-white/60 hover:text-white px-2 sm:px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+              >
+                Soy Alumno
+              </Link>
+              <span className="text-white/20 text-xs sm:hidden">|</span>
+              <Link
+                href="/auth/login"
+                className="text-xs sm:text-sm font-bold text-white/60 hover:text-white px-2 sm:px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+              >
+                Soy Entrenador
+              </Link>
+            </div>
+            <Link
+              href="/auth/signup"
+              className="hidden sm:flex bg-gradient-to-r from-primary to-orange-500 text-white text-sm font-black px-5 py-2.5 rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] transition-all duration-200 items-center gap-1.5"
             >
-              Ingresar
-            </Link>
-            <Link 
-              href="/auth/signup" 
-              className="bg-white text-black hover:bg-white/90 text-sm font-bold px-6 py-2.5 rounded-xl transition shadow-lg hover:shadow-white/10"
-            >
-              Empezar Gratis
+              Empezar gratis
+              <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
       </header>
 
-      {/* 🚀 HERO SECTION (3D Interactivo) */}
-      <section className="relative pt-32 lg:pt-44 pb-20 lg:pb-32 px-6 overflow-hidden">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center relative z-10">
-          
-          {/* Izquierda: Copy Explosivo */}
-          <div className="lg:col-span-6 flex flex-col justify-center text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 self-center lg:self-start mb-6 backdrop-blur-md">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-xs font-bold tracking-wide text-white/80 uppercase">La evolución de tu gimnasio</span>
+      {/* ══════════════════════════════════════════════════
+          HERO SECTION
+      ══════════════════════════════════════════════════ */}
+      <section className="relative min-h-screen flex flex-col justify-center pt-24 pb-16 px-5 sm:px-8 overflow-hidden z-10">
+
+        {/* Grid decorativo de fondo */}
+        <div
+          className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
+            backgroundSize: "60px 60px",
+          }}
+        />
+
+        <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+
+          {/* ── Copy principal ── */}
+          <div className="flex flex-col items-start text-left">
+
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-8 backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-black tracking-widest text-primary uppercase">
+                La plataforma #1 para centros de entrenamiento
+              </span>
             </div>
 
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] text-white">
-              Gestiona tu Box <br />
-              <span className="bg-gradient-to-r from-primary via-orange-500 to-yellow-500 bg-clip-text text-transparent drop-shadow-sm">
-                en otra dimensión
-              </span>
+            {/* H1 con palabra rotante */}
+            <h1 className="text-5xl sm:text-6xl xl:text-7xl font-black tracking-tight leading-[1.03] text-white mb-6">
+              Gestiona tu<br />
+              <RotatingWord />
             </h1>
 
-            <p className="mt-6 text-lg text-white/60 max-w-lg leading-relaxed mx-auto lg:mx-0">
-              EntrenAPP centraliza la planificación deportiva inteligente, reservas fluidas, cobros y finanzas en un ecosistema premium que a tus atletas les encantará.
+            <p className="text-lg sm:text-xl text-white/50 leading-relaxed max-w-lg mb-10">
+              EntrenAPP centraliza la planificación deportiva, reservas, cobros y métricas en un solo ecosistema premium diseñado para entrenadores serios.
             </p>
 
-            <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-              <Link 
-                href="/auth/signup" 
-                className="w-full sm:w-auto bg-gradient-to-r from-primary to-orange-600 text-white font-bold px-8 py-4 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-300 text-lg group"
+            {/* CTAs */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <Link
+                href="/auth/signup"
+                className="bg-gradient-to-r from-primary to-orange-500 text-white font-black px-8 py-4 rounded-2xl shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5 transition-all duration-300 text-base flex items-center justify-center gap-2.5 group"
               >
-                Crear Cuenta Gratis
-                <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                Crear cuenta gratis
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <a 
-                href="https://wa.me/541165234769/?text=Hola!%20Quiero%20una%20demo%20de%20EntrenAPP" 
+              <a
+                href="https://wa.me/541165234769/?text=Hola!%20Quiero%20una%20demo%20de%20EntrenAPP"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold px-8 py-4 rounded-2xl flex items-center justify-center gap-2 transition duration-300 text-lg"
+                className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 text-base flex items-center justify-center gap-2"
               >
-                Hablar con soporte
+                <MessageCircle className="w-5 h-5 text-[#25d366]" />
+                Ver demo
               </a>
             </div>
 
             {/* Mini Stats */}
-            <div className="mt-12 grid grid-cols-3 gap-4 pt-8 border-t border-white/5 max-w-md mx-auto lg:mx-0">
-              <div>
-                <div className="text-2xl lg:text-3xl font-black text-white">+15k</div>
-                <div className="text-xs text-white/40 uppercase tracking-wider mt-1 font-semibold">Reservas Hoy</div>
-              </div>
-              <div>
-                <div className="text-2xl lg:text-3xl font-black text-white">99.9%</div>
-                <div className="text-xs text-white/40 uppercase tracking-wider mt-1 font-semibold">Uptime</div>
-              </div>
-              <div>
-                <div className="text-2xl lg:text-3xl font-black text-white">24/7</div>
-                <div className="text-xs text-white/40 uppercase tracking-wider mt-1 font-semibold">Soporte WA</div>
-              </div>
+            <div className="flex items-center gap-8 mt-12 pt-8 border-t border-white/5 w-full">
+              {[
+                { value: "+200", label: "Centros activos" },
+                { value: "99.9%", label: "Uptime garantizado" },
+                { value: "24/7", label: "Soporte WhatsApp" },
+              ].map((s) => (
+                <div key={s.label}>
+                  <div className="text-2xl font-black text-white">{s.value}</div>
+                  <div className="text-xs text-white/35 font-semibold uppercase tracking-wider mt-0.5">{s.label}</div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Derecha: Escena 3D Real Interactiva */}
-          <div className="lg:col-span-6 h-[350px] sm:h-[450px] lg:h-[550px] relative w-full select-none flex items-center justify-center">
-            {/* Anillo de luz decorativo trasero */}
-            <div className="absolute w-[70%] h-[70%] rounded-full bg-primary/20 blur-[80px]" />
-            
+          {/* ── 3D Spline Scene ── */}
+          <div className="relative h-[400px] sm:h-[520px] lg:h-[620px] flex items-center justify-center">
+            {/* Glow detrás de la escena */}
+            <div className="absolute w-[80%] h-[80%] rounded-full bg-primary/20 blur-[100px]" />
+
+            {/* Floating badge — ingresos */}
+            <div
+              className="absolute top-10 right-4 z-20 bg-black/50 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-none"
+              style={{ animation: "float1 5s ease-in-out infinite" }}
+            >
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <BarChart3 className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-[10px] text-white/40 font-semibold uppercase">Ingresos este mes</div>
+                <div className="text-sm font-black text-white">$1.240.000</div>
+              </div>
+            </div>
+
+            {/* Floating badge — alumnos */}
+            <div
+              className="absolute bottom-16 left-2 z-20 bg-black/50 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-none"
+              style={{ animation: "float2 6s ease-in-out infinite" }}
+            >
+              <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
+                <Users className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <div className="text-[10px] text-white/40 font-semibold uppercase">Alumnos activos</div>
+                <div className="text-sm font-black text-white">148 atletas</div>
+              </div>
+            </div>
+
+            {/* Floating badge — clase llena */}
+            <div
+              className="absolute top-[42%] -left-4 z-20 bg-black/50 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-none"
+              style={{ animation: "float3 7s ease-in-out infinite" }}
+            >
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                <Activity className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div>
+                <div className="text-[10px] text-white/40 font-semibold uppercase">Clase 19:00hs</div>
+                <div className="text-sm font-black text-white">18/20 cupos</div>
+              </div>
+            </div>
+
             {mounted ? (
-              <div className="w-full h-full z-10 flex items-center justify-center scale-105 lg:scale-110">
-                {/* Utilizando una escena de alta gama de Spline que contiene una mancuerna abstracta metálica interactiva */}
-                <iframe 
-                  src="https://prod.spline.design/JRe7t8hW02qFv1X6/scene.splinecode" 
-                  width="100%" 
-                  height="100%" 
-                  style={{ border: 'none', pointerEvents: 'auto' }}
-                  title="EntrenAPP Interactive 3D"
-                  className="opacity-90 mix-blend-lighten"
-                />
+              <div 
+                className="w-full h-full z-10 flex items-center justify-center pointer-events-none"
+                style={{ perspective: "1000px" }}
+              >
+                <div 
+                  className="w-full max-w-[500px] aspect-video bg-[#0a0a0f]/80 backdrop-blur-xl rounded-2xl border border-white/10 flex flex-col overflow-hidden relative"
+                  style={{ 
+                    transform: "rotateY(-15deg) rotateX(10deg) rotateZ(2deg)",
+                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7), -20px 20px 40px rgba(234, 88, 12, 0.15)"
+                  }}
+                >
+                  {/* Dashboard top bar */}
+                  <div className="h-10 border-b border-white/10 bg-white/5 flex items-center px-4 gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                    <div className="w-3 h-3 rounded-full bg-green-500/80" />
+                  </div>
+                  {/* Dashboard content */}
+                  <div className="flex-1 p-5 flex gap-5">
+                    {/* Sidebar */}
+                    <div className="w-1/4 border-r border-white/5 pr-4 space-y-4">
+                      <div className="h-4 w-full bg-white/20 rounded-md" />
+                      <div className="h-3 w-3/4 bg-white/10 rounded-md" />
+                      <div className="h-3 w-5/6 bg-white/10 rounded-md" />
+                      <div className="h-3 w-2/3 bg-white/10 rounded-md" />
+                    </div>
+                    {/* Main Area */}
+                    <div className="flex-1 flex flex-col gap-4">
+                      {/* Graph */}
+                      <div className="h-32 rounded-xl bg-gradient-to-t from-primary/20 to-transparent border border-primary/20 relative overflow-hidden flex items-end">
+                        <svg className="w-full h-full text-primary opacity-60 drop-shadow-[0_0_8px_rgba(234,88,12,0.8)]" viewBox="0 0 100 100" preserveAspectRatio="none">
+                          <path d="M0,100 L0,60 C20,80 40,30 60,50 C80,70 90,20 100,30 L100,100 Z" fill="currentColor" />
+                        </svg>
+                      </div>
+                      {/* Cards */}
+                      <div className="flex gap-4">
+                         <div className="flex-1 h-12 bg-white/5 rounded-lg border border-white/5" />
+                         <div className="flex-1 h-12 bg-white/5 rounded-lg border border-white/5" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Glow overlay effect */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+                </div>
               </div>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-white/20 animate-pulse">
-                <Dumbbell className="w-20 h-20" />
+              <div className="w-full h-full flex items-center justify-center text-white/10 animate-pulse z-10">
+                <Dumbbell className="w-24 h-24" />
               </div>
             )}
-
-            {/* Badges Flotantes CSS 3D */}
-            <div 
-              className="absolute top-8 right-8 bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center gap-3 animate-bounce pointer-events-none z-20 shadow-2xl"
-              style={{ animationDuration: "4000ms" }}
-            >
-              <div className="bg-green-500/20 p-2 rounded-xl">
-                <BarChart3 className="w-5 h-5 text-green-400" />
-              </div>
-              <div>
-                <div className="text-xs text-white/40 font-medium">Cobros este mes</div>
-                <div className="text-sm font-bold text-white">+$850,000</div>
-              </div>
-            </div>
-
-            <div 
-              className="absolute bottom-12 left-8 bg-black/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center gap-3 animate-bounce pointer-events-none z-20 shadow-2xl"
-              style={{ animationDuration: "5000ms" }}
-            >
-              <div className="bg-primary/20 p-2 rounded-xl">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div className="text-xs text-white/40 font-medium">Alumnos activos</div>
-                <div className="text-sm font-bold text-white">320 Atletas</div>
-              </div>
-            </div>
           </div>
+        </div>
 
+        {/* Scroll hint */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/20">
+          <div className="w-px h-12 bg-gradient-to-b from-transparent to-white/20" />
+          <ChevronDown className="w-4 h-4 animate-bounce" />
         </div>
       </section>
 
-      {/* 📱 SECCIÓN GRID BENTO (Funcionalidades Clave) */}
-      <section id="features" className="py-24 px-6 bg-[#08080c]/50 relative">
+      {/* ══════════════════════════════════════════════════
+          FEATURES — BENTO GRID
+      ══════════════════════════════════════════════════ */}
+      <section id="features" className="relative py-28 px-5 sm:px-8 z-10">
         <div className="max-w-7xl mx-auto">
+
+          {/* Header */}
           <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-xs font-bold text-primary uppercase tracking-widest">Diseño de Última Generación</h2>
-            <p className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mt-4 leading-tight">
-              Todo lo que tu Box necesita para despegar
-            </p>
+            <p className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Funcionalidades</p>
+            <h2 className="text-4xl sm:text-5xl font-black text-white leading-tight">
+              Todo lo que necesitás,<br />
+              <span className="text-white/40">en un solo lugar</span>
+            </h2>
           </div>
 
-          {/* Cuadrícula Bento */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-12 gap-6 auto-rows-[240px]">
-            
-            {/* Tarjeta 1: Reservas Inteligentes (Grande 8 cols) */}
-            <div className="lg:col-span-8 md:col-span-2 md:row-span-2 bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/[0.07] rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden group transition duration-500 select-none shadow-2xl">
-              <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition duration-500" />
-              <div className="z-10 max-w-md">
-                <div className="bg-white/5 p-3 rounded-2xl w-fit border border-white/10 mb-6">
-                  <Calendar className="w-6 h-6 text-indigo-400" />
+          {/* Grid Bento */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+            {/* Card 1 — Reservas (grande, span 2) */}
+            <div className="lg:col-span-2 group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
+              <div className="absolute -top-20 -right-20 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/15 transition duration-500" />
+              <div className="relative z-10">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center mb-5">
+                  <Calendar className="w-5 h-5 text-indigo-400" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-3">Agenda & Reservas en Segundos</h3>
-                <p className="text-white/50 text-sm leading-relaxed">
-                  Múltiples opciones de configuración: límites de capacidad, tiempos para cancelar y reservar, turnos fijos y listas de espera automáticas por Whatsapp.
+                <h3 className="text-xl font-black text-white mb-2">Agenda y Reservas en Tiempo Real</h3>
+                <p className="text-white/45 text-sm leading-relaxed max-w-md">
+                  Clases con límite de capacidad, tiempos de cancelación configurables, turnos fijos y lista de espera automática por WhatsApp. Tu agenda siempre bajo control.
                 </p>
-              </div>
-              {/* Abstract UI */}
-              <div className="z-10 mt-6 bg-[#0d0d12]/80 border border-white/5 rounded-2xl p-4 scale-100 group-hover:scale-[1.02] transition-all duration-500 flex flex-col gap-2 text-xs shadow-xl shadow-black/50">
-                <div className="flex justify-between items-center pb-2 border-b border-white/5 text-white/30 uppercase font-bold tracking-wider">
-                  <span>Clase Crossfit - 19:00hs</span>
-                  <span className="text-primary">18/20 cupos</span>
-                </div>
-                <div className="flex gap-2 py-1.5 items-center">
-                  <div className="w-8 h-8 rounded-full bg-slate-700 animate-pulse" />
-                  <div className="flex-grow">
-                    <div className="h-3 w-24 bg-slate-700 rounded animate-pulse" />
-                    <div className="h-2 w-16 bg-slate-800 mt-1 rounded" />
+                {/* Mock UI */}
+                <div className="mt-6 bg-black/40 border border-white/5 rounded-2xl p-4 text-xs space-y-2">
+                  <div className="flex justify-between text-white/25 uppercase font-bold tracking-wider border-b border-white/5 pb-2">
+                    <span>CrossFit — 19:00hs</span>
+                    <span className="text-emerald-400">18/20 cupos</span>
                   </div>
-                  <div className="bg-green-500/10 text-green-400 px-2 py-0.5 rounded-md font-medium">Confirmado</div>
-                </div>
-                <div className="flex gap-2 py-1.5 items-center">
-                  <div className="w-8 h-8 rounded-full bg-slate-700" />
-                  <div className="flex-grow">
-                    <div className="h-3 w-32 bg-slate-700 rounded" />
-                    <div className="h-2 w-12 bg-slate-800 mt-1 rounded" />
-                  </div>
-                  <div className="bg-green-500/10 text-green-400 px-2 py-0.5 rounded-md font-medium">Confirmado</div>
+                  {["Martín G.", "Valentina R.", "Lucas P."].map((name) => (
+                    <div key={name} className="flex items-center gap-3 py-0.5">
+                      <div className="w-7 h-7 rounded-full bg-slate-700 shrink-0" />
+                      <div className="flex-1">
+                        <div className="h-2.5 bg-slate-600 rounded w-24" />
+                      </div>
+                      <div className="bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-md font-bold">✓</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Tarjeta 2: Automatización de Cobros (Pequeña 4 cols) */}
-            <div className="lg:col-span-4 md:row-span-2 bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/[0.07] rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden group transition duration-500 select-none shadow-2xl">
-              <div className="absolute -right-16 -bottom-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
-              <div>
-                <div className="bg-white/5 p-3 rounded-2xl w-fit border border-white/10 mb-6">
-                  <CreditCard className="w-6 h-6 text-emerald-400" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3">Cobros & Finanzas</h3>
-                <p className="text-white/50 text-sm leading-relaxed mb-4">
-                  Olvídate de perseguir deudores. Planes modulares, control de vencimientos automático y métricas financieras en tiempo real.
-                </p>
-              </div>
-              <div className="bg-[#0d0d12]/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between group-hover:translate-y-[-5px] transition duration-500">
+            {/* Card 2 — Cobros */}
+            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
+              <div className="absolute -bottom-16 -right-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+              <div className="relative z-10 h-full flex flex-col justify-between">
                 <div>
-                  <div className="text-[10px] text-white/40 uppercase font-bold tracking-wider">MRR Proyectado</div>
-                  <div className="text-lg font-black text-white">$1,240,000</div>
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center mb-5">
+                    <CreditCard className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <h3 className="text-xl font-black text-white mb-2">Cobros y Finanzas</h3>
+                  <p className="text-white/45 text-sm leading-relaxed">
+                    Planes modulares, vencimientos automáticos y métricas financieras en tiempo real. Nunca más perseguir deudores.
+                  </p>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-emerald-400 animate-pulse" />
+                <div className="mt-6 bg-black/40 border border-white/5 rounded-2xl p-4 flex items-center justify-between group-hover:-translate-y-1 transition-transform duration-500">
+                  <div>
+                    <div className="text-[10px] text-white/30 uppercase font-bold tracking-wider">MRR Proyectado</div>
+                    <div className="text-xl font-black text-white mt-0.5">$1.240.000</div>
+                  </div>
+                  <Zap className="w-6 h-6 text-emerald-400 animate-pulse" />
                 </div>
               </div>
             </div>
 
-            {/* Tarjeta 3: App Atletas (Grande 8 cols) */}
-            <div className="lg:col-span-8 md:col-span-2 md:row-span-2 bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/[0.07] rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden group transition duration-500 select-none shadow-2xl">
-              <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition duration-500" />
-              <div className="z-10 max-w-md">
-                <div className="bg-white/5 p-3 rounded-2xl w-fit border border-white/10 mb-6">
-                  <Sparkles className="w-6 h-6 text-primary" />
+            {/* Card 3 — Planificación */}
+            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
+              <div className="absolute -top-16 -left-16 w-48 h-48 bg-primary/10 rounded-full blur-3xl" />
+              <div className="relative z-10">
+                <div className="w-11 h-11 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center mb-5">
+                  <Trophy className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-3">La Aplicación Móvil Amada por Atletas</h3>
-                <p className="text-white/50 text-sm leading-relaxed">
-                  Una WebApp ultra-rápida (PWA) que tus alumnos instalan en su Android o iPhone en 2 clics. Registran RMs, Benchmarks y visualizan su progreso histórico en hermosos gráficos interactivos.
+                <h3 className="text-xl font-black text-white mb-2">Planificación de Ciclos</h3>
+                <p className="text-white/45 text-sm leading-relaxed">
+                  Diseñá ciclos de fuerza, CrossFit o prep física con % de 1RM, complexes y asignación masiva. Tus atletas lo ven directamente en su app.
                 </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {["Fuerza", "CrossFit", "Prep Física", "WODs", "Complexes"].map(tag => (
+                    <span key={tag} className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-white/8 text-white/50 font-semibold">{tag}</span>
+                  ))}
+                </div>
               </div>
-              <div className="mt-6 flex gap-3 scale-100 group-hover:scale-[1.02] transition duration-500">
-                <div className="bg-[#0d0d12]/60 border border-white/5 rounded-xl p-3 flex-1 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">RM</div>
-                  <div>
-                    <div className="text-xs font-bold">Back Squat</div>
-                    <div className="text-[10px] text-white/40">145 kg (+5kg)</div>
+            </div>
+
+            {/* Card 4 — App Atletas */}
+            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
+              <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl" />
+              <div className="relative z-10">
+                <div className="w-11 h-11 rounded-2xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center mb-5">
+                  <Sparkles className="w-5 h-5 text-violet-400" />
+                </div>
+                <h3 className="text-xl font-black text-white mb-2">App Móvil para Atletas</h3>
+                <p className="text-white/45 text-sm leading-relaxed">
+                  Tus alumnos instalan la WebApp en 2 clics. Ven sus rutinas, registran pesos, y ven su progreso histórico en gráficos hermosos.
+                </p>
+                <div className="mt-5 flex gap-3">
+                  <div className="flex-1 bg-black/40 border border-white/5 rounded-xl p-3 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center text-[9px] font-black text-primary">RM</div>
+                    <div>
+                      <div className="text-[11px] font-bold text-white">Back Squat</div>
+                      <div className="text-[10px] text-white/35">145 kg (+5kg) 🔥</div>
+                    </div>
+                  </div>
+                  <div className="flex-1 bg-black/40 border border-white/5 rounded-xl p-3 flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-sm">🏆</div>
+                    <div>
+                      <div className="text-[11px] font-bold text-white">Fran WOD</div>
+                      <div className="text-[10px] text-white/35">3:45 min ⚡</div>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-[#0d0d12]/60 border border-white/5 rounded-xl p-3 flex-1 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-xs font-bold text-amber-400">🏆</div>
-                  <div>
-                    <div className="text-xs font-bold">Fran (WOD)</div>
-                    <div className="text-[10px] text-white/40">3:45 seg</div>
+              </div>
+            </div>
+
+            {/* Card 5 — Soporte */}
+            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 shadow-xl shadow-black/30">
+              <div className="absolute inset-0 bg-gradient-to-br from-[#25d366]/5 to-transparent rounded-3xl" />
+              <div className="relative z-10 h-full flex flex-col justify-between">
+                <div>
+                  <div className="w-11 h-11 rounded-2xl bg-[#25d366]/15 border border-[#25d366]/20 flex items-center justify-center mb-5">
+                    <MessageCircle className="w-5 h-5 text-[#25d366]" />
                   </div>
+                  <h3 className="text-xl font-black text-white mb-2">Soporte Real por WhatsApp</h3>
+                  <p className="text-white/45 text-sm leading-relaxed">
+                    Sin bots. Un canal directo con el equipo de ingeniería para configurar tu Box en menos de 24 horas.
+                  </p>
                 </div>
-              </div>
-            </div>
-
-            {/* Tarjeta 4: Soporte Personalizado (4 cols) */}
-            <div className="lg:col-span-4 md:row-span-2 bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/[0.07] rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden group transition duration-500 shadow-2xl">
-              <div>
-                <div className="bg-white/5 p-3 rounded-2xl w-fit border border-white/10 mb-6">
-                  <Settings className="w-6 h-6 text-white/80" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3">Soporte por Whatsapp</h3>
-                <p className="text-white/50 text-sm leading-relaxed">
-                  Olvídate de lidiar con bots. Tienes un canal directo de Whatsapp con ingenieros reales para ayudarte a configurar tu Box en menos de 24 horas.
-                </p>
-              </div>
-              <a 
-                href="https://wa.me/541165234769" 
-                target="_blank"
-                rel="noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-3 bg-[#25d366]/10 hover:bg-[#25d366]/20 border border-[#25d366]/20 text-[#25d366] font-bold rounded-2xl transition"
-              >
-                Consultar vía Whatsapp
-              </a>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* 🏋️‍♀️ SECCIÓN DISCIPLINAS (Selector Dinámico) */}
-      <section id="disciplines" className="py-24 px-6 relative">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-xs font-bold text-orange-500 uppercase tracking-widest">Adaptado a tu Pasión</h2>
-            <p className="text-3xl sm:text-4xl font-black text-white mt-3">Especialistas en múltiples disciplinas</p>
-          </div>
-
-          {/* Botonera de Selector */}
-          <div className="flex flex-wrap justify-center gap-3 mb-12">
-            {Object.entries(disciplines).map(([key, data]) => {
-              const IconComp = data.icon;
-              const isActive = activeTab === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setActiveTab(key)}
-                  className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
-                    isActive 
-                      ? "bg-white text-black shadow-xl shadow-white/5 scale-105" 
-                      : "bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/5"
-                  }`}
+                <a
+                  href="https://wa.me/541165234769"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-6 w-full flex items-center justify-center gap-2 py-3 bg-[#25d366]/10 hover:bg-[#25d366]/20 border border-[#25d366]/20 hover:border-[#25d366]/40 text-[#25d366] font-black rounded-2xl transition-all duration-300 text-sm"
                 >
-                  <IconComp className={`w-4 h-4 ${isActive ? "text-black" : "text-white/60"}`} />
-                  {data.title.split(" ")[0]}
-                </button>
-              );
-            })}
+                  <MessageCircle className="w-4 h-4" />
+                  Consultar ahora
+                </a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════
+          DISCIPLINAS
+      ══════════════════════════════════════════════════ */}
+      <section id="disciplines" className="relative py-28 px-5 sm:px-8 z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <p className="text-xs font-black text-orange-400 uppercase tracking-[0.2em] mb-4">Adaptado a tu disciplina</p>
+            <h2 className="text-4xl sm:text-5xl font-black text-white">
+              Hecho para múltiples<br />
+              <span className="text-white/40">tipos de centros</span>
+            </h2>
           </div>
 
-          {/* Detalle Dinámico de la Disciplina */}
-          <div className="bg-gradient-to-br from-white/[0.03] to-white/[0.01] border border-white/5 rounded-3xl p-8 md:p-12 relative overflow-hidden animate-in fade-in duration-500">
-            {/* Fondo decorativo dinámico */}
-            <div className={`absolute top-[-50%] right-[-30%] w-96 h-96 bg-gradient-to-br ${disciplines[activeTab as keyof typeof disciplines].color} opacity-10 blur-[100px] pointer-events-none rounded-full transition-all duration-500`} />
-            
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center relative z-10">
-              <div className="md:col-span-8">
-                <h3 className="text-3xl font-black text-white mb-4 flex items-center gap-3">
-                  {disciplines[activeTab as keyof typeof disciplines].title}
-                </h3>
-                <p className="text-white/60 text-base leading-relaxed mb-8 max-w-xl">
-                  {disciplines[activeTab as keyof typeof disciplines].desc}
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-2 text-sm text-white/80 font-medium">
-                    <CheckCircle2 className="w-4 h-4 text-green-400" /> Turnos Fijos
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-white/80 font-medium">
-                    <CheckCircle2 className="w-4 h-4 text-green-400" /> Pagos Integrados
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-white/80 font-medium">
-                    <CheckCircle2 className="w-4 h-4 text-green-400" /> App para Socios
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-white/80 font-medium">
-                    <CheckCircle2 className="w-4 h-4 text-green-400" /> Sin Límites de Alumnos
-                  </div>
+          {/* Tabs */}
+          <div className="flex flex-wrap justify-center gap-2.5 mb-10">
+            {DISCIPLINES.map((d, i) => (
+              <button
+                key={d.key}
+                onClick={() => setActiveTab(i)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all duration-300 ${
+                  activeTab === i
+                    ? "bg-white text-black shadow-xl scale-[1.04]"
+                    : "bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5"
+                }`}
+              >
+                <span>{d.emoji}</span>
+                {d.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Contenido de tab */}
+          <div className="relative bg-white/[0.02] border border-white/[0.06] rounded-3xl p-8 md:p-12 overflow-hidden">
+            <div className={`absolute inset-0 rounded-3xl ${disc.glow} blur-3xl opacity-60`} />
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              <div>
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${disc.color} bg-opacity-10 mb-5`}>
+                  <span className="text-lg">{disc.emoji}</span>
+                  <span className="text-xs font-black text-white uppercase tracking-widest">{disc.label}</span>
                 </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white mb-4">{disc.title}</h3>
+                <p className="text-white/50 leading-relaxed mb-7 text-base">{disc.desc}</p>
+                <ul className="space-y-2.5">
+                  {disc.features.map(f => (
+                    <li key={f} className="flex items-center gap-3 text-sm text-white/70 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="md:col-span-4 flex justify-center">
-                <div className={`w-32 h-32 rounded-[40px] bg-gradient-to-br ${disciplines[activeTab as keyof typeof disciplines].color} flex items-center justify-center shadow-2xl shadow-black`}>
-                  {(() => {
-                    const DynamicIcon = disciplines[activeTab as keyof typeof disciplines].icon;
-                    return <DynamicIcon className="w-14 h-14 text-white drop-shadow" />;
-                  })()}
+              <div className="flex justify-center">
+                <div className={`w-36 h-36 rounded-[40px] bg-gradient-to-br ${disc.color} flex items-center justify-center shadow-2xl`}>
+                  <span className="text-6xl">{disc.emoji}</span>
                 </div>
               </div>
             </div>
@@ -399,120 +615,161 @@ export default function LandingClient() {
         </div>
       </section>
 
-      {/* 💵 SECCIÓN DE CONTACTO COMERCIAL / VENTAS */}
-      <section id="pricing" className="py-24 px-6 bg-[#08080c]/50 relative">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-xs font-bold text-primary uppercase tracking-widest">Comienza Hoy</h2>
-            <p className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mt-3">El plan ideal para tu negocio</p>
-            <p className="text-white/40 text-sm mt-4 leading-relaxed max-w-lg mx-auto">
-              Descubre cómo EntrenAPP puede transformar la gestión diaria de tu centro. Agenda una demo personalizada sin compromiso.
+      {/* ══════════════════════════════════════════════════
+          PRICING
+      ══════════════════════════════════════════════════ */}
+      <section id="pricing" className="relative py-28 px-5 sm:px-8 z-10">
+        <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Planes</p>
+            <h2 className="text-4xl sm:text-5xl font-black text-white">
+              Precios simples y transparentes
+            </h2>
+            <p className="text-white/40 mt-4 max-w-lg mx-auto text-base">
+              Las mismas funcionalidades en todos los planes. El precio escala con la cantidad de alumnos de tu centro.
             </p>
           </div>
 
-          {/* Tarjeta de Contacto de Ventas Premium */}
-          <div className="bg-gradient-to-br from-[#0d0d14] to-[#08080b] border border-white/10 rounded-3xl p-8 md:p-12 text-center relative overflow-hidden shadow-2xl shadow-black">
-            <div className="absolute top-0 right-0 bg-gradient-to-l from-primary to-orange-500 text-white text-xs font-black px-8 py-2 rounded-bl-2xl shadow-lg uppercase tracking-wider">
-              Personalizado
+          {/* Cards de Pricing */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            {/* Plan Starter */}
+            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-8 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
+              <div className="mb-6">
+                <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-3">Starter</p>
+                <div className="flex items-end gap-1.5 mb-2">
+                  <span className="text-4xl font-black text-white">$80.000</span>
+                  <span className="text-white/40 font-semibold mb-1">/ mes</span>
+                </div>
+                <p className="text-sm text-white/40 font-semibold">Hasta 100 alumnos</p>
+              </div>
+
+              <Link
+                href="/auth/signup"
+                className="w-full py-3.5 rounded-2xl bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-8"
+              >
+                Empezar ahora
+              </Link>
+
+              <ul className="space-y-3 flex-1">
+                {PLAN_FEATURES.map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-white/55 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            <div className="mb-8">
-              <div className="w-16 h-16 mx-auto bg-primary/10 rounded-2xl flex items-center justify-center mb-4 border border-primary/20">
-                <Sparkles className="w-8 h-8 text-primary" />
+            {/* Plan Pro — DESTACADO */}
+            <div className="relative bg-gradient-to-b from-primary/[0.08] to-orange-500/[0.04] border-2 border-primary/40 rounded-3xl p-8 flex flex-col shadow-2xl shadow-primary/15 scale-[1.02]">
+              {/* Badge popular */}
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                <div className="bg-gradient-to-r from-primary to-orange-500 text-white text-xs font-black px-5 py-1.5 rounded-full shadow-lg shadow-primary/30">
+                  ✦ Más popular
+                </div>
               </div>
-              <h3 className="text-2xl font-black text-white mb-2">Potencia tu Box de Entrenamiento</h3>
-              <p className="text-white/50 text-sm max-w-md mx-auto leading-relaxed">
-                Analizamos el tamaño de tu Box y tus necesidades específicas para ofrecerte una propuesta a tu medida, sin comisiones raras ni costos ocultos.
-              </p>
+
+              <div className="mb-6 mt-2">
+                <p className="text-xs font-black text-primary uppercase tracking-widest mb-3">Pro</p>
+                <div className="flex items-end gap-1.5 mb-2">
+                  <span className="text-4xl font-black text-white">$90.000</span>
+                  <span className="text-white/40 font-semibold mb-1">/ mes</span>
+                </div>
+                <p className="text-sm text-white/40 font-semibold">De 100 a 150 alumnos</p>
+              </div>
+
+              <Link
+                href="/auth/signup"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-400 text-white font-black text-sm transition-all duration-300 text-center shadow-lg shadow-primary/25 hover:shadow-primary/40 mb-8"
+              >
+                Empezar ahora →
+              </Link>
+
+              <ul className="space-y-3 flex-1">
+                {PLAN_FEATURES.map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-white/70 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            {/* Grid de Beneficios Incluidos */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left max-w-md mx-auto mb-10 border-t border-white/5 pt-8">
-              <div className="flex items-center gap-3 text-sm text-white/80 font-medium">
-                <CheckCircle2 className="w-5 h-5 text-green-400" /> Sin Límites de Alumnos
+            {/* Plan Elite */}
+            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-8 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
+              <div className="mb-6">
+                <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-3">Elite</p>
+                <div className="flex items-end gap-1.5 mb-2">
+                  <span className="text-3xl font-black text-white">Contactar</span>
+                </div>
+                <p className="text-sm text-white/40 font-semibold">200 alumnos o más</p>
               </div>
-              <div className="flex items-center gap-3 text-sm text-white/80 font-medium">
-                <CheckCircle2 className="w-5 h-5 text-green-400" /> App Móvil para Atletas
-              </div>
-              <div className="flex items-center gap-3 text-sm text-white/80 font-medium">
-                <CheckCircle2 className="w-5 h-5 text-green-400" /> Diseño e Identidad Propia
-              </div>
-              <div className="flex items-center gap-3 text-sm text-white/80 font-medium">
-                <CheckCircle2 className="w-5 h-5 text-green-400" /> Soporte por Whatsapp 24/7
-              </div>
-              <div className="flex items-center gap-3 text-sm text-white/80 font-medium">
-                <CheckCircle2 className="w-5 h-5 text-green-400" /> Planificaciones Inteligentes
-              </div>
-              <div className="flex items-center gap-3 text-sm text-white/80 font-medium">
-                <CheckCircle2 className="w-5 h-5 text-green-400" /> Migración de Datos Gratis
-              </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-4 max-w-lg mx-auto">
-              <a 
-                href="https://wa.me/541165234769/?text=Hola!%20Me%20gustaría%20cotizar%20EntrenAPP%20para%20mi%20centro%20de%20entrenamiento." 
+              <a
+                href="https://wa.me/541165234769/?text=Hola!%20Quiero%20información%20sobre%20el%20plan%20Elite%20de%20EntrenAPP"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full bg-[#25d366] hover:bg-[#22c35e] text-black font-black text-lg py-4 px-8 rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-[#25d366]/20"
+                className="w-full py-3.5 rounded-2xl bg-[#25d366]/10 hover:bg-[#25d366]/20 border border-[#25d366]/20 hover:border-[#25d366]/40 text-[#25d366] font-black text-sm transition-all duration-300 text-center mb-8 flex items-center justify-center gap-2"
               >
-                Hablar con Ventas (WhatsApp)
+                <MessageCircle className="w-4 h-4" />
+                Hablar con ventas
               </a>
-              <Link 
-                href="/auth/signup" 
-                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-lg py-4 px-8 rounded-2xl transition-all duration-300"
-              >
-                Crear Cuenta Demo
-              </Link>
+
+              <ul className="space-y-3 flex-1">
+                {PLAN_FEATURES.map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-white/55 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+                <li className="flex items-start gap-2.5 text-sm text-primary font-black mt-2">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                  Onboarding personalizado
+                </li>
+                <li className="flex items-start gap-2.5 text-sm text-primary font-black">
+                  <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+                  SLA y soporte prioritario
+                </li>
+              </ul>
             </div>
-            <p className="text-white/30 text-[10px] mt-6 font-bold uppercase tracking-wider">
-              * Prueba gratis habilitada temporalmente
-            </p>
+
           </div>
+
+          <p className="text-center text-white/20 text-xs font-bold uppercase tracking-widest mt-10">
+            Todos los precios en pesos argentinos (ARS). Incluye período de prueba gratuito.
+          </p>
         </div>
       </section>
 
-      {/* ❓ SECCIÓN PREGUNTAS FRECUENTES (FAQs Accordion) */}
-      <section id="faq" className="py-24 px-6 relative">
+      {/* ══════════════════════════════════════════════════
+          FAQ
+      ══════════════════════════════════════════════════ */}
+      <section id="faq" className="relative py-28 px-5 sm:px-8 z-10">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-xs font-bold text-white/40 uppercase tracking-widest">Despeja tus dudas</h2>
-            <p className="text-3xl sm:text-4xl font-black text-white mt-3">Preguntas Frecuentes</p>
+          <div className="text-center mb-14">
+            <p className="text-xs font-black text-white/30 uppercase tracking-[0.2em] mb-4">FAQ</p>
+            <h2 className="text-4xl sm:text-5xl font-black text-white">Preguntas frecuentes</h2>
           </div>
 
-          <div className="space-y-4">
-            {[
-              {
-                q: "¿Es una aplicación nativa para Android e iOS?",
-                a: "Usamos la tecnología líder en el mercado (PWA). Esto significa que tus alumnos instalan una WebApp ultra-rápida y liviana directo en sus teléfonos desde el navegador. Ocupa 100 veces menos espacio y se actualiza automáticamente en tiempo real sin pasar por las tiendas."
-              },
-              {
-                q: "¿Es difícil migrar mis datos desde otro software?",
-                a: "¡Para nada! Nuestro soporte de ingeniería te ayuda GRATIS a cargar tu listado actual de alumnos y planes desde un Excel para que empieces a facturar en EntrenAPP desde el día 1."
-              },
-              {
-                q: "¿Puedo probarlo antes de pagar?",
-                a: "Sí, claro que sí. Ofrecemos un período de prueba gratis y sin compromiso de permanencia para que uses todas las funciones y compruebes con tus propios ojos que es lo que tu Box necesita."
-              },
-              {
-                q: "¿Cómo se configuran los límites de reservas y horarios?",
-                a: "Desde el panel web de Entrenador puedes configurar plantillas horarias, asignar cupos máximos por box y definir tiempos límites para cancelar o reservar. Si el box se llena, el sistema activa automáticamente la lista de espera."
-              }
-            ].map((item, index) => {
-              const isOpen = openFaq === index;
+          <div className="space-y-3">
+            {FAQS.map((item, i) => {
+              const isOpen = openFaq === i;
               return (
-                <div 
-                  key={index} 
-                  className="bg-white/5 border border-white/5 hover:border-white/10 rounded-2xl overflow-hidden transition-colors duration-300"
+                <div
+                  key={i}
+                  className={`bg-white/[0.03] border rounded-2xl overflow-hidden transition-all duration-300 ${isOpen ? "border-white/[0.12] bg-white/[0.05]" : "border-white/[0.06] hover:border-white/[0.1]"}`}
                 >
                   <button
-                    onClick={() => setOpenFaq(isOpen ? null : index)}
-                    className="w-full px-6 py-5 text-left flex justify-between items-center gap-4 font-bold text-white"
+                    onClick={() => setOpenFaq(isOpen ? null : i)}
+                    className="w-full px-6 py-5 flex justify-between items-center gap-4 text-left font-black text-white text-sm sm:text-base"
                   >
                     <span>{item.q}</span>
-                    <ChevronDown className={`w-5 h-5 text-white/40 shrink-0 transition-transform duration-300 ${isOpen ? "rotate-180" : "rotate-0"}`} />
+                    <ChevronDown className={`w-5 h-5 text-white/30 shrink-0 transition-transform duration-300 ${isOpen ? "rotate-180 text-primary" : ""}`} />
                   </button>
-                  <div className={`px-6 text-sm text-white/60 overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-40 pb-5 border-t border-white/5 pt-4" : "max-h-0"}`}>
-                    <p>{item.a}</p>
+                  <div className={`px-6 text-sm text-white/50 leading-relaxed overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-48 pb-6 border-t border-white/5 pt-4" : "max-h-0"}`}>
+                    {item.a}
                   </div>
                 </div>
               );
@@ -521,28 +778,85 @@ export default function LandingClient() {
         </div>
       </section>
 
-      {/* 🏁 FOOTER DE ÉLITE */}
-      <footer className="border-t border-white/5 py-16 px-6 bg-[#050507] relative">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-primary/20 p-2.5 rounded-2xl">
-              <Dumbbell className="w-5 h-5 text-primary" />
+      {/* ══════════════════════════════════════════════════
+          CTA FINAL
+      ══════════════════════════════════════════════════ */}
+      <section className="relative py-28 px-5 sm:px-8 z-10">
+        <div className="max-w-4xl mx-auto text-center relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-orange-500/5 to-primary/10 rounded-[40px] blur-3xl" />
+          <div className="relative bg-white/[0.02] border border-white/[0.07] rounded-[32px] p-12 sm:p-16 overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+
+            <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/25 flex items-center justify-center mx-auto mb-6">
+              <Dumbbell className="w-7 h-7 text-primary" />
             </div>
-            <span className="text-lg font-extrabold tracking-tight text-white">
-              EntrenAPP
-            </span>
-          </div>
-          <div className="flex flex-wrap justify-center gap-8 text-sm text-white/40">
-            <a href="#features" className="hover:text-white transition">Características</a>
-            <a href="#disciplines" className="hover:text-white transition">Disciplinas</a>
-            <a href="#pricing" className="hover:text-white transition">Precios</a>
-            <a href="https://wa.me/541165234769" className="hover:text-white transition">Contacto</a>
-          </div>
-          <div className="text-xs text-white/20 font-bold uppercase tracking-widest">
-            © 2026 EntrenAPP. Todos los derechos reservados.
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4">
+              ¿Listo para transformar<br />tu centro?
+            </h2>
+            <p className="text-white/45 text-base sm:text-lg mb-10 max-w-lg mx-auto">
+              Empezá gratis. Sin tarjeta. Sin compromiso. Tu centro merece lo mejor.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/auth/signup"
+                className="bg-gradient-to-r from-primary to-orange-500 text-white font-black px-10 py-4 rounded-2xl shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5 transition-all duration-300 text-base flex items-center justify-center gap-2 group"
+              >
+                Crear cuenta gratis
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <a
+                href="https://wa.me/541165234769"
+                target="_blank"
+                rel="noreferrer"
+                className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-black px-10 py-4 rounded-2xl transition-all duration-300 text-base flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-5 h-5 text-[#25d366]" />
+                Hablar con soporte
+              </a>
+            </div>
           </div>
         </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════
+          FOOTER
+      ══════════════════════════════════════════════════ */}
+      <footer className="relative border-t border-white/5 py-14 px-5 sm:px-8 z-10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-2.5">
+            <div className="bg-primary/15 p-2.5 rounded-[14px]">
+              <Dumbbell className="w-5 h-5 text-primary" />
+            </div>
+            <span className="text-lg font-black tracking-tight text-white">EntrenAPP</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-8 text-sm text-white/30 font-semibold">
+            <a href="#features" className="hover:text-white transition-colors">Funcionalidades</a>
+            <a href="#disciplines" className="hover:text-white transition-colors">Disciplinas</a>
+            <a href="#pricing" className="hover:text-white transition-colors">Planes</a>
+            <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+            <a href="https://wa.me/541165234769" className="hover:text-white transition-colors">Contacto</a>
+          </div>
+          <p className="text-xs text-white/15 font-bold uppercase tracking-widest">
+            © 2026 EntrenAPP · Todos los derechos reservados
+          </p>
+        </div>
       </footer>
+
+      {/* ── Animaciones flotantes CSS ── */}
+      <style jsx global>{`
+        @keyframes float1 {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-12px); }
+        }
+        @keyframes float2 {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-16px); }
+        }
+        @keyframes float3 {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+      `}</style>
     </div>
   );
 }

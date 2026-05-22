@@ -1,268 +1,94 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Trophy, TrendingUp, Plus, X, Loader2, Search } from "lucide-react";
-import { toast } from "sonner";
-
-type PRRecord = {
-  exercise_id: string;
-  exercise_name: string;
-  category: string;
-  best: number;
-  reps: number;
-  date: string;
-};
-
-type Exercise = {
-  id: string;
-  name: string;
-  category: string;
-};
+import Link from "next/link";
+import { Trophy, Sparkles, Compass, Code2, ArrowLeft, ArrowUpRight } from "lucide-react";
 
 export default function PRsPage() {
-  const supabase = createClient();
-  const [records, setRecords] = useState<PRRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [canEdit, setCanEdit] = useState(false);
-
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [selectedEx, setSelectedEx] = useState("");
-  const [weight, setWeight] = useState("");
-  const [reps, setReps] = useState("1");
-  const [saving, setSaving] = useState(false);
-  const [exSearch, setExSearch] = useState("");
-
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Get PRs
-    const { data: prs } = await supabase
-      .from("personal_records")
-      .select("*, exercises(name, category)")
-      .eq("student_id", user.id)
-      .order("created_at", { ascending: false });
-
-    // Group by exercise (best weight)
-    const byEx: Record<string, PRRecord> = {};
-    prs?.forEach((r: any) => {
-      const ex = r.exercises as Record<string, string>;
-      if (!byEx[r.exercise_id] || r.weight_kg > byEx[r.exercise_id].best) {
-        byEx[r.exercise_id] = {
-          exercise_id: r.exercise_id,
-          exercise_name: ex?.name || "",
-          category: ex?.category || "",
-          best: r.weight_kg,
-          reps: r.reps || 1,
-          date: r.created_at,
-        };
-      }
-    });
-    setRecords(Object.values(byEx).sort((a, b) => b.best - a.best));
-
-    // Check if this student can edit RMs
-    const { data: student } = await supabase
-      .from("users")
-      .select("can_edit_own_rms")
-      .eq("id", user.id)
-      .single();
-    setCanEdit(student?.can_edit_own_rms ?? false);
-
-    setLoading(false);
-  }
-
-  async function openModal() {
-    setShowModal(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Load exercises from trainer
-    const { data: student } = await supabase
-      .from("users")
-      .select("created_by")
-      .eq("id", user.id)
-      .single();
-
-    if (student?.created_by) {
-      const { data: exs } = await supabase
-        .from("exercises")
-        .select("id, name, category")
-        .eq("trainer_id", student.created_by)
-        .eq("archived", false)
-        .order("name");
-      setExercises(exs || []);
-    }
-  }
-
-  async function saveRM() {
-    if (!selectedEx || !weight) return;
-    setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { error } = await supabase.from("personal_records").insert({
-      student_id: user!.id,
-      exercise_id: selectedEx,
-      weight_kg: parseFloat(weight),
-      reps: parseInt(reps) || 1,
-      verified_by_trainer: false,
-    });
-
-    if (error) {
-      toast.error("Error al guardar el RM");
-    } else {
-      toast.success("RM registrado ✓");
-      setShowModal(false);
-      setSelectedEx("");
-      setWeight("");
-      setReps("1");
-      loadData();
-    }
-    setSaving(false);
-  }
-
-  const filteredExercises = exercises.filter(e =>
-    e.name.toLowerCase().includes(exSearch.toLowerCase())
-  );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <div className="bg-sidebar text-white px-4 pt-12 pb-6">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between relative overflow-hidden select-none pb-24">
+      {/* Background gradients */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-1/3 w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+      {/* Header */}
+      <div className="px-6 pt-12 pb-6 flex items-center justify-between border-b border-white/5 bg-slate-950/60 backdrop-blur-md sticky top-0 z-30">
+        <div className="flex items-center gap-3">
+          <Link href="/alumno" className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <ArrowLeft className="w-4 h-4 text-slate-300" />
+          </Link>
           <div>
-            <h1 className="text-2xl font-bold">Mis récords</h1>
-            <p className="text-white/60 text-sm mt-1">
-              {records.length} ejercicio{records.length !== 1 ? "s" : ""} con PR registrado
-            </p>
-          </div>
-          {canEdit && (
-            <button onClick={openModal}
-              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
-              <Plus className="w-4 h-4" />
-              Cargar RM
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="px-4 py-4 space-y-3 pb-24">
-        {records.length > 0 ? (
-          records.map(data => (
-            <div key={data.exercise_id} className="bg-white rounded-2xl shadow-sm border border-border p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <Trophy className="w-6 h-6 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-foreground">{data.exercise_name}</p>
-                <p className="text-xs text-muted-foreground capitalize">
-                  {data.category} · {data.reps > 1 ? `${data.reps}RM` : "1RM"}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-2xl font-bold text-primary">{data.best}</p>
-                <p className="text-xs text-muted-foreground">kg</p>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="bg-white rounded-2xl p-8 text-center shadow-sm border border-border">
-            <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <h3 className="font-semibold text-foreground">Sin récords todavía</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              {canEdit
-                ? "Cargá tu primer RM tocando el botón +"
-                : "Tus PRs aparecerán acá cuando tu entrenador los registre."}
-            </p>
-            {canEdit && (
-              <button onClick={openModal}
-                className="mt-4 inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-                <Plus className="w-4 h-4" /> Cargar RM
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ─── Modal: Cargar RM ─────────────────────────────────── */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={() => setShowModal(false)}>
-          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-6 space-y-5 max-h-[85vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">Cargar RM</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-muted">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Exercise selector with search */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Ejercicio</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="text" value={exSearch} onChange={e => setExSearch(e.target.value)}
-                  placeholder="Buscar ejercicio..."
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-              <div className="max-h-40 overflow-y-auto border border-border rounded-xl divide-y divide-border">
-                {filteredExercises.map(ex => (
-                  <button key={ex.id} type="button"
-                    onClick={() => setSelectedEx(ex.id)}
-                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                      selectedEx === ex.id ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
-                    }`}>
-                    {ex.name}
-                    <span className="text-xs text-muted-foreground ml-2 capitalize">{ex.category}</span>
-                  </button>
-                ))}
-                {filteredExercises.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">Sin resultados</p>
-                )}
-              </div>
-            </div>
-
-            {/* Weight + Reps */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-foreground">Peso (kg)</label>
-                <input type="number" value={weight} onChange={e => setWeight(e.target.value)}
-                  placeholder="0" min="0" step="0.5"
-                  className="w-full px-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-foreground">Reps</label>
-                <input type="number" value={reps} onChange={e => setReps(e.target.value)}
-                  placeholder="1" min="1"
-                  className="w-full px-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Tu entrenador verificará este RM. Hasta entonces aparecerá como pendiente de verificación.
-            </p>
-
-            <button onClick={saveRM}
-              disabled={!selectedEx || !weight || saving}
-              className="w-full py-3 bg-primary text-white rounded-xl font-medium text-sm hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />}
-              Guardar RM
-            </button>
+            <h1 className="text-xl font-bold tracking-tight">Récords Personales</h1>
+            <p className="text-xs text-slate-400">Tu historial de fuerza máxima</p>
           </div>
         </div>
-      )}
+        <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 max-w-lg mx-auto py-12 space-y-8 z-10 w-full">
+        {/* Glow Icon */}
+        <div className="relative">
+          <div className="absolute inset-0 bg-primary/30 rounded-3xl blur-2xl scale-125 animate-pulse" />
+          <div className="relative w-20 h-20 rounded-3xl bg-slate-900 border border-white/10 flex items-center justify-center shadow-2xl">
+            <Trophy className="w-10 h-10 text-primary animate-bounce" />
+          </div>
+        </div>
+
+        {/* Text */}
+        <div className="text-center space-y-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 border border-primary/20 text-primary">
+            Módulo en desarrollo
+          </span>
+          <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+            Métricas de Fuerza & <br />
+            <span className="bg-gradient-to-r from-primary to-orange-400 bg-clip-text text-transparent">
+              Récords Personales (1RM)
+            </span>
+          </h2>
+          <p className="text-sm text-slate-300 leading-relaxed max-w-sm mx-auto">
+            Estamos diseñando junto a coaches de élite un sistema ultra-preciso para registrar tus límites de fuerza, ver tus progresiones y calcular porcentajes automáticamente.
+          </p>
+        </div>
+
+        {/* Roadmap Card */}
+        <div className="w-full bg-slate-900/60 border border-white/5 rounded-3xl p-5 backdrop-blur-xl shadow-xl space-y-4">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Compass className="w-3.5 h-3.5 text-primary" /> Roadmap de Desarrollo
+          </h3>
+          <div className="space-y-3">
+            {[
+              { label: "Base de Datos & RLS Olímpico", status: "completado" },
+              { label: "Visualización de Historial Estilo Bevel", status: "en_curso" },
+              { label: "Carga Interactiva & Calculador de 1RM", status: "pendiente" },
+            ].map((step, idx) => (
+              <div key={idx} className="flex items-center justify-between py-1 border-b border-white/5 last:border-0">
+                <span className="text-xs font-medium text-slate-200">{step.label}</span>
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                  step.status === "completado"
+                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                    : step.status === "en_curso"
+                    ? "bg-primary/10 text-primary border border-primary/20 animate-pulse"
+                    : "bg-white/5 text-slate-500 border border-white/5"
+                }`}>
+                  {step.status === "completado" ? "Listo" : step.status === "en_curso" ? "En curso" : "Pronto"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Interactive action */}
+        <Link href="/alumno" className="inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors group">
+          Volver al panel principal
+          <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+        </Link>
+      </div>
+
+      {/* Footer Branding */}
+      <div className="text-center pb-6 text-[10px] text-slate-600 flex items-center justify-center gap-1.5 z-10">
+        <Code2 className="w-3.5 h-3.5" />
+        <span>Diseñado en Buenos Aires con estándares premium</span>
+      </div>
     </div>
   );
 }

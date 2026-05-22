@@ -583,6 +583,12 @@ function ComplexCard({
     sets.forEach(s => { map[s.id] = s.percentage_1rm?.toString() ?? ""; });
     return map;
   });
+  // Estado local para los inputs de Rondas
+  const [roundsInputs, setRoundsInputs] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    sets.forEach(s => { map[s.id] = s.rounds?.toString() ?? "1"; });
+    return map;
+  });
   const [savedPct, setSavedPct] = useState<Record<string, boolean>>({});
   const saveTimers = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -593,6 +599,13 @@ function ComplexCard({
       const next = { ...prev };
       sets.forEach(s => {
         if (!(s.id in next)) next[s.id] = s.percentage_1rm?.toString() ?? "";
+      });
+      return next;
+    });
+    setRoundsInputs(prev => {
+      const next = { ...prev };
+      sets.forEach(s => {
+        if (!(s.id in next)) next[s.id] = s.rounds?.toString() ?? "1";
       });
       return next;
     });
@@ -615,6 +628,18 @@ function ComplexCard({
     saveTimers.current[setId] = setTimeout(() => {
       savePct(setId, newVal, current);
     }, 600);
+  };
+
+  const saveRounds = (setId: string, raw: string, current: number) => {
+    let r = raw !== "" ? parseInt(raw, 10) : 1;
+    if (isNaN(r) || r < 1) r = 1;
+    if (r === current) return; // sin cambios
+    onUpdateSetRounds(setId, r);
+  };
+
+  const handleRoundsChange = (setId: string, newVal: string) => {
+    if (newVal !== "" && !/^\d+$/.test(newVal)) return; // solo números
+    setRoundsInputs(prev => ({ ...prev, [setId]: newVal }));
   };
 
   const sorted = [...exs].sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0));
@@ -722,10 +747,18 @@ function ComplexCard({
                   title="Cantidad de rondas de este complex"
                 >
                   <input
-                    type="number" min="1" max="20"
-                    value={s.rounds ?? 1}
-                    onChange={e => onUpdateSetRounds(s.id, parseInt(e.target.value) || 1)}
-                    className="w-6 bg-transparent border-0 text-xs text-center font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={roundsInputs[s.id] ?? "1"}
+                    onChange={e => handleRoundsChange(s.id, e.target.value)}
+                    onBlur={() => saveRounds(s.id, roundsInputs[s.id] ?? "1", s.rounds ?? 1)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="w-6 bg-transparent border-0 text-xs text-center font-bold focus:outline-none"
                   />
                   <span className="text-xs font-medium select-none cursor-default">
                     {s.rounds && s.rounds > 1 ? "Ron ✓" : "Ron"}

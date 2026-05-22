@@ -1,20 +1,42 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Dumbbell, Loader2, CheckCircle2, ArrowRight, Mail } from "lucide-react";
 
-export default function SignupPage() {
+export function SignupPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const searchParams = useSearchParams();
+  const urlBoxId = searchParams.get("box_id");
   const [loading, setLoading] = useState(false);
   const [isSignedUp, setIsSignedUp] = useState(false);
+  const [branding, setBranding] = useState<{ name: string; color: string; logoUrl?: string } | null>(null);
+
+  useEffect(() => {
+    // Intentar capturar boxId de la URL o del almacenamiento local
+    const boxId = urlBoxId || localStorage.getItem("pending_invite_box_id");
+    if (boxId) {
+      fetch(`/api/public/boxes/${boxId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.box) {
+            setBranding({
+              name: data.box.name,
+              color: data.box.branding_config?.primary_color || "#EA580C",
+              logoUrl: data.box.logo_url
+            });
+          }
+        })
+        .catch((err) => console.error("Error fetching box branding:", err));
+    }
+  }, [urlBoxId]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,27 +157,62 @@ export default function SignupPage() {
     );
   }
 
+  const primaryColor = branding?.color || "#ea580c";
+
   return (
-    <div className="min-h-screen bg-sidebar flex items-center justify-center p-4 select-none">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-4 select-none relative" style={{ backgroundColor: branding ? "#060608" : "#f1f5f9" }}>
+      {/* Background glow if branded */}
+      {branding && (
+        <div 
+          className="absolute inset-0 opacity-10 pointer-events-none" 
+          style={{ background: `radial-gradient(circle at center, ${primaryColor} 0%, transparent 70%)` }}
+        />
+      )}
+
+      <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
-          <div className="bg-primary rounded-2xl p-3 shadow-lg shadow-primary/20 mb-3">
-            <Dumbbell className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-white text-2xl font-extrabold tracking-tight">EntrenAPP</h1>
-          <p className="text-white/50 text-xs font-medium mt-0.5 uppercase tracking-wider">Crea tu perfil de alumno</p>
+          {branding?.logoUrl ? (
+            <div className="rounded-2xl p-2 mb-4 shadow-lg w-16 h-16 overflow-hidden bg-white/5 border border-white/10" style={{ boxShadow: `0 10px 25px -5px rgba(0,0,0, 0.4)` }}>
+              <img src={branding.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div 
+              className="rounded-2xl p-3 mb-3 shadow-lg"
+              style={{ backgroundColor: primaryColor }}
+            >
+              <Dumbbell className="w-8 h-8 text-white" />
+            </div>
+          )}
+          <h1 className="text-2xl font-bold" style={{ color: branding ? "white" : "#0f172a" }}>
+            {branding ? branding.name : "EntrenAPP"}
+          </h1>
+          <p className="text-sm mt-1" style={{ color: branding ? "rgba(255,255,255,0.6)" : "#64748b" }}>
+            {branding ? "Crea tu perfil en el Box" : "Crea tu perfil de alumno"}
+          </p>
         </div>
 
         {/* Card de Registro */}
-        <div className="bg-white rounded-3xl p-7 shadow-2xl border border-border/50">
-          <h2 className="text-lg font-bold text-foreground mb-5 tracking-tight">Regístrate gratis</h2>
+        <div 
+          className="rounded-3xl p-7 shadow-2xl border"
+          style={{ 
+            backgroundColor: branding ? "rgba(255,255,255,0.02)" : "white",
+            borderColor: branding ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.1)",
+            backdropFilter: branding ? "blur(20px)" : "none"
+          }}
+        >
+          <h2 className="text-lg font-bold mb-5 tracking-tight" style={{ color: branding ? "white" : "#0f172a" }}>Regístrate gratis</h2>
 
           <button
             type="button"
             onClick={handleGoogleSignup}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium py-3 rounded-xl transition disabled:opacity-60 shadow-sm mb-4"
+            className="w-full flex items-center justify-center gap-3 font-medium py-3 rounded-xl transition disabled:opacity-60 shadow-sm mb-4 border"
+            style={{ 
+              backgroundColor: branding ? "rgba(255,255,255,0.05)" : "white",
+              borderColor: branding ? "rgba(255,255,255,0.1)" : "#e2e8f0",
+              color: branding ? "white" : "#334155"
+            }}
           >
             <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -167,57 +224,85 @@ export default function SignupPage() {
           </button>
 
           <div className="relative flex py-3 items-center">
-            <div className="flex-grow border-t border-slate-100"></div>
-            <span className="flex-shrink mx-3 text-muted-foreground text-[10px] uppercase tracking-widest font-semibold bg-white px-1">O usar correo</span>
-            <div className="flex-grow border-t border-slate-100"></div>
+            <div className="flex-grow border-t" style={{ borderColor: branding ? "rgba(255,255,255,0.1)" : "#f1f5f9" }}></div>
+            <span 
+              className="flex-shrink mx-3 text-[10px] uppercase tracking-widest font-semibold px-1"
+              style={{ 
+                color: branding ? "rgba(255,255,255,0.4)" : "#64748b",
+                backgroundColor: branding ? "transparent" : "white" 
+              }}
+            >
+              O usar correo
+            </span>
+            <div className="flex-grow border-t" style={{ borderColor: branding ? "rgba(255,255,255,0.1)" : "#f1f5f9" }}></div>
           </div>
 
           <form onSubmit={handleSignup} className="space-y-3 mt-2">
             <div>
-              <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">Nombre Completo</label>
+              <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: branding ? "white" : "#0f172a" }}>Nombre Completo</label>
               <input
                 type="text"
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Juan Pérez"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition"
+                className="w-full px-3.5 py-2.5 rounded-xl border transition"
+                style={{ 
+                  backgroundColor: branding ? "rgba(255,255,255,0.05)" : "#f8fafc",
+                  borderColor: branding ? "rgba(255,255,255,0.1)" : "#e2e8f0",
+                  color: branding ? "white" : "#0f172a"
+                }}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">Email</label>
+              <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: branding ? "white" : "#0f172a" }}>Email</label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="ejemplo@correo.com"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition"
+                className="w-full px-3.5 py-2.5 rounded-xl border transition"
+                style={{ 
+                  backgroundColor: branding ? "rgba(255,255,255,0.05)" : "#f8fafc",
+                  borderColor: branding ? "rgba(255,255,255,0.1)" : "#e2e8f0",
+                  color: branding ? "white" : "#0f172a"
+                }}
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">Contraseña</label>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: branding ? "white" : "#0f172a" }}>Contraseña</label>
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 rounded-xl border transition"
+                  style={{ 
+                    backgroundColor: branding ? "rgba(255,255,255,0.05)" : "#f8fafc",
+                    borderColor: branding ? "rgba(255,255,255,0.1)" : "#e2e8f0",
+                    color: branding ? "white" : "#0f172a"
+                  }}
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1">Repetir Contraseña</label>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: branding ? "white" : "#0f172a" }}>Repetir Contraseña</label>
                 <input
                   type="password"
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition"
+                  className="w-full px-3.5 py-2.5 rounded-xl border transition"
+                  style={{ 
+                    backgroundColor: branding ? "rgba(255,255,255,0.05)" : "#f8fafc",
+                    borderColor: branding ? "rgba(255,255,255,0.1)" : "#e2e8f0",
+                    color: branding ? "white" : "#0f172a"
+                  }}
                 />
               </div>
             </div>
@@ -225,7 +310,8 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-3 shadow-md shadow-primary/10"
+              className="w-full text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-3 shadow-lg"
+              style={{ backgroundColor: primaryColor }}
             >
               {loading ? (
                 <>
@@ -238,14 +324,27 @@ export default function SignupPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-5">
+          <p className="text-center text-sm mt-5" style={{ color: branding ? "rgba(255,255,255,0.5)" : "#64748b" }}>
             ¿Ya tienes cuenta?{" "}
-            <Link href="/auth/login" className="text-primary font-semibold hover:underline">
+            <Link 
+              href={branding ? `/auth/login?box_id=${urlBoxId || ''}` : "/auth/login"} 
+              className="font-semibold hover:underline"
+              style={{ color: primaryColor }}
+            >
               Inicia sesión
             </Link>
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+import { Suspense } from "react";
+export default function SignupPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#060608] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>}>
+      <SignupPage />
+    </Suspense>
   );
 }

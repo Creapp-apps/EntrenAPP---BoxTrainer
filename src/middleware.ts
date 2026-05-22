@@ -34,6 +34,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/" || 
     pathname.startsWith("/auth") || 
     pathname.startsWith("/invite") ||
+    pathname.startsWith("/buscar-box") ||
+    pathname.startsWith("/box") ||
     pathname.startsWith("/api");
 
   // 2. Si es una ruta de login/auth y YA está logueado, redirigir a la raíz
