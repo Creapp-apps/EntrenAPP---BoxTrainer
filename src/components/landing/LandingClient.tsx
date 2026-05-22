@@ -208,8 +208,8 @@ export default function LandingClient() {
               </Link>
               <span className="text-white/20 text-xs sm:hidden">|</span>
               <Link
-                href="/auth/login"
-                className="text-xs sm:text-sm font-bold text-white/60 hover:text-white px-2 sm:px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                href="/buscar-box"
+                className="text-sm font-bold text-slate-400 hover:text-white transition px-2 sm:px-3 py-2 rounded-lg hover:bg-white/5"
               >
                 Soy Entrenador
               </Link>

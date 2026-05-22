@@ -239,7 +239,7 @@ export default function BoxLandingClient({ box, plans = [] }: { box: BoxData, pl
               
               {box.phone && (
                 <a 
-                  href={`https://wa.me/${box.phone.replace(/[^0-9]/g, "")}`}
+                  href={`https://wa.me/${String(box.phone).replace(/[^0-9]/g, "")}`}
                   target="_blank" rel="noopener noreferrer"
                   className="w-full px-5 py-4 rounded-2xl bg-[#25D366]/5 hover:bg-[#25D366]/10 border border-[#25D366]/20 hover:border-[#25D366]/40 text-sm font-semibold text-[#25D366] transition-all flex flex-col items-center justify-center gap-2 group"
                 >
@@ -291,8 +291,8 @@ export default function BoxLandingClient({ box, plans = [] }: { box: BoxData, pl
                   <Tag className="w-6 h-6" style={{ color: primaryColor }} /> Actividades y Precios
                 </h2>
                 <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
-                  {plans.length > 0 ? (
-                    plans.map((plan) => (
+                  {(plans?.length || 0) > 0 ? (
+                    plans?.map((plan) => (
                       <div key={plan.id} className="p-4 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center">
                         <div>
                           <h4 className="font-bold text-white">{plan.name}</h4>
