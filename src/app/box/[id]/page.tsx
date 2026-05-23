@@ -8,8 +8,8 @@ interface BoxPageProps {
   };
 }
 
-// Generate static params if we want to pre-render (optional)
-export const revalidate = 60; // Revalidate every minute
+// Always dynamic to reflect immediate changes from the dashboard
+export const dynamic = "force-dynamic";
 
 export default async function BoxLandingPage({ params }: BoxPageProps) {
   const adminSupabase = createClient(
@@ -19,7 +19,7 @@ export default async function BoxLandingPage({ params }: BoxPageProps) {
 
   const { data: box } = await adminSupabase
     .from("boxes")
-    .select("id, name, branding_config, phone, logo_url")
+    .select("id, name, branding_config, phone, logo_url, owner_id")
     .eq("id", params.id)
     .single();
 
@@ -27,12 +27,45 @@ export default async function BoxLandingPage({ params }: BoxPageProps) {
     notFound();
   }
 
-  const { data: plans } = await adminSupabase
+  // Fetch plans with graceful fallback if box_id is not in plans table yet
+  let plans: any[] = [];
+  const { data: plansData, error: plansError } = await adminSupabase
     .from("plans")
     .select("*")
     .eq("box_id", params.id)
     .eq("active", true)
     .order("price", { ascending: true });
 
-  return <BoxLandingClient box={box} plans={plans || []} />;
+  if (plansError && box.owner_id) {
+    // Graceful fallback to trainer_id (owner of the box) if box_id doesn't exist
+    const { data: fallbackPlans } = await adminSupabase
+      .from("plans")
+      .select("*")
+      .eq("trainer_id", box.owner_id)
+      .eq("active", true)
+      .order("price", { ascending: true });
+    plans = fallbackPlans || [];
+  } else {
+    plans = plansData || [];
+  }
+
+  const { data: products } = await adminSupabase
+    .from("box_products")
+    .select("*")
+    .eq("box_id", params.id)
+    .eq("active", true)
+    .order("name", { ascending: true });
+
+  // Fetch activities of the box to render on the plan badges
+  let activities: any[] = [];
+  if (box.owner_id) {
+    const { data: actData } = await adminSupabase
+      .from("box_activities")
+      .select("id, name, color")
+      .eq("trainer_id", box.owner_id)
+      .eq("active", true);
+    activities = actData || [];
+  }
+
+  return <BoxLandingClient box={box} plans={plans || []} products={products || []} activities={activities} />;
 }

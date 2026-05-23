@@ -38,6 +38,7 @@ type Plan = {
   price: number;
   total_credits: number;
   allowed_activities: string[];
+  description?: string;
 };
 
 type ScheduleSlot = {
@@ -701,6 +702,11 @@ export default function PortalClient({ boxId, boxName, products, plans, slots, l
                                     <p className="text-[11px] text-zinc-500 mt-1">
                                       {p.sessions_per_week} clases por semana · Créditos: <strong>{p.total_credits}</strong>
                                     </p>
+                                    {p.description && (
+                                      <p className="text-xs text-zinc-400 mt-2 leading-relaxed bg-zinc-950/40 p-2.5 rounded-xl border border-zinc-900/50 italic">
+                                        "{p.description}"
+                                      </p>
+                                    )}
 
                                     <div className="flex items-end justify-between mt-4 pt-2 border-t border-zinc-900/50">
                                       <div>

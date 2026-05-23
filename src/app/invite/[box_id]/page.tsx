@@ -11,7 +11,7 @@ export default async function InvitePage({ params }: { params: { box_id: string 
   // 1. Obtener datos del Box
   const { data: box, error } = await supabase
     .from("boxes")
-    .select("name, owner_id, logo_url, theme")
+    .select("name, owner_id, logo_url, theme, branding_config")
     .eq("id", params.box_id)
     .single();
 
@@ -74,9 +74,12 @@ export default async function InvitePage({ params }: { params: { box_id: string 
       .eq("trainer_id", ownerId)
       .eq("active", true)
       .order("price");
+    
+    const metadata = (box as any)?.branding_config?.plans_landing_metadata || {};
     plans = (plansRes || []).map(p => ({
       ...p,
-      price: Number(p.price)
+      price: Number(p.price),
+      description: metadata[p.id]?.description || p.description || ""
     }));
   }
 
