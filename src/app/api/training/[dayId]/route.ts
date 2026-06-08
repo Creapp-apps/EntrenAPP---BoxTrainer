@@ -22,7 +22,7 @@ export async function GET(
   // 2. Usar el admin client para queries que bypasean RLS
   const admin = await createAdminClient();
 
-  // 3. Verificar que el día pertenece a un ciclo del alumno autenticado
+  // 3. Verificar que el día pertenece a un ciclo
   const { data: dayData, error: dayError } = await admin
     .from("training_days")
     .select(`
@@ -30,7 +30,7 @@ export async function GET(
       training_weeks!inner (
         week_number,
         type,
-        training_cycles!inner ( id, name, student_id )
+        training_cycles!inner ( id, name )
       )
     `)
     .eq("id", dayId)
@@ -40,10 +40,19 @@ export async function GET(
     return NextResponse.json({ error: "Day not found" }, { status: 404 });
   }
 
-  // 4. Verificar que el alumno es dueño del ciclo
+  // 4. Verificar que el alumno está enrolado activamente en este ciclo
   const week = (dayData as any).training_weeks;
   const cycle = week?.training_cycles;
-  if (cycle?.student_id !== user.id) {
+
+  const { data: enrollData, error: enrollError } = await admin
+    .from("training_cycle_enrollments")
+    .select("id")
+    .eq("cycle_id", cycle.id)
+    .eq("student_id", user.id)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (enrollError || !enrollData) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
