@@ -1275,14 +1275,25 @@ export default function EntrenarPage() {
 
         {/* VISTA PIZARRA (ALTO CONTRASTE Y TIPOGRAFÍA GIGANTE) */}
         {viewMode === "pizarra" && (
-          <div className="bg-[#12241a] border-4 border-amber-900 rounded-3xl p-6 text-amber-50 shadow-2xl space-y-8 my-2 font-mono">
-            <div className="border-b-4 border-dashed border-emerald-700/50 pb-5 text-center">
-              <span className="text-sm font-black uppercase tracking-[0.2em] text-emerald-400">Pizarra de Entrenamiento</span>
-              <h2 className="text-4xl font-black mt-2 text-white tracking-wide">{dayInfo?.cycle_name || "Planificación"}</h2>
-              <p className="text-lg text-emerald-300 font-bold mt-1">Semana {dayInfo?.week_number}</p>
+          <div className="bg-[#122217] border-[12px] border-amber-950 rounded-3xl p-6 text-[#faf6e5] shadow-2xl space-y-8 my-2 font-mono relative overflow-hidden">
+            {/* Header de Pizarra */}
+            <div className="border-b-2 border-dashed border-emerald-800/40 pb-6 text-center space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-400">
+                * PIZARRA DE ENTRENAMIENTO *
+              </span>
+              <h2 className="text-3xl font-black text-white tracking-wide uppercase">
+                {dayInfo?.cycle_name || "Planificación"}
+              </h2>
+              <p className="text-lg text-emerald-300 font-bold">
+                SEMANA {dayInfo?.week_number}
+              </p>
+              <div className="text-slate-400 text-xs tracking-wider">
+                ===================================
+              </div>
             </div>
 
-            <div className="space-y-8">
+            {/* Bloques y Ejercicios */}
+            <div className="space-y-10">
               {blocks.map(block => {
                 type BlockItem =
                   | { type: "single"; te: TrainingExercise }
@@ -1309,12 +1320,13 @@ export default function EntrenarPage() {
                 });
 
                 return (
-                  <div key={block.id} className="space-y-6 border-b border-emerald-900/40 pb-8 last:border-b-0">
-                    <h3 className="text-2xl font-black text-yellow-300 uppercase tracking-widest pl-3 border-l-4 border-yellow-300">
-                      {block.name}
+                  <div key={block.id} className="space-y-6">
+                    {/* Título de Bloque */}
+                    <h3 className="text-2xl font-black text-yellow-300 uppercase tracking-widest border-b border-dashed border-emerald-800/30 pb-2">
+                      --- {block.name} ---
                     </h3>
                     
-                    <div className="space-y-6 pl-1">
+                    <div className="space-y-6">
                       {blockItems.map(item => {
                         if (item.type === "single") {
                           const te = item.te;
@@ -1328,36 +1340,44 @@ export default function EntrenarPage() {
                             <button
                               key={te.id}
                               onClick={() => handleExerciseTap(te)}
-                              className="w-full text-left flex items-start gap-4 p-3 rounded-2xl hover:bg-emerald-950/30 transition-colors group"
+                              className="w-full text-left py-2 hover:bg-emerald-950/20 transition-colors block focus:outline-none rounded-xl px-2 -mx-2"
                             >
-                              <div className={`w-9 h-9 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
-                                done ? "bg-emerald-500 border-emerald-500" : "border-slate-500 group-hover:border-white"
-                              }`}>
-                                {done && <Check className="w-5 h-5 text-white" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className={`text-2xl font-black tracking-wide ${done ? "line-through text-slate-500" : "text-white"}`}>
-                                  {te.exercises?.name}
+                              <div className="space-y-1">
+                                <h4 className={`text-2xl font-bold tracking-wide transition-all ${
+                                  done ? "line-through text-emerald-800/50 decoration-2" : "text-white"
+                                }`}>
+                                  • {te.exercises?.name}
                                   {te.exercise_variants?.name && (
-                                    <span className="text-emerald-300 ml-1.5">— {te.exercise_variants.name}</span>
+                                    <span className={`ml-1.5 ${done ? "text-emerald-900/30" : "text-emerald-300"}`}>
+                                      — {te.exercise_variants.name}
+                                    </span>
                                   )}
                                 </h4>
-                                <p className="text-lg text-amber-100 font-bold mt-1.5">
+                                <p className={`text-lg font-bold transition-all ${
+                                  done ? "text-emerald-900/30" : "text-amber-100"
+                                }`}>
                                   {te.sets} series × {te.reps} repeticiones
                                   {suggestedKg && (
-                                    <span className="text-emerald-300 font-black ml-3">
+                                    <span className="text-emerald-400 font-extrabold ml-3">
                                       [Sug: {suggestedKg} kg]
                                     </span>
                                   )}
                                 </p>
                                 {te.notes && (
-                                  <p className="text-sm text-yellow-200/90 font-medium italic mt-1 leading-relaxed">
-                                    Nota: {te.notes}
+                                  <p className={`text-sm italic font-medium leading-relaxed ${
+                                    done ? "text-emerald-900/20" : "text-yellow-200/90"
+                                  }`}>
+                                    * Nota: {te.notes}
                                   </p>
                                 )}
                                 {done && log && log.weight_used_kg !== undefined && (
-                                  <p className="text-base text-emerald-400 font-black mt-1">
-                                    → Hecho con: {log.weight_used_kg} kg
+                                  <p className="text-base text-emerald-400 font-extrabold tracking-wide">
+                                    [✓] HECHO CON: {log.weight_used_kg} kg
+                                  </p>
+                                )}
+                                {done && (!log || log.weight_used_kg === undefined) && (
+                                  <p className="text-base text-emerald-500 font-extrabold tracking-wide">
+                                    [✓] COMPLETADO
                                   </p>
                                 )}
                               </div>
@@ -1375,18 +1395,14 @@ export default function EntrenarPage() {
                           }).join(" + ");
 
                           return (
-                            <div key={item.complexId} className="space-y-4 p-4 rounded-3xl bg-emerald-950/25 border border-emerald-900">
-                              <div className="flex items-center gap-3">
-                                <Link2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                                <span className="text-sm font-black uppercase tracking-wider text-emerald-400">
-                                  Complex / Trepada ({cSets.length} series)
-                                </span>
-                              </div>
-                              <h4 className={`text-2xl font-black ${allSeriesDone ? "line-through text-slate-500" : "text-white"}`}>
-                                {complexTitle}
+                            <div key={item.complexId} className="space-y-3">
+                              <h4 className={`text-2xl font-bold tracking-wide transition-all ${
+                                allSeriesDone ? "line-through text-emerald-800/50 decoration-2" : "text-white"
+                              }`}>
+                                • COMPLEX: {complexTitle}
                               </h4>
                               
-                              <div className="space-y-3.5 pl-4 border-l-2 border-emerald-800/60 mt-3">
+                              <div className="space-y-3 pl-4 border-l-2 border-emerald-900/30">
                                 {cSets.map(s => {
                                   const seriesDone = checkedSeries.has(s.id);
                                   const calcWeight = firstOneRM && s.percentage_1rm
@@ -1408,28 +1424,28 @@ export default function EntrenarPage() {
                                     <button
                                       key={s.id}
                                       onClick={() => handleSeriesTap(s, item.items)}
-                                      className="w-full text-left flex items-start gap-4 py-2 hover:text-white transition-colors group"
+                                      className="w-full text-left py-1 hover:bg-emerald-950/20 transition-colors block focus:outline-none rounded-lg px-2 -mx-2"
                                     >
-                                      <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 mt-0.5 transition-all ${
-                                        seriesDone ? "bg-emerald-500 border-emerald-500" : "border-slate-500 group-hover:border-white"
+                                      <p className={`text-lg font-bold transition-all ${
+                                        seriesDone ? "line-through text-emerald-800/40" : "text-emerald-300"
                                       }`}>
-                                        {seriesDone && <Check className="w-4 h-4 text-white" />}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className={`text-lg font-bold ${seriesDone ? "line-through text-slate-500" : "text-slate-200"}`}>
-                                          Serie {s.set_number}: <span className="font-normal text-slate-300">{repsLine}</span>
-                                          {calcWeight && (
-                                            <span className="text-emerald-300 font-extrabold ml-2">
-                                              [Sug: {calcWeight} kg]
-                                            </span>
-                                          )}
-                                        </p>
-                                        {seriesDone && loggedWeight !== undefined && (
-                                          <p className="text-sm text-emerald-400 font-bold mt-1">
-                                            → Hecho con: {loggedWeight} kg
-                                          </p>
+                                        - Serie {s.set_number}: <span className={seriesDone ? "text-emerald-900/30" : "text-slate-300 font-normal"}>{repsLine}</span>
+                                        {calcWeight && (
+                                          <span className="text-emerald-400 font-extrabold ml-2">
+                                            [Sug: {calcWeight} kg]
+                                          </span>
                                         )}
-                                      </div>
+                                      </p>
+                                      {seriesDone && loggedWeight !== undefined && (
+                                        <p className="text-sm text-emerald-400 font-extrabold tracking-wide pl-4">
+                                          [✓] HECHO CON: {loggedWeight} kg
+                                        </p>
+                                      )}
+                                      {seriesDone && loggedWeight === undefined && (
+                                        <p className="text-sm text-emerald-500 font-extrabold tracking-wide pl-4">
+                                          [✓] COMPLETADO
+                                        </p>
+                                      )}
                                     </button>
                                   );
                                 })}
