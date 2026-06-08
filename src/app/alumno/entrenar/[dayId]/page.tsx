@@ -8,6 +8,7 @@ import {
   ArrowLeft, Check, Dumbbell, Loader2,
   Send, StickyNote, X, Video, Link2, Layers,
   ChevronDown, ChevronUp, Pencil,
+  Table, Tv, Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { calculateWeight } from "@/lib/utils";
@@ -233,6 +234,21 @@ export default function EntrenarPage() {
   const [complexSets, setComplexSets] = useState<Record<string, ComplexSet[]>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [viewMode, setViewMode] = useState<"interactive" | "excel" | "pizarra">("interactive");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("entrenapp_student_view_mode");
+      if (saved === "excel" || saved === "pizarra" || saved === "interactive") {
+        setViewMode(saved);
+      }
+    }
+  }, []);
+
+  const handleViewModeChange = (mode: "interactive" | "excel" | "pizarra") => {
+    setViewMode(mode);
+    localStorage.setItem("entrenapp_student_view_mode", mode);
+  };
 
   // Training state
   const [phase, setPhase] = useState<Phase>("training");
@@ -628,9 +644,9 @@ export default function EntrenarPage() {
 
   // ─── Training screen ───────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`min-h-screen ${viewMode === "pizarra" ? "bg-slate-950" : "bg-background"}`}>
       {/* Header */}
-      <div className="bg-sidebar text-white px-4 pt-12 pb-6 sticky top-0 z-10">
+      <div className={`${viewMode === "pizarra" ? "bg-slate-900 border-b border-slate-800" : "bg-sidebar"} text-white px-4 pt-12 pb-6 sticky top-0 z-10 shadow-sm`}>
         <div className="flex items-center gap-3 mb-3">
           <Link href="/alumno" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition">
             <ArrowLeft className="w-4 h-4" />
@@ -640,6 +656,7 @@ export default function EntrenarPage() {
             <h1 className="font-bold">Entrenamiento de hoy</h1>
           </div>
         </div>
+        
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-white/60">
             <span>{completedItems} de {totalItems} ítems</span>
@@ -649,10 +666,44 @@ export default function EntrenarPage() {
             <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
+
+        {/* View Switcher */}
+        <div className="mt-4 flex gap-1 bg-white/10 p-1 rounded-xl text-xs">
+          <button
+            onClick={() => handleViewModeChange("interactive")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold transition-all ${
+              viewMode === "interactive" ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Interactiva
+          </button>
+          <button
+            onClick={() => handleViewModeChange("excel")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold transition-all ${
+              viewMode === "excel" ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"
+            }`}
+          >
+            <Table className="w-3.5 h-3.5" />
+            Planilla
+          </button>
+          <button
+            onClick={() => handleViewModeChange("pizarra")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold transition-all ${
+              viewMode === "pizarra" ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"
+            }`}
+          >
+            <Tv className="w-3.5 h-3.5" />
+            Pizarra
+          </button>
+        </div>
       </div>
 
-      <div className="px-4 py-4 space-y-4 pb-32">
-        {blocks.map(block => {
+      <div className="px-4 py-4 max-w-4xl mx-auto pb-32">
+        {/* VISTA INTERACTIVA */}
+        {viewMode === "interactive" && (
+          <div className="space-y-4">
+            {blocks.map(block => {
           // Group exercises: singles and complexes
           type BlockItem =
             | { type: "single"; te: TrainingExercise }
@@ -919,6 +970,481 @@ export default function EntrenarPage() {
             </div>
           );
         })}
+          </div>
+        )}
+
+        {/* VISTA PLANILLA / EXCEL */}
+        {viewMode === "excel" && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden my-2">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider">
+                    <th className="px-4 py-3 border border-slate-700 w-24 text-center">Bloque</th>
+                    <th className="px-4 py-3 border border-slate-700">Ejercicio</th>
+                    <th className="px-4 py-3 border border-slate-700 w-36">Series x Reps</th>
+                    <th className="px-4 py-3 border border-slate-700 w-32">Sugerido</th>
+                    <th className="px-4 py-3 border border-slate-700 w-44 text-center">Tu Registro</th>
+                    <th className="px-4 py-3 border border-slate-700">Observaciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-slate-800 text-sm">
+                  {blocks.map(block => {
+                    type BlockItem =
+                      | { type: "single"; te: TrainingExercise }
+                      | { type: "complex"; complexId: string; items: TrainingExercise[] };
+
+                    const complexMap = new Map<string, TrainingExercise[]>();
+                    const blockItems: BlockItem[] = [];
+
+                    for (const te of block.training_exercises) {
+                      if (!te.complex_id) {
+                        blockItems.push({ type: "single", te });
+                      } else {
+                        if (!complexMap.has(te.complex_id)) complexMap.set(te.complex_id, []);
+                        complexMap.get(te.complex_id)!.push(te);
+                      }
+                    }
+                    for (const [complexId, items] of complexMap.entries()) {
+                      blockItems.push({ type: "complex", complexId, items: items.sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0)) });
+                    }
+                    blockItems.sort((a, b) => {
+                      const aOrd = a.type === "single" ? a.te.order : Math.min(...a.items.map(e => e.order));
+                      const bOrd = b.type === "single" ? b.te.order : Math.min(...b.items.map(e => e.order));
+                      return aOrd - bOrd;
+                    });
+
+                    // Calculate total rows for rowSpan
+                    let totalRows = 0;
+                    blockItems.forEach(item => {
+                      if (item.type === "single") {
+                        totalRows += 1;
+                      } else {
+                        const sets = complexSets[item.complexId] || [];
+                        totalRows += Math.max(1, sets.length);
+                      }
+                    });
+
+                    let renderedRows = 0;
+
+                    return blockItems.map((item) => {
+                      if (item.type === "single") {
+                        const te = item.te;
+                        const done = checkedExercises.has(te.id);
+                        const log = exerciseLogs[te.id];
+                        const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
+                          ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+                          : te.weight_target || undefined;
+
+                        const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
+                        const isFirstRow = renderedRows === 0;
+                        renderedRows += 1;
+
+                        return (
+                          <tr key={te.id} className={`${done ? "bg-emerald-50/40" : "hover:bg-slate-50/50"}`}>
+                            {isFirstRow && (
+                              <td className="px-4 py-3 font-bold border border-slate-200 align-middle bg-slate-50 text-slate-700 text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
+                                {block.name}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 border border-slate-200">
+                              <div className="font-semibold flex items-center gap-1.5 flex-wrap text-slate-900">
+                                <span className={done ? "line-through text-slate-400" : ""}>
+                                  {te.exercises?.name}
+                                  {te.exercise_variants?.name && (
+                                    <span className="text-primary font-bold ml-1">— {te.exercise_variants.name}</span>
+                                  )}
+                                </span>
+                                {videoUrl && (
+                                  <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-0.5 text-xs shrink-0">
+                                    <Video className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600 font-medium">
+                              {te.sets} series × {te.reps} reps
+                            </td>
+                            <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600">
+                              {suggestedKg ? <span className="font-bold text-slate-700">{suggestedKg} kg</span> : te.percentage_1rm ? `${te.percentage_1rm}%` : "-"}
+                            </td>
+                            <td className="px-4 py-3 border border-slate-200 text-center whitespace-nowrap bg-emerald-50/10">
+                              <div className="flex items-center gap-2.5 justify-center">
+                                <input
+                                  type="number"
+                                  placeholder="kg"
+                                  value={log?.weight_used_kg ?? ""}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    setExerciseLogs(prev => ({
+                                      ...prev,
+                                      [te.id]: {
+                                        training_exercise_id: te.id,
+                                        exercise_id: te.exercise_id,
+                                        variant_id: te.variant_id,
+                                        weight_used_kg: isNaN(val) ? undefined : val,
+                                        used_suggested: false,
+                                        suggested_kg: suggestedKg,
+                                        sets_completed: te.sets,
+                                        reps_completed: te.reps,
+                                      }
+                                    }));
+                                    if (!isNaN(val)) {
+                                      setCheckedExercises(prev => new Set([...prev, te.id]));
+                                    } else {
+                                      setCheckedExercises(prev => {
+                                        const next = new Set(prev);
+                                        next.delete(te.id);
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                  className="w-16 px-1.5 py-1 text-center font-bold border rounded bg-slate-50 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <input
+                                  type="checkbox"
+                                  checked={done}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setCheckedExercises(prev => new Set([...prev, te.id]));
+                                      if (!log?.weight_used_kg) {
+                                        setExerciseLogs(prev => ({
+                                          ...prev,
+                                          [te.id]: {
+                                            training_exercise_id: te.id,
+                                            exercise_id: te.exercise_id,
+                                            variant_id: te.variant_id,
+                                            weight_used_kg: suggestedKg,
+                                            used_suggested: !!suggestedKg,
+                                            suggested_kg: suggestedKg,
+                                            sets_completed: te.sets,
+                                            reps_completed: te.reps,
+                                          }
+                                        }));
+                                      }
+                                    } else {
+                                      setCheckedExercises(prev => {
+                                        const next = new Set(prev);
+                                        next.delete(te.id);
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded text-primary border-slate-300 focus:ring-primary"
+                                />
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 border border-slate-200 text-xs text-slate-500 italic max-w-xs truncate" title={te.notes}>
+                              {te.notes || "-"}
+                            </td>
+                          </tr>
+                        );
+                      } else {
+                        const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
+                        const firstEx = item.items[0];
+                        const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+
+                        const complexTitle = item.items.map(te => {
+                          const v = te.exercise_variants?.name ?? "";
+                          return v ? `${te.exercises?.name} ${v}` : te.exercises?.name;
+                        }).join(" + ");
+
+                        if (cSets.length === 0) {
+                          const isFirstRow = renderedRows === 0;
+                          renderedRows += 1;
+                          return (
+                            <tr key={item.complexId} className="hover:bg-slate-50/50">
+                              {isFirstRow && (
+                                <td className="px-4 py-3 font-bold border border-slate-200 align-middle bg-slate-50 text-slate-700 text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
+                                  {block.name}
+                                </td>
+                              )}
+                              <td className="px-4 py-3 border border-slate-200">
+                                <div className="font-semibold text-slate-900">{complexTitle}</div>
+                              </td>
+                              <td className="px-4 py-3 border border-slate-200 text-slate-400 italic" colSpan={4}>
+                                Sin series configuradas
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return cSets.map((s, sIdx) => {
+                          const seriesDone = checkedSeries.has(s.id);
+                          const calcWeight = firstOneRM && s.percentage_1rm
+                            ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
+                            : null;
+                          const loggedWeight = seriesWeights[s.id];
+
+                          let repsLine = item.items.map(te => {
+                            const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                            const r = ov ? ov.reps : te.reps;
+                            return `${r}× ${te.exercises?.name}`;
+                          }).join(" + ");
+
+                          if (s.rounds && s.rounds > 1) {
+                            repsLine = `${s.rounds} rondas: ${repsLine}`;
+                          }
+
+                          const isFirstRow = renderedRows === 0;
+                          renderedRows += 1;
+
+                          return (
+                            <tr key={s.id} className={`${seriesDone ? "bg-emerald-50/40" : "hover:bg-slate-50/50"}`}>
+                              {isFirstRow && (
+                                <td className="px-4 py-3 font-bold border border-slate-200 align-middle bg-slate-50 text-slate-700 text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
+                                  {block.name}
+                                </td>
+                              )}
+                              <td className="px-4 py-3 border border-slate-200">
+                                <div className="font-semibold text-slate-900">
+                                  <span className={seriesDone ? "line-through text-slate-400" : ""}>
+                                    {complexTitle}
+                                  </span>
+                                  <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold shrink-0">
+                                    Serie {s.set_number}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5">{repsLine}</div>
+                              </td>
+                              <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600 font-medium">
+                                1 serie
+                              </td>
+                              <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600">
+                                {calcWeight ? <span className="font-bold text-slate-700">{calcWeight} kg</span> : s.percentage_1rm ? `${s.percentage_1rm}%` : "-"}
+                              </td>
+                              <td className="px-4 py-3 border border-slate-200 text-center whitespace-nowrap bg-emerald-50/10">
+                                <div className="flex items-center gap-2.5 justify-center">
+                                  <input
+                                    type="number"
+                                    placeholder="kg"
+                                    value={loggedWeight ?? ""}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      setSeriesWeights(prev => ({
+                                        ...prev,
+                                        [s.id]: isNaN(val) ? undefined : val
+                                      }));
+                                      if (!isNaN(val)) {
+                                        setCheckedSeries(prev => new Set([...prev, s.id]));
+                                      } else {
+                                        setCheckedSeries(prev => {
+                                          const next = new Set(prev);
+                                          next.delete(s.id);
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                    className="w-16 px-1.5 py-1 text-center font-bold border rounded bg-slate-50 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                  />
+                                  <input
+                                    type="checkbox"
+                                    checked={seriesDone}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setCheckedSeries(prev => new Set([...prev, s.id]));
+                                        if (loggedWeight === undefined && calcWeight) {
+                                          setSeriesWeights(prev => ({ ...prev, [s.id]: calcWeight }));
+                                        }
+                                      } else {
+                                        setCheckedSeries(prev => {
+                                          const next = new Set(prev);
+                                          next.delete(s.id);
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                    className="w-4 h-4 rounded text-primary border-slate-300 focus:ring-primary"
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 border border-slate-200 text-xs text-slate-500 italic max-w-xs truncate">
+                                {s.rounds && s.rounds > 1 ? `${s.rounds} rondas` : "-"}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      }
+                    });
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* VISTA PIZARRA (ALTO CONTRASTE Y TIPOGRAFÍA GIGANTE) */}
+        {viewMode === "pizarra" && (
+          <div className="bg-[#12241a] border-4 border-amber-900 rounded-3xl p-6 text-amber-50 shadow-2xl space-y-8 my-2 font-mono">
+            <div className="border-b-4 border-dashed border-emerald-700/50 pb-5 text-center">
+              <span className="text-sm font-black uppercase tracking-[0.2em] text-emerald-400">Pizarra de Entrenamiento</span>
+              <h2 className="text-4xl font-black mt-2 text-white tracking-wide">{dayInfo?.cycle_name || "Planificación"}</h2>
+              <p className="text-lg text-emerald-300 font-bold mt-1">Semana {dayInfo?.week_number}</p>
+            </div>
+
+            <div className="space-y-8">
+              {blocks.map(block => {
+                type BlockItem =
+                  | { type: "single"; te: TrainingExercise }
+                  | { type: "complex"; complexId: string; items: TrainingExercise[] };
+
+                const complexMap = new Map<string, TrainingExercise[]>();
+                const blockItems: BlockItem[] = [];
+
+                for (const te of block.training_exercises) {
+                  if (!te.complex_id) {
+                    blockItems.push({ type: "single", te });
+                  } else {
+                    if (!complexMap.has(te.complex_id)) complexMap.set(te.complex_id, []);
+                    complexMap.get(te.complex_id)!.push(te);
+                  }
+                }
+                for (const [complexId, items] of complexMap.entries()) {
+                  blockItems.push({ type: "complex", complexId, items: items.sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0)) });
+                }
+                blockItems.sort((a, b) => {
+                  const aOrd = a.type === "single" ? a.te.order : Math.min(...a.items.map(e => e.order));
+                  const bOrd = b.type === "single" ? b.te.order : Math.min(...b.items.map(e => e.order));
+                  return aOrd - bOrd;
+                });
+
+                return (
+                  <div key={block.id} className="space-y-6 border-b border-emerald-900/40 pb-8 last:border-b-0">
+                    <h3 className="text-2xl font-black text-yellow-300 uppercase tracking-widest pl-3 border-l-4 border-yellow-300">
+                      {block.name}
+                    </h3>
+                    
+                    <div className="space-y-6 pl-1">
+                      {blockItems.map(item => {
+                        if (item.type === "single") {
+                          const te = item.te;
+                          const done = checkedExercises.has(te.id);
+                          const log = exerciseLogs[te.id];
+                          const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
+                            ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+                            : te.weight_target || undefined;
+
+                          return (
+                            <button
+                              key={te.id}
+                              onClick={() => handleExerciseTap(te)}
+                              className="w-full text-left flex items-start gap-4 p-3 rounded-2xl hover:bg-emerald-950/30 transition-colors group"
+                            >
+                              <div className={`w-9 h-9 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                                done ? "bg-emerald-500 border-emerald-500" : "border-slate-500 group-hover:border-white"
+                              }`}>
+                                {done && <Check className="w-5 h-5 text-white" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className={`text-2xl font-black tracking-wide ${done ? "line-through text-slate-500" : "text-white"}`}>
+                                  {te.exercises?.name}
+                                  {te.exercise_variants?.name && (
+                                    <span className="text-emerald-300 ml-1.5">— {te.exercise_variants.name}</span>
+                                  )}
+                                </h4>
+                                <p className="text-lg text-amber-100 font-bold mt-1.5">
+                                  {te.sets} series × {te.reps} repeticiones
+                                  {suggestedKg && (
+                                    <span className="text-emerald-300 font-black ml-3">
+                                      [Sug: {suggestedKg} kg]
+                                    </span>
+                                  )}
+                                </p>
+                                {te.notes && (
+                                  <p className="text-sm text-yellow-200/90 font-medium italic mt-1 leading-relaxed">
+                                    Nota: {te.notes}
+                                  </p>
+                                )}
+                                {done && log && log.weight_used_kg !== undefined && (
+                                  <p className="text-base text-emerald-400 font-black mt-1">
+                                    → Hecho con: {log.weight_used_kg} kg
+                                  </p>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        } else {
+                          const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
+                          const firstEx = item.items[0];
+                          const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+                          const allSeriesDone = cSets.length > 0 && cSets.every(s => checkedSeries.has(s.id));
+
+                          const complexTitle = item.items.map(te => {
+                            const v = te.exercise_variants?.name ?? "";
+                            return v ? `${te.exercises?.name} ${v}` : te.exercises?.name;
+                          }).join(" + ");
+
+                          return (
+                            <div key={item.complexId} className="space-y-4 p-4 rounded-3xl bg-emerald-950/25 border border-emerald-900">
+                              <div className="flex items-center gap-3">
+                                <Link2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                                <span className="text-sm font-black uppercase tracking-wider text-emerald-400">
+                                  Complex / Trepada ({cSets.length} series)
+                                </span>
+                              </div>
+                              <h4 className={`text-2xl font-black ${allSeriesDone ? "line-through text-slate-500" : "text-white"}`}>
+                                {complexTitle}
+                              </h4>
+                              
+                              <div className="space-y-3.5 pl-4 border-l-2 border-emerald-800/60 mt-3">
+                                {cSets.map(s => {
+                                  const seriesDone = checkedSeries.has(s.id);
+                                  const calcWeight = firstOneRM && s.percentage_1rm
+                                    ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
+                                    : null;
+                                  const loggedWeight = seriesWeights[s.id];
+
+                                  let repsLine = item.items.map(te => {
+                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                    const r = ov ? ov.reps : te.reps;
+                                    return `${r}× ${te.exercises?.name}`;
+                                  }).join(" + ");
+
+                                  if (s.rounds && s.rounds > 1) {
+                                    repsLine = `${s.rounds} rondas: ${repsLine}`;
+                                  }
+
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      onClick={() => handleSeriesTap(s, item.items)}
+                                      className="w-full text-left flex items-start gap-4 py-2 hover:text-white transition-colors group"
+                                    >
+                                      <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                                        seriesDone ? "bg-emerald-500 border-emerald-500" : "border-slate-500 group-hover:border-white"
+                                      }`}>
+                                        {seriesDone && <Check className="w-4 h-4 text-white" />}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className={`text-lg font-bold ${seriesDone ? "line-through text-slate-500" : "text-slate-200"}`}>
+                                          Serie {s.set_number}: <span className="font-normal text-slate-300">{repsLine}</span>
+                                          {calcWeight && (
+                                            <span className="text-emerald-300 font-extrabold ml-2">
+                                              [Sug: {calcWeight} kg]
+                                            </span>
+                                          )}
+                                        </p>
+                                        {seriesDone && loggedWeight !== undefined && (
+                                          <p className="text-sm text-emerald-400 font-bold mt-1">
+                                            → Hecho con: {loggedWeight} kg
+                                          </p>
+                                        )}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom action */}
