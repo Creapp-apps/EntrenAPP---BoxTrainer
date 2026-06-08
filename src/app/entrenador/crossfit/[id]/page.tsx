@@ -236,18 +236,26 @@ export default function CrossfitCycleEditorPage() {
 
     const { data: cycleData } = await supabase
       .from("training_cycles")
-      .select("id, name, total_weeks, student_id, is_template, users!training_cycles_student_id_fkey(full_name)")
+      .select("id, name, total_weeks, is_template, training_cycle_enrollments(active, student_id, users(full_name))")
       .eq("id", cycleId)
       .single();
 
     if (!cycleData) { setLoading(false); return; }
 
+    const enrolls = (cycleData.training_cycle_enrollments || []) as any[];
+    const activeEnrolls = enrolls.filter(e => e.active);
+    const studentName = activeEnrolls.length === 0
+      ? "Sin alumno"
+      : activeEnrolls.length === 1
+      ? activeEnrolls[0].users?.full_name || "Alumno"
+      : `${activeEnrolls.length} alumnos`;
+
     setCycle({
       id: cycleData.id,
       name: cycleData.name,
       total_weeks: cycleData.total_weeks,
-      student_id: cycleData.student_id,
-      student_name: (cycleData.users as Record<string, string>)?.full_name || "",
+      student_id: activeEnrolls[0]?.student_id || "",
+      student_name: studentName,
       is_template: cycleData.is_template,
     });
 

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Dumbbell, Loader2, CheckCircle2, ArrowRight, Mail } from "lucide-react";
 
-export function SignupPage() {
+function SignupPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -17,6 +17,7 @@ export function SignupPage() {
   const urlBoxId = searchParams.get("box_id");
   const [loading, setLoading] = useState(false);
   const [isSignedUp, setIsSignedUp] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [branding, setBranding] = useState<{ name: string; color: string; logoUrl?: string } | null>(null);
 
   useEffect(() => {
@@ -41,6 +42,11 @@ export function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!acceptTerms) {
+      toast.error("Debes aceptar los Términos y Condiciones para continuar.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast.error("Las contraseñas no coinciden.");
       return;
@@ -307,10 +313,23 @@ export function SignupPage() {
               </div>
             </div>
 
+            <div className="flex items-start gap-2 mt-4 pt-2">
+              <input 
+                type="checkbox" 
+                id="terms" 
+                checked={acceptTerms} 
+                onChange={e => setAcceptTerms(e.target.checked)} 
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500" 
+              />
+              <label htmlFor="terms" className="text-xs leading-tight" style={{ color: branding ? "rgba(255,255,255,0.6)" : "#64748b" }}>
+                He leído y acepto los <Link href="/terminos" target="_blank" className="font-semibold underline hover:opacity-80 transition-opacity" style={{ color: primaryColor }}>Términos, Condiciones y Política de Privacidad</Link>. Acepto el tratamiento anonimizado de datos analíticos.
+              </label>
+            </div>
+
             <button
               type="submit"
-              disabled={loading}
-              className="w-full text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-3 shadow-lg"
+              disabled={loading || !acceptTerms}
+              className="w-full text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2 mt-4 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: primaryColor }}
             >
               {loading ? (

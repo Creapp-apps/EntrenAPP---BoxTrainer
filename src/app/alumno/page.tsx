@@ -30,21 +30,32 @@ export default async function StudentHome() {
   }
 
   // Ciclo activo
-  const { data: activeCycle } = await supabase
-    .from("training_cycles")
-    .select("id, name, start_date, total_weeks")
+  const { data: enrollment } = await supabase
+    .from("training_cycle_enrollments")
+    .select(`
+      enrolled_at,
+      sync_mode,
+      training_cycles (id, name, start_date, total_weeks)
+    `)
     .eq("student_id", user!.id)
     .eq("active", true)
-    .order("created_at", { ascending: false })
+    .order("enrolled_at", { ascending: false })
     .limit(1)
     .single();
+
+  const activeCycle = enrollment?.training_cycles as Record<string, unknown> | undefined;
 
   // Calcular semana actual dentro del ciclo
   let currentWeek: Record<string, unknown> | null = null;
   let weekNumber = 1;
 
   if (activeCycle) {
-    const startDate = new Date(activeCycle.start_date as string);
+    const syncMode = enrollment?.sync_mode as string;
+    const baseDateString = syncMode === "ASYNC" 
+      ? (enrollment?.enrolled_at as string) 
+      : (activeCycle.start_date as string);
+      
+    const startDate = new Date(baseDateString || new Date().toISOString());
     const today = new Date();
     startDate.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
@@ -80,6 +91,21 @@ export default async function StudentHome() {
     .sort((a, b) => (a.day_of_week as number) - (b.day_of_week as number));
 
   const todayDay = weekDays.find(d => d.day_of_week === todayDow);
+
+  let completedDaysMap: Record<string, any> = {};
+  if (weekDays.length > 0) {
+    const { data: logs } = await supabase
+      .from("session_logs")
+      .select("id, training_day_id, rpe_overall")
+      .eq("student_id", user!.id)
+      .in("training_day_id", weekDays.map(d => d.id as string));
+    
+    if (logs) {
+      logs.forEach(log => {
+        completedDaysMap[log.training_day_id] = log;
+      });
+    }
+  }
 
   // Contar ejercicios por día
   function countExercises(day: Record<string, unknown>): number {
@@ -364,6 +390,24 @@ export default async function StudentHome() {
                   <p className="text-sm text-slate-500 mt-1 font-medium">Tu entrenador aún no cargó los ejercicios de hoy.</p>
                 </div>
               </div>
+            ) : completedDaysMap[todayDay.id as string] ? (
+              /* Día completado */
+              <div className="bg-emerald-500/[0.04] border border-emerald-100 rounded-[2rem] p-6 shadow-sm relative overflow-hidden group">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="font-black text-emerald-950 tracking-tight text-base">¡Entrenamiento completado!</p>
+                      <p className="text-sm text-emerald-700/80 mt-1 font-medium">{todayDay.label as string} · RPE {completedDaysMap[todayDay.id as string].rpe_overall}/10</p>
+                    </div>
+                  </div>
+                  <Link href={`/alumno/historial/${completedDaysMap[todayDay.id as string].id}`} className="w-10 h-10 rounded-xl bg-white border border-emerald-100 flex items-center justify-center shadow-sm text-emerald-600 hover:bg-emerald-50 transition-colors">
+                    <ChevronRight className="w-5 h-5" />
+                  </Link>
+                </div>
+              </div>
             ) : (
               /* Día con ejercicios */
               <Link
@@ -400,6 +444,8 @@ export default async function StudentHome() {
             </h2>
             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50">
               {weekDays.map(day => {
+                const isCompleted = !!completedDaysMap[day.id as string];
+                const completedLog = completedDaysMap[day.id as string];
                 const isToday = (day.day_of_week as number) === todayDow;
                 const isRest = day.is_rest as boolean;
                 const exCount = countExercises(day);
@@ -410,7 +456,9 @@ export default async function StudentHome() {
                     {/* Day abbr */}
                     <div className={cn(
                       "w-10 h-10 rounded-2xl flex items-center justify-center text-[11px] font-black shrink-0 shadow-sm tracking-wider border",
-                      isToday 
+                      isCompleted
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-500"
+                        : isToday 
                         ? "bg-gradient-to-br from-primary to-primary/90 border-primary text-white shadow-primary/10" 
                         : isRest 
                         ? "bg-blue-50 border-blue-100 text-blue-500" 
@@ -418,19 +466,24 @@ export default async function StudentHome() {
                         ? "bg-slate-50 border-slate-100 text-slate-400" 
                         : "bg-primary/10 border-primary/10 text-primary"
                     )}>
-                      {isRest ? <Moon className="w-4.5 h-4.5" /> : DAY_ABBR[day.day_of_week as number]}
+                      {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : isRest ? <Moon className="w-4.5 h-4.5" /> : DAY_ABBR[day.day_of_week as number]}
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className={cn("text-sm font-black tracking-tight", isToday ? "text-primary" : "text-slate-800")}>
+                        <p className={cn("text-sm font-black tracking-tight", isToday && !isCompleted ? "text-primary" : isCompleted ? "text-emerald-700" : "text-slate-800")}>
                           {day.label as string}
                         </p>
-                        {isToday && (
+                        {isToday && !isCompleted && (
                           <span className="text-[8px] font-black uppercase tracking-[0.15em] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                             Hoy
                           </span>
+                        )}
+                        {isCompleted && (
+                           <span className="text-[8px] font-black uppercase tracking-[0.15em] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                             Completado
+                           </span>
                         )}
                       </div>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -438,21 +491,25 @@ export default async function StudentHome() {
                           ? "Día de descanso"
                           : isEmpty
                           ? "Sin ejercicios cargados"
+                          : isCompleted 
+                          ? `RPE ${completedLog.rpe_overall}/10` 
                           : `${exCount} ejercicio${exCount !== 1 ? "s" : ""}`}
                       </p>
                     </div>
 
                     {/* Action */}
                     {!isRest && !isEmpty && (
-                      <Link href={`/alumno/entrenar/${day.id as string}`}
+                      <Link href={isCompleted ? `/alumno/historial/${completedLog.id}` : `/alumno/entrenar/${day.id as string}`}
                         className={cn(
                           "flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-3.5 py-2 rounded-xl transition-all duration-200 shrink-0 shadow-sm active:scale-[0.97]",
-                          isToday
+                          isCompleted
+                            ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                            : isToday
                             ? "bg-primary text-white hover:opacity-95 border border-primary shadow-primary/10"
                             : "bg-slate-50 text-slate-600 hover:bg-primary/10 hover:text-primary border border-slate-100"
                         )}
                       >
-                        {isToday ? "Empezar" : "Ver"}
+                        {isCompleted ? "Ver" : isToday ? "Empezar" : "Ver"}
                         <ChevronRight className="w-3 h-3" />
                       </Link>
                     )}

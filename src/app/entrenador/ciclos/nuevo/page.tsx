@@ -140,12 +140,25 @@ export default function NuevoCicloPage() {
       p_trainer_id: user!.id,
       p_name: form.name.trim(),
       p_start_date: form.start_date,
-      p_student_id: form.student_id,
       p_is_template: false,
     });
 
     if (error || !newCycleId) {
       toast.error("Error al crear desde plantilla: " + error?.message);
+      setLoading(false);
+      return;
+    }
+
+    // Enrolar al alumno
+    const { error: enrollError } = await supabase.rpc("enroll_student", {
+      p_cycle_id: newCycleId,
+      p_student_id: form.student_id,
+      p_sync_mode: "SYNC",
+      p_enrolled_at: new Date().toISOString(),
+    });
+
+    if (enrollError) {
+      toast.error("Error al enrolar al alumno: " + enrollError.message);
       setLoading(false);
       return;
     }

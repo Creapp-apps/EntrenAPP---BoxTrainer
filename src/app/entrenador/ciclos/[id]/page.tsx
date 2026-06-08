@@ -890,12 +890,13 @@ function AssignStudentsModal({
 }: {
   students: Student[];
   cycleName: string;
-  onAssign: (studentIds: string[]) => void;
+  onAssign: (studentIds: string[], syncMode: string) => void;
   onClose: () => void;
   assigning: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [syncMode, setSyncMode] = useState<"SYNC" | "ASYNC">("SYNC");
 
   const filtered = students.filter(s =>
     s.full_name.toLowerCase().includes(search.toLowerCase())
@@ -1012,28 +1013,46 @@ function AssignStudentsModal({
           })}
         </div>
 
-        {/* Footer */}
-        <div className="p-3 border-t border-border space-y-2">
-          {selected.size > 0 && (
-            <p className="text-xs text-center text-muted-foreground">
-              Se creará una copia del ciclo para cada alumno seleccionado
-            </p>
-          )}
-          <div className="flex gap-2">
-            <button onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
-              Cancelar
-            </button>
-            <button
-              onClick={() => selected.size > 0 && onAssign(Array.from(selected))}
-              disabled={selected.size === 0 || assigning}
-              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-              {assigning
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Asignando...</>
-                : <><UserPlus className="w-4 h-4" />Asignar ({selected.size})</>
-              }
-            </button>
+        {/* Modalidad */}
+        <div className="p-4 border-b border-border bg-muted/20">
+          <label className="block text-sm font-medium text-foreground mb-2">Modalidad de seguimiento</label>
+          <div className="flex gap-3">
+            <label className="flex-1 cursor-pointer">
+              <input type="radio" name="syncMode" value="SYNC" className="peer sr-only" checked={syncMode === "SYNC"} onChange={() => setSyncMode("SYNC")} />
+              <div className="p-3 rounded-xl border border-border bg-white peer-checked:border-primary peer-checked:ring-1 peer-checked:ring-primary transition-all">
+                <p className="text-sm font-semibold text-foreground">A la par</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Se suma a la semana en curso del ciclo.</p>
+              </div>
+            </label>
+            <label className="flex-1 cursor-pointer">
+              <input type="radio" name="syncMode" value="ASYNC" className="peer sr-only" checked={syncMode === "ASYNC"} onChange={() => setSyncMode("ASYNC")} />
+              <div className="p-3 rounded-xl border border-border bg-white peer-checked:border-primary peer-checked:ring-1 peer-checked:ring-primary transition-all">
+                <p className="text-sm font-semibold text-foreground">Desde cero</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Empieza el ciclo desde la Semana 1.</p>
+              </div>
+            </label>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-border flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => selected.size > 0 && onAssign(Array.from(selected), syncMode)}
+            disabled={selected.size === 0 || assigning}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+          >
+            {assigning ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Asignando...</>
+            ) : (
+              <><UserPlus className="w-4 h-4" /> Asignar a {selected.size}</>
+            )}
+          </button>
         </div>
       </div>
     </div>
@@ -1061,7 +1080,7 @@ export default function CicloDetailPage() {
   const [copyWeekTarget, setCopyWeekTarget] = useState<Week | null>(null);
   const [showStudents, setShowStudents] = useState(false);
   const [transferTarget, setTransferTarget] = useState<{ studentId: string; studentCycleId: string } | null>(null);
-  const [allCycles, setAllCycles] = useState<{ id: string; name: string; student_id: string | null; is_template: boolean }[]>([]);
+  const [allCycles, setAllCycles] = useState<{ id: string; name: string; is_template: boolean; training_cycle_enrollments?: { active: boolean; student_id: string }[] }[]>([]);
   const [weekMenuOpen, setWeekMenuOpen] = useState<string | null>(null);
   // tracks which blocks are EXPANDED (empty = all collapsed by default)
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
@@ -1083,7 +1102,7 @@ export default function CicloDetailPage() {
 
     const [{ data: cycleData }, { data: weeksData }, { data: exData }, { data: studentsData }] = await Promise.all([
       supabase.from("training_cycles")
-        .select("*, users!training_cycles_student_id_fkey(full_name)")
+        .select("*, training_cycle_enrollments(active, student_id, users(full_name))")
         .eq("id", id).single(),
       supabase.from("training_weeks")
         .select(`*, training_days(*, training_blocks(*, training_exercises(*, exercises(*, exercise_variants(*)), exercise_variants(*))))`)
@@ -1092,18 +1111,26 @@ export default function CicloDetailPage() {
         .select("*, exercise_variants(*)")
         .eq("archived", false).order("name"),
       supabase.from("users")
-        .select("id, full_name, training_cycles!training_cycles_student_id_fkey(id, name, active, is_template)")
+        .select(`
+          id, full_name, 
+          training_cycle_enrollments(
+            active, sync_mode, enrolled_at,
+            training_cycles(id, name, is_template)
+          )
+        `)
         .eq("role", "student")
         
         .order("full_name"),
     ]);
 
-    // Fetch the 1RMs scoped individually to the cycle student
-    if (cycleData?.student_id) {
+    // Fetch the 1RMs scoped individually to the cycle student (use first active enrollment)
+    const activeEnrollments = (cycleData?.training_cycle_enrollments || []) as any[];
+    const firstActiveStudentId = activeEnrollments.find(e => e.active)?.student_id;
+    if (firstActiveStudentId) {
       const { data: ormsData } = await supabase
         .from("student_one_rm")
         .select("*")
-        .eq("student_id", cycleData.student_id);
+        .eq("student_id", firstActiveStudentId);
         
       if (ormsData) {
         const map: Record<string, number> = {};
@@ -1113,12 +1140,19 @@ export default function CicloDetailPage() {
     }
 
     if (cycleData) {
+      const enrolls = (cycleData.training_cycle_enrollments || []) as any[];
+      const activeEnrolls = enrolls.filter(e => e.active);
+      const studentName = activeEnrolls.length === 0
+        ? "Sin alumno"
+        : activeEnrolls.length === 1
+        ? activeEnrolls[0].users?.full_name || "Alumno"
+        : `${activeEnrolls.length} alumnos`;
       setCycle({
         id: cycleData.id,
         name: cycleData.name,
         total_weeks: cycleData.total_weeks,
-        student_id: cycleData.student_id,
-        student_name: (cycleData.users as { full_name: string })?.full_name || "",
+        student_id: activeEnrolls[0]?.student_id || "",
+        student_name: studentName,
         is_template: cycleData.is_template || false,
       });
     }
@@ -1131,13 +1165,16 @@ export default function CicloDetailPage() {
     }
 
     if (studentsData) {
-      setStudents(studentsData.map((s: Record<string, unknown>) => {
-        const cycles = (s.training_cycles as { id: string; name: string; active: boolean; is_template: boolean }[]) || [];
-        const activeCycle = cycles.find(c => c.active && !c.is_template);
+      setStudents(studentsData.map((s: Record<string, any>) => {
+        const enrollments = s.training_cycle_enrollments || [];
+        const activeEnrollment = enrollments.find((e: any) => e.active && e.training_cycles && !e.training_cycles.is_template);
         return {
           id: s.id as string,
           full_name: s.full_name as string,
-          activeCycle: activeCycle ? { id: activeCycle.id, name: activeCycle.name } : undefined,
+          activeCycle: activeEnrollment ? { 
+            id: activeEnrollment.training_cycles.id, 
+            name: activeEnrollment.training_cycles.name 
+          } : undefined,
         };
       }));
     }
@@ -1218,70 +1255,44 @@ export default function CicloDetailPage() {
     // Load all cycles for transfer feature
     const { data: allCyclesData } = await supabase
       .from("training_cycles")
-      .select("id, name, student_id, is_template")
+      .select("id, name, is_template, training_cycle_enrollments(active, student_id)")
       
       .order("name");
-    if (allCyclesData) setAllCycles(allCyclesData);
+    if (allCyclesData) setAllCycles(allCyclesData as any);
 
     setLoading(false);
   }, [id]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Students active on this cycle (or derived from this template)
-  const activeStudentsOnCycle = students.filter(s => {
-    if (!s.activeCycle) return false;
-    // Direct match: this IS their active cycle
-    if (s.activeCycle.id === id) return true;
-    // Template match: their active cycle was copied from this template
-    const studentCycle = allCycles.find(c => c.id === s.activeCycle!.id);
-    // We also consider the cycle name match for template-based ones
-    return false;
-  });
+  // Students enrolled in this cycle
+  const managedStudents = students
+    .filter(s => s.activeCycle?.id === id)
+    .map(s => ({ ...s, cycleId: s.activeCycle!.id, cycleName: s.activeCycle!.name }));
 
-  // For template view: find all students who have an active cycle with template_id = this
-  const derivedStudents = allCycles
-    .filter(c => !c.is_template && c.student_id)
-    .map(c => {
-      const student = students.find(s => s.activeCycle?.id === c.id);
-      return student ? { ...student, cycleId: c.id, cycleName: c.name } : null;
-    })
-    .filter(Boolean) as (Student & { cycleId: string; cycleName: string })[];
-
-  // Merge: direct students + derived students
-  const managedStudents = [
-    ...activeStudentsOnCycle.map(s => ({ ...s, cycleId: s.activeCycle!.id, cycleName: s.activeCycle!.name })),
-    ...derivedStudents.filter(ds => !activeStudentsOnCycle.some(as2 => as2.id === ds.id)),
-  ];
-
-  // Deactivate student cycle
-  const deactivateStudentCycle = async (studentCycleId: string, studentName: string) => {
-    if (!confirm(`¿Desactivar el ciclo de ${studentName}? El alumno ya no verá esta planificación.`)) return;
+  // Deactivate student enrollment
+  const deactivateStudentCycle = async (cycleId: string, studentId: string, studentName: string) => {
+    if (!confirm(`¿Desactivar la suscripción de ${studentName}? El alumno ya no verá esta planificación.`)) return;
     const supabase = createClient();
     const { error } = await supabase
-      .from("training_cycles")
+      .from("training_cycle_enrollments")
       .update({ active: false })
-      .eq("id", studentCycleId);
+      .eq("cycle_id", cycleId)
+      .eq("student_id", studentId);
     if (error) { toast.error("Error al desactivar"); return; }
-    toast.success(`Ciclo de ${studentName} desactivado`);
+    toast.success(`Suscripción de ${studentName} desactivada`);
     loadData();
   };
 
   // Transfer student to a different cycle
   const transferStudent = async (studentId: string, oldCycleId: string, newCycleId: string) => {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    // Deactivate old cycle
-    await supabase.from("training_cycles").update({ active: false }).eq("id", oldCycleId);
-    // Copy new cycle to student
-    const targetCycle = allCycles.find(c => c.id === newCycleId);
-    const { error } = await supabase.rpc("copy_cycle", {
-      p_source_cycle_id: newCycleId,
-      p_trainer_id: user!.id,
-      p_name: targetCycle?.name || "Ciclo",
-      p_start_date: new Date().toISOString().split("T")[0],
+    // Enroll the student in the new cycle using the RPC
+    const { error } = await supabase.rpc("enroll_student", {
+      p_cycle_id: newCycleId,
       p_student_id: studentId,
-      p_is_template: false,
+      p_sync_mode: "SYNC",
+      p_enrolled_at: new Date().toISOString()
     });
     if (error) { toast.error("Error al transferir: " + error.message); return; }
     toast.success("Alumno transferido correctamente");
@@ -1794,25 +1805,21 @@ export default function CicloDetailPage() {
   };
 
   // ─── Asignar ciclo a alumnos ──────────────────────────────
-  const assignToStudents = async (studentIds: string[]) => {
+  const assignToStudents = async (studentIds: string[], syncMode: string) => {
     if (!cycle) return;
     setAssigning(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
     let successCount = 0;
     const errors: string[] = [];
 
     for (const studentId of studentIds) {
       const student = students.find(s => s.id === studentId);
-      const cycleName = cycle.name;
-      const { error } = await supabase.rpc("copy_cycle", {
-        p_source_cycle_id: cycle.id,
-        p_trainer_id: user!.id,
-        p_name: cycleName,
-        p_start_date: new Date().toISOString().split("T")[0],
+      const { error } = await supabase.rpc("enroll_student", {
+        p_cycle_id: cycle.id,
         p_student_id: studentId,
-        p_is_template: false,
+        p_sync_mode: syncMode,
+        p_enrolled_at: new Date().toISOString(),
       });
       if (error) {
         errors.push(student?.full_name || studentId);
@@ -1826,6 +1833,7 @@ export default function CicloDetailPage() {
 
     if (successCount > 0) {
       toast.success(`Ciclo asignado a ${successCount} alumno${successCount !== 1 ? "s" : ""} correctamente`);
+      loadData();
     }
     if (errors.length > 0) {
       toast.error(`Error al asignar a: ${errors.join(", ")}`);
@@ -1845,7 +1853,6 @@ export default function CicloDetailPage() {
       p_trainer_id: user!.id,
       p_name: name.trim(),
       p_start_date: new Date().toISOString().split("T")[0],
-      p_student_id: null,
       p_is_template: true,
     });
     setSavingTemplate(false);
@@ -1944,7 +1951,7 @@ export default function CicloDetailPage() {
                       >
                         <option value="" disabled>Elegir ciclo...</option>
                         {allCycles
-                          .filter(c => c.id !== student.cycleId && (c.is_template || !c.student_id))
+                          .filter(c => c.id !== student.cycleId && (c.is_template || !(c.training_cycle_enrollments || []).some(e => e.active)))
                           .map(c => (
                             <option key={c.id} value={c.id}>{c.name}{c.is_template ? " (plantilla)" : ""}</option>
                           ))}
@@ -1966,7 +1973,7 @@ export default function CicloDetailPage() {
                         <ArrowRightLeft className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => deactivateStudentCycle(student.cycleId, student.full_name)}
+                        onClick={() => deactivateStudentCycle(student.cycleId, student.id, student.full_name)}
                         className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
                         title="Desactivar ciclo del alumno"
                       >

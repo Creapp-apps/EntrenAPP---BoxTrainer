@@ -298,7 +298,7 @@ export default function LandingClient() {
           </div>
 
           {/* ── 3D Spline Scene ── */}
-          <div className="relative h-[400px] sm:h-[520px] lg:h-[620px] flex items-center justify-center">
+          <div className="relative h-[400px] sm:h-[520px] lg:h-[620px] flex items-center justify-center mt-8 lg:mt-0">
             {/* Glow detrás de la escena */}
             <div className="absolute w-[80%] h-[80%] rounded-full bg-primary/20 blur-[100px]" />
 
@@ -632,105 +632,138 @@ export default function LandingClient() {
           </div>
 
           {/* Cards de Pricing */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
-            {/* Plan Starter */}
-            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-8 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
+            {/* Plan 50 */}
+            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-6 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
               <div className="mb-6">
-                <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-3">Starter</p>
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Plan 50</p>
                 <div className="flex items-end gap-1.5 mb-2">
-                  <span className="text-4xl font-black text-white">$80.000</span>
-                  <span className="text-white/40 font-semibold mb-1">/ mes</span>
+                  <span className="text-3xl font-black text-white">$45k</span>
+                  <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
                 </div>
-                <p className="text-sm text-white/40 font-semibold">Hasta 100 alumnos</p>
+                <p className="text-xs text-white/40 font-semibold">Hasta 50 alumnos</p>
               </div>
 
               <Link
                 href="/auth/signup"
-                className="w-full py-3.5 rounded-2xl bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-8"
+                className="w-full py-3 rounded-2xl bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-6"
+              >
+                Empezar gratis
+              </Link>
+
+              <ul className="space-y-3 flex-1">
+                {PLAN_FEATURES.slice(0, 6).map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Plan 100 */}
+            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-6 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
+              <div className="mb-6">
+                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Plan 100</p>
+                <div className="flex items-end gap-1.5 mb-2">
+                  <span className="text-3xl font-black text-white">$75k</span>
+                  <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
+                </div>
+                <p className="text-xs text-white/40 font-semibold">Hasta 100 alumnos</p>
+              </div>
+
+              <Link
+                href="/auth/signup"
+                className="w-full py-3 rounded-2xl bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-6"
+              >
+                Empezar gratis
+              </Link>
+
+              <ul className="space-y-3 flex-1">
+                {PLAN_FEATURES.slice(0, 8).map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Plan 150 — DESTACADO */}
+            <div className="relative bg-gradient-to-b from-primary/[0.08] to-orange-500/[0.04] border-2 border-primary/40 rounded-3xl p-6 flex flex-col shadow-2xl shadow-primary/15 scale-[1.05] z-10">
+              {/* Badge popular */}
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                <div className="bg-gradient-to-r from-primary to-orange-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg shadow-primary/30 uppercase tracking-wide">
+                  Más popular
+                </div>
+              </div>
+
+              <div className="mb-6 mt-1">
+                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-3">Plan 150</p>
+                <div className="flex items-end gap-1.5 mb-2">
+                  <span className="text-3xl font-black text-white">$95k</span>
+                  <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
+                </div>
+                <p className="text-xs text-white/40 font-semibold">Hasta 150 alumnos</p>
+              </div>
+
+              <Link
+                href="/auth/signup"
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-400 text-white font-black text-sm transition-all duration-300 text-center shadow-lg shadow-primary/25 hover:shadow-primary/40 mb-6"
               >
                 Empezar ahora
               </Link>
 
               <ul className="space-y-3 flex-1">
                 {PLAN_FEATURES.map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-white/55 font-semibold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <li key={f} className="flex items-start gap-2.5 text-xs text-white/70 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                     {f}
                   </li>
                 ))}
               </ul>
             </div>
 
-            {/* Plan Pro — DESTACADO */}
-            <div className="relative bg-gradient-to-b from-primary/[0.08] to-orange-500/[0.04] border-2 border-primary/40 rounded-3xl p-8 flex flex-col shadow-2xl shadow-primary/15 scale-[1.02]">
-              {/* Badge popular */}
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <div className="bg-gradient-to-r from-primary to-orange-500 text-white text-xs font-black px-5 py-1.5 rounded-full shadow-lg shadow-primary/30">
-                  ✦ Más popular
-                </div>
-              </div>
-
-              <div className="mb-6 mt-2">
-                <p className="text-xs font-black text-primary uppercase tracking-widest mb-3">Pro</p>
+            {/* Plan Premium */}
+            <div className="relative bg-[#0f0f13] border border-white/[0.1] rounded-3xl p-6 flex flex-col transition-all duration-300 shadow-xl shadow-black/50 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent pointer-events-none" />
+              <div className="mb-6 relative z-10">
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" />
+                  Premium
+                </p>
                 <div className="flex items-end gap-1.5 mb-2">
-                  <span className="text-4xl font-black text-white">$90.000</span>
-                  <span className="text-white/40 font-semibold mb-1">/ mes</span>
+                  <span className="text-2xl font-black text-white leading-none">Personalizado</span>
                 </div>
-                <p className="text-sm text-white/40 font-semibold">De 100 a 150 alumnos</p>
-              </div>
-
-              <Link
-                href="/auth/signup"
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-400 text-white font-black text-sm transition-all duration-300 text-center shadow-lg shadow-primary/25 hover:shadow-primary/40 mb-8"
-              >
-                Empezar ahora →
-              </Link>
-
-              <ul className="space-y-3 flex-1">
-                {PLAN_FEATURES.map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-white/70 font-semibold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Plan Elite */}
-            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-8 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
-              <div className="mb-6">
-                <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-3">Elite</p>
-                <div className="flex items-end gap-1.5 mb-2">
-                  <span className="text-3xl font-black text-white">Contactar</span>
-                </div>
-                <p className="text-sm text-white/40 font-semibold">200 alumnos o más</p>
+                <p className="text-xs text-white/40 font-semibold mt-2">+200 alumnos / Múltiples sedes</p>
               </div>
 
               <a
-                href="https://wa.me/541165234769/?text=Hola!%20Quiero%20información%20sobre%20el%20plan%20Elite%20de%20EntrenAPP"
+                href="https://wa.me/541165234769/?text=Hola!%20Quiero%20información%20sobre%20el%20plan%20Premium%20Enterprise"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-3.5 rounded-2xl bg-[#25d366]/10 hover:bg-[#25d366]/20 border border-[#25d366]/20 hover:border-[#25d366]/40 text-[#25d366] font-black text-sm transition-all duration-300 text-center mb-8 flex items-center justify-center gap-2"
+                className="relative w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 font-black text-sm transition-all duration-300 text-center mb-6 flex items-center justify-center gap-2 z-10"
               >
-                <MessageCircle className="w-4 h-4" />
                 Hablar con ventas
               </a>
 
-              <ul className="space-y-3 flex-1">
-                {PLAN_FEATURES.map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-white/55 font-semibold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-                <li className="flex items-start gap-2.5 text-sm text-primary font-black mt-2">
-                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
-                  Onboarding personalizado
+              <ul className="space-y-3 flex-1 relative z-10">
+                <li className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                  Alumnos ilimitados
                 </li>
-                <li className="flex items-start gap-2.5 text-sm text-primary font-black">
-                  <Clock className="w-4 h-4 shrink-0 mt-0.5" />
-                  SLA y soporte prioritario
+                <li className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                  Staff y roles avanzados
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                  Analíticas avanzadas
+                </li>
+                <li className="flex items-start gap-2.5 text-xs text-indigo-300 font-black mt-2 pt-3 border-t border-white/10">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  Soporte VIP 24/7
                 </li>
               </ul>
             </div>

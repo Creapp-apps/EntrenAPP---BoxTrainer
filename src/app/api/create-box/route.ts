@@ -5,9 +5,10 @@ import { resend, EMAIL_FROM } from "@/lib/resend";
 
 // Plan limits configuration
 const PLAN_LIMITS: Record<string, { max_students: number; max_professors: number; max_activities: number }> = {
-  starter: { max_students: 30, max_professors: 1, max_activities: 2 },
-  pro: { max_students: 80, max_professors: 3, max_activities: 5 },
-  elite: { max_students: 9999, max_professors: 9999, max_activities: 9999 },
+  plan_50: { max_students: 50, max_professors: 2, max_activities: 3 },
+  plan_100: { max_students: 100, max_professors: 4, max_activities: 6 },
+  plan_150: { max_students: 150, max_professors: 6, max_activities: 9 },
+  premium: { max_students: 9999, max_professors: 9999, max_activities: 9999 },
 };
 
 export async function POST(request: NextRequest) {
@@ -33,8 +34,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  const selectedPlan = plan || "starter";
-  const limits = PLAN_LIMITS[selectedPlan] || PLAN_LIMITS.starter;
+  const selectedPlan = plan || "plan_50";
+  const limits = PLAN_LIMITS[selectedPlan] || PLAN_LIMITS.plan_50;
 
   // 1. Create auth user with role in app_metadata (needed for middleware routing)
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
   await adminSupabase.from("users").update({ box_id: boxData.id }).eq("id", newUserId);
 
   // 5. Create subscription with trial
-  const days = trialDays || 14;
+  const days = trialDays || 30;
   const now = new Date();
   const trialEnd = new Date(now);
   trialEnd.setDate(trialEnd.getDate() + days);

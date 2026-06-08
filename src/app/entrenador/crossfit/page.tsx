@@ -16,7 +16,10 @@ type Cycle = {
   active: boolean;
   is_template: boolean;
   phase_structure: { week_number: number; type: string }[];
-  users: { full_name: string } | null;
+  training_cycle_enrollments?: {
+    active: boolean;
+    users: { full_name: string } | null;
+  }[];
 };
 
 export default function CrossfitPage() {
@@ -32,7 +35,7 @@ export default function CrossfitPage() {
       const { data: { user } } = await supabase.auth.getUser();
       const { data } = await supabase
         .from("training_cycles")
-        .select("*, users!training_cycles_student_id_fkey(full_name)")
+        .select("*, training_cycle_enrollments(active, users(full_name))")
         
         .eq("cycle_type", "crossfit")
         .order("created_at", { ascending: false });
@@ -123,7 +126,15 @@ export default function CrossfitPage() {
         <div className="space-y-3">
           {shown.map(cycle => {
             const phases = cycle.phase_structure || [];
-            const student = cycle.users;
+            const enrollments = cycle.training_cycle_enrollments || [];
+            const activeEnrollments = enrollments.filter(e => e.active);
+            const studentLabel = cycle.is_template
+              ? `Plantilla · ${cycle.total_weeks} semanas`
+              : activeEnrollments.length === 0
+              ? "Sin alumno"
+              : activeEnrollments.length === 1
+              ? activeEnrollments[0].users?.full_name || "Alumno"
+              : `${activeEnrollments.length} alumnos`;
             const isDeleting = deletingId === cycle.id;
 
             return (
@@ -140,9 +151,7 @@ export default function CrossfitPage() {
                       <div>
                         <p className="font-semibold text-foreground pr-10">{cycle.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {cycle.is_template
-                            ? `Plantilla · ${cycle.total_weeks} semanas`
-                            : student?.full_name || "Sin alumno"}
+                          {studentLabel}
                         </p>
                       </div>
                     </div>

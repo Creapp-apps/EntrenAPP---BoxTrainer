@@ -6,9 +6,10 @@ import Link from "next/link";
 import { Pencil, Trash2, X, Save } from "lucide-react";
 
 const PLANS = [
-  { id: "starter", label: "Starter", desc: "30 alumnos · 1 prof · 2 act.", color: "bg-zinc-700/40 text-zinc-300" },
-  { id: "pro", label: "Pro", desc: "80 alumnos · 3 prof · 5 act.", color: "bg-orange-500/20 text-orange-400" },
-  { id: "elite", label: "Elite", desc: "Ilimitados", color: "bg-amber-500/20 text-amber-300" },
+  { id: "plan_50", label: "Plan 50", desc: "50 alumnos · 2 prof · 3 act.", color: "bg-zinc-700/40 text-zinc-300" },
+  { id: "plan_100", label: "Plan 100", desc: "100 alumnos · 4 prof · 6 act.", color: "bg-orange-500/20 text-orange-400" },
+  { id: "plan_150", label: "Plan 150", desc: "150 alumnos · 6 prof · 9 act.", color: "bg-indigo-500/20 text-indigo-400" },
+  { id: "premium", label: "Premium", desc: "Ilimitados", color: "bg-amber-500/20 text-amber-300" },
 ];
 
 type Box = {
@@ -34,12 +35,12 @@ type Box = {
   _student_count?: number;
 };
 
-const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  active: { bg: "bg-green-500/20", text: "text-green-400", label: "Activo" },
-  trial: { bg: "bg-blue-500/20", text: "text-blue-400", label: "Trial" },
-  past_due: { bg: "bg-amber-500/20", text: "text-amber-400", label: "Moroso" },
-  suspended: { bg: "bg-red-500/20", text: "text-red-400", label: "Suspendido" },
-  cancelled: { bg: "bg-white/10", text: "text-white/40", label: "Cancelado" },
+const STATUS_BADGE: Record<string, { bg: string; text: string; label: string, border: string }> = {
+  active: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20", label: "Activo" },
+  trial: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20", label: "Trial" },
+  past_due: { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20", label: "Moroso" },
+  suspended: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20", label: "Suspendido" },
+  cancelled: { bg: "bg-white/5", text: "text-white/40", border: "border-white/10", label: "Cancelado" },
 };
 
 export default function BoxesPage() {
@@ -47,7 +48,7 @@ export default function BoxesPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", ownerName: "", password: "", plan: "starter", price: 0, trialDays: 14 });
+  const [form, setForm] = useState({ name: "", email: "", ownerName: "", password: "", plan: "plan_50", price: 0, trialDays: 30 });
   const [saving, setSaving] = useState(false);
   const [changingPlan, setChangingPlan] = useState<string | null>(null);
   const [editingBox, setEditingBox] = useState<Box | null>(null);
@@ -92,7 +93,7 @@ export default function BoxesPage() {
       if (!res.ok) { toast.error(data.error); setSaving(false); return; }
       toast.success(`Box "${form.name}" creado`);
       setShowCreate(false);
-      setForm({ name: "", email: "", ownerName: "", password: "", plan: "starter", price: 0, trialDays: 14 });
+      setForm({ name: "", email: "", ownerName: "", password: "", plan: "plan_50", price: 0, trialDays: 30 });
       load();
     } catch (err: any) { toast.error(err.message); }
     setSaving(false);
@@ -154,29 +155,32 @@ export default function BoxesPage() {
     b.owner?.email?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const inputCls = "w-full bg-white/5 border border-white/10 text-white placeholder:text-white/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40";
+  const inputCls = "w-full bg-black/40 border border-white/5 text-white placeholder:text-white/30 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner";
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-white">Boxes</h2>
-          <p className="text-sm text-white/40 mt-1">{boxes.length} centros registrados</p>
+          <h2 className="text-3xl font-black text-white tracking-tight">Boxes Registrados</h2>
+          <p className="text-sm text-white/50 mt-1.5 font-medium">{boxes.length} centros en la plataforma</p>
         </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-orange-400 transition shadow-lg shadow-orange-500/20">
+          className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-indigo-500/25 hover:-translate-y-0.5 transition-all">
           + Nuevo Box
         </button>
       </div>
 
       {/* Search */}
-      <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="Buscar por nombre, dueño o email..."
-        className={inputCls} />
+      <div className="relative group">
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar por nombre, dueño o email..."
+          className={`${inputCls} pl-11`} />
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-indigo-400 transition-colors">🔍</span>
+      </div>
 
       {/* Table */}
-      <div className="rounded-2xl border border-white/5 overflow-hidden">
+      <div className="rounded-3xl border border-white/5 bg-white/[0.01] backdrop-blur-sm overflow-visible shadow-2xl pb-24">
         <table className="w-full">
           <thead>
             <tr className="bg-white/[0.03] border-b border-white/5">
@@ -196,7 +200,7 @@ export default function BoxesPage() {
             ) : filtered.length > 0 ? (
               filtered.map(box => {
                 const badge = STATUS_BADGE[box.status] || STATUS_BADGE.active;
-                const plan = box.subscription?.plan_name || "starter";
+                const plan = box.subscription?.plan_name || "plan_50";
                 const planInfo = PLANS.find(p => p.id === plan) || PLANS[0];
                 const pct = box.max_students > 0 && box.max_students < 9999
                   ? Math.min(100, Math.round(((box._student_count || 0) / box.max_students) * 100)) : 0;
@@ -234,8 +238,8 @@ export default function BoxesPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold ${badge.bg} ${badge.text}`}>
+                    <td className="px-5 py-5">
+                      <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border ${badge.bg} ${badge.text} ${badge.border}`}>
                         {badge.label}
                       </span>
                     </td>
@@ -284,10 +288,10 @@ export default function BoxesPage() {
 
       {/* ─── Create Modal ─── */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
-          <div className="bg-[#141416] rounded-2xl p-6 w-full max-w-lg border border-white/10" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-5">Nuevo Box</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowCreate(false)}>
+          <div className="bg-[#0a0a0c] rounded-3xl p-8 w-full max-w-xl border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-black text-white tracking-tight mb-6">Nuevo Box</h3>
+            <div className="space-y-5">
               <div>
                 <label className="text-xs font-medium text-white/50 block mb-1.5">Nombre del centro</label>
                 <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
@@ -338,13 +342,13 @@ export default function BoxesPage() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-8 pt-6 border-t border-white/5">
               <button disabled={saving} onClick={createBox}
-                className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-orange-400 disabled:opacity-50 transition shadow-lg shadow-orange-500/20">
+                className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-indigo-500/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none transition-all">
                 {saving ? "Creando..." : "Crear Box"}
               </button>
               <button onClick={() => setShowCreate(false)}
-                className="px-4 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/60 hover:bg-white/5 transition">Cancelar</button>
+                className="px-6 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/5 transition-colors">Cancelar</button>
             </div>
           </div>
         </div>
@@ -352,15 +356,15 @@ export default function BoxesPage() {
 
       {/* ─── Edit Modal ─── */}
       {editingBox && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setEditingBox(null)}>
-          <div className="bg-[#141416] rounded-2xl p-6 w-full max-w-md border border-white/10" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-5">Editar — {editingBox.name}</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setEditingBox(null)}>
+          <div className="bg-[#0a0a0c] rounded-3xl p-8 w-full max-w-lg border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-black text-white tracking-tight mb-6">Editar — {editingBox.name}</h3>
+            <div className="space-y-5">
               <div>
                 <label className="text-xs font-medium text-white/50 block mb-1.5">Nombre</label>
                 <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className={inputCls} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium text-white/50 block mb-1.5">Dirección</label>
                   <input type="text" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} placeholder="Av. Libertador 1234" className={inputCls} />
@@ -375,13 +379,13 @@ export default function BoxesPage() {
                 <input type="text" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="+54..." className={inputCls} />
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
+            <div className="flex gap-3 mt-8 pt-6 border-t border-white/5">
               <button onClick={saveEdit}
-                className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-orange-400 transition inline-flex items-center justify-center gap-2">
+                className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-indigo-500/25 hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-2">
                 <Save className="w-4 h-4" /> Guardar
               </button>
               <button onClick={() => setEditingBox(null)}
-                className="px-4 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/60 hover:bg-white/5 transition">Cancelar</button>
+                className="px-6 py-3 rounded-xl text-sm font-medium text-white/50 hover:text-white hover:bg-white/5 transition-colors">Cancelar</button>
             </div>
           </div>
         </div>

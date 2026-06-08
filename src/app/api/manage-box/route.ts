@@ -51,8 +51,9 @@ export async function PUT(request: NextRequest) {
 
   if (!boxId) return NextResponse.json({ error: "boxId required" }, { status: 400 });
 
-  // Onboarding can be done by the box owner
-  const role = action === "onboarding" ? "box_owner" : "super_admin";
+  // Box owners can edit basic info, do onboarding, and update booking deadlines.
+  const allowedOwnerActions = ["onboarding", "updateBookingDeadline", "edit"];
+  const role = allowedOwnerActions.includes(action) ? "box_owner" : "super_admin";
   const { admin, error } = await verifyAccess(role as any, boxId);
   if (error) return NextResponse.json({ error }, { status: 403 });
 

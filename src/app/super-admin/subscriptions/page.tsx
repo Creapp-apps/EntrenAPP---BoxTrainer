@@ -41,18 +41,19 @@ type DiscountCode = {
   active: boolean;
 };
 
-const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  active: { bg: "bg-green-500/20", text: "text-green-400", label: "Activo" },
-  trial: { bg: "bg-blue-500/20", text: "text-blue-400", label: "Trial" },
-  past_due: { bg: "bg-amber-500/20", text: "text-amber-400", label: "Moroso" },
-  suspended: { bg: "bg-red-500/20", text: "text-red-400", label: "Suspendido" },
-  cancelled: { bg: "bg-white/10", text: "text-white/40", label: "Cancelado" },
+const STATUS_BADGE: Record<string, { bg: string; text: string; label: string; border: string }> = {
+  active: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20", label: "Activo" },
+  trial: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20", label: "Trial" },
+  past_due: { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20", label: "Moroso" },
+  suspended: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20", label: "Suspendido" },
+  cancelled: { bg: "bg-white/5", text: "text-white/40", border: "border-white/10", label: "Cancelado" },
 };
 
 const DEFAULT_PLANS: PlanRow[] = [
-  { id: "starter", name: "Starter", max_students: 30, max_professors: 1, max_activities: 2, suggested_price: 15000, sort_order: 1 },
-  { id: "pro", name: "Pro", max_students: 80, max_professors: 3, max_activities: 5, suggested_price: 30000, sort_order: 2 },
-  { id: "elite", name: "Elite", max_students: 9999, max_professors: 9999, max_activities: 9999, suggested_price: 50000, sort_order: 3 },
+  { id: "plan_50", name: "Plan 50", max_students: 50, max_professors: 2, max_activities: 3, suggested_price: 45000, sort_order: 1 },
+  { id: "plan_100", name: "Plan 100", max_students: 100, max_professors: 4, max_activities: 6, suggested_price: 75000, sort_order: 2 },
+  { id: "plan_150", name: "Plan 150", max_students: 150, max_professors: 6, max_activities: 9, suggested_price: 95000, sort_order: 3 },
+  { id: "premium", name: "Premium", max_students: 9999, max_professors: 9999, max_activities: 9999, suggested_price: 150000, sort_order: 4 },
 ];
 
 const TABS = [
@@ -61,7 +62,7 @@ const TABS = [
   { id: "codes", label: "Codigos", icon: Tag },
 ];
 
-const INPUT_CLS = "w-full bg-white/5 border border-white/10 text-white placeholder:text-white/30 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40";
+const INPUT_CLS = "w-full bg-black/40 border border-white/5 text-white placeholder:text-white/30 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner";
 
 export default function SubscriptionsPage() {
   const supabase = createClient();
@@ -84,15 +85,17 @@ export default function SubscriptionsPage() {
   const [deletingSub, setDeletingSub] = useState<Sub | null>(null);
 
   const PLAN_OPTIONS = [
-    { id: "starter", label: "Starter" },
-    { id: "pro", label: "Pro" },
-    { id: "elite", label: "Elite" },
+    { id: "plan_50", label: "Plan 50" },
+    { id: "plan_100", label: "Plan 100" },
+    { id: "plan_150", label: "Plan 150" },
+    { id: "premium", label: "Premium" },
   ];
 
   const PLAN_LIMITS: Record<string, { max_students: number; max_professors: number }> = {
-    starter: { max_students: 30, max_professors: 1 },
-    pro: { max_students: 80, max_professors: 3 },
-    elite: { max_students: 9999, max_professors: 9999 },
+    plan_50: { max_students: 50, max_professors: 2 },
+    plan_100: { max_students: 100, max_professors: 4 },
+    plan_150: { max_students: 150, max_professors: 6 },
+    premium: { max_students: 9999, max_professors: 9999 },
   };
 
   useEffect(() => { loadSubs(); loadCodes(); loadBoxes(); }, []);
@@ -132,7 +135,7 @@ export default function SubscriptionsPage() {
   }
 
   async function changeSubPlan(sub: Sub, newPlan: string) {
-    const limits = PLAN_LIMITS[newPlan] || PLAN_LIMITS.starter;
+    const limits = PLAN_LIMITS[newPlan] || PLAN_LIMITS.plan_50;
     await supabase.from("boxes").update({ max_students: limits.max_students, max_professors: limits.max_professors }).eq("id", sub.box_id);
     await supabase.from("box_subscriptions").update({ plan_name: newPlan }).eq("id", sub.id);
     toast.success("Plan cambiado a " + newPlan.toUpperCase());
@@ -231,11 +234,11 @@ export default function SubscriptionsPage() {
         </p>
       </div>
 
-      <div className="flex gap-1 bg-white/5 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-white/[0.02] border border-white/5 p-1 rounded-2xl w-fit backdrop-blur-sm shadow-xl">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={"flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition " + (
-              tab === t.id ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20" : "text-white/50 hover:text-white/80"
+            className={"flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all " + (
+              tab === t.id ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25" : "text-white/50 hover:text-white hover:bg-white/5"
             )}>
             <t.icon className="w-4 h-4" />
             {t.label}
@@ -255,16 +258,16 @@ export default function SubscriptionsPage() {
               { key: "suspended", label: "Suspendidas" },
             ].map(f => (
               <button key={f.key} onClick={() => setFilter(f.key)}
-                className={"text-xs px-3 py-1.5 rounded-lg font-medium transition " + (
-                  filter === f.key ? "bg-orange-500 text-white" : "bg-white/5 text-white/40 hover:text-white hover:bg-white/10"
+                className={"text-xs px-4 py-2 rounded-xl font-bold transition-all " + (
+                  filter === f.key ? "bg-white/10 text-white border border-white/20 shadow-lg" : "bg-white/5 border border-transparent text-white/40 hover:text-white hover:bg-white/10"
                 )}>
                 {f.label}
-                {f.key !== "all" && <span className="ml-1.5 opacity-60">{subs.filter(s => s.status === f.key).length}</span>}
+                {f.key !== "all" && <span className="ml-1.5 opacity-60 font-medium">{subs.filter(s => s.status === f.key).length}</span>}
               </button>
             ))}
           </div>
 
-          <div className="rounded-2xl border border-white/5 overflow-hidden">
+          <div className="rounded-3xl border border-white/5 bg-white/[0.01] backdrop-blur-sm overflow-visible shadow-2xl mt-6 pb-24">
             <table className="w-full">
               <thead>
                 <tr className="bg-white/[0.03] border-b border-white/5">
@@ -286,9 +289,9 @@ export default function SubscriptionsPage() {
                   const isOverdue = new Date(sub.current_period_end) < new Date() && sub.status !== "cancelled";
                   return (
                     <tr key={sub.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-5 py-4">
-                        <p className="text-sm font-medium text-white">{sub.box_name}</p>
-                        <p className="text-[10px] text-white/30">{sub.owner_name}</p>
+                      <td className="px-5 py-5">
+                        <p className="text-sm font-bold text-white">{sub.box_name}</p>
+                        <p className="text-[10px] text-white/40 font-medium mt-0.5 uppercase tracking-wider">{sub.owner_name}</p>
                       </td>
                       <td className="px-5 py-4">
                         <div className="relative">
@@ -307,9 +310,9 @@ export default function SubscriptionsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4"><span className="text-sm text-white/80 font-mono">{"$"}{sub.price.toLocaleString()}</span></td>
-                      <td className="px-5 py-4">
-                        <span className={"text-[10px] px-2.5 py-1 rounded-full font-semibold " + badge.bg + " " + badge.text}>{badge.label}</span>
-                        {isOverdue && sub.status !== "suspended" && <span className="text-[10px] text-red-400 ml-2">Vencido</span>}
+                      <td className="px-5 py-5">
+                        <span className={"text-[10px] px-2.5 py-1 rounded-full font-bold border " + badge.bg + " " + badge.text + " " + badge.border}>{badge.label}</span>
+                        {isOverdue && sub.status !== "suspended" && <span className="text-[10px] text-red-400 font-bold ml-2">Vencido</span>}
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-xs text-white/50">
@@ -342,20 +345,20 @@ export default function SubscriptionsPage() {
         </div>
 
         {deletingSub && (
-          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setDeletingSub(null)}>
-            <div className="bg-[#141416] rounded-2xl p-6 w-full max-w-sm border border-red-500/20" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setDeletingSub(null)}>
+            <div className="bg-[#0a0a0c] rounded-3xl p-8 w-full max-w-sm border border-red-500/20 shadow-2xl" onClick={e => e.stopPropagation()}>
               <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                  <Trash2 className="w-6 h-6 text-red-400" />
+                <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-red-500/5 text-red-400">
+                  <Trash2 className="w-7 h-7" />
                 </div>
-                <h3 className="text-lg font-bold text-white">Eliminar "{deletingSub.box_name}"?</h3>
-                <p className="text-sm text-white/40 mt-2">Se eliminara el box, la suscripcion y se desvinculan todos los usuarios. Esta accion no se puede deshacer.</p>
+                <h3 className="text-xl font-black text-white tracking-tight">¿Eliminar "{deletingSub.box_name}"?</h3>
+                <p className="text-sm text-white/50 mt-3 leading-relaxed">Se eliminara el box, la suscripcion y se desvinculan todos los usuarios. Esta accion no se puede deshacer.</p>
               </div>
-              <div className="flex gap-3 mt-6">
+              <div className="flex gap-3 mt-8 pt-6 border-t border-white/5">
                 <button onClick={() => setDeletingSub(null)}
-                  className="flex-1 px-4 py-2.5 rounded-xl text-sm text-white/60 bg-white/5 hover:bg-white/10 transition">Cancelar</button>
+                  className="flex-1 px-6 py-3 rounded-xl text-sm font-bold text-white/50 hover:text-white hover:bg-white/5 transition-colors">Cancelar</button>
                 <button onClick={deleteBoxFromSub}
-                  className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-red-500 transition">Eliminar</button>
+                  className="flex-1 bg-red-600/90 text-white py-3 rounded-xl text-sm font-bold hover:bg-red-500 shadow-lg shadow-red-500/20 hover:-translate-y-0.5 transition-all">Eliminar</button>
               </div>
             </div>
           </div>
@@ -405,22 +408,25 @@ export default function SubscriptionsPage() {
                     </div>
                   ) : (
                     <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-lg font-bold text-white">{plan.name}</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-black text-white tracking-tight">{plan.name}</h3>
                         <button onClick={() => startEditPlan(plan)}
-                          className="p-1.5 rounded-lg text-white/30 hover:text-orange-400 hover:bg-orange-500/10 transition">
-                          <Pencil className="w-3.5 h-3.5" />
+                          className="p-2 rounded-xl text-white/30 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors">
+                          <Pencil className="w-4 h-4" />
                         </button>
                       </div>
-                      <p className="text-2xl font-bold text-orange-400 mb-4">{"$"}{plan.suggested_price.toLocaleString()}<span className="text-xs text-white/30 font-normal">/mes</span></p>
-                      <div className="space-y-2 text-sm text-white/60">
-                        <p>{plan.max_students >= 9999 ? "Ilimitados" : plan.max_students} alumnos</p>
-                        <p>{plan.max_professors >= 9999 ? "Ilimitados" : plan.max_professors} profesores</p>
-                        <p>{plan.max_activities >= 9999 ? "Ilimitadas" : plan.max_activities} actividades</p>
+                      <div className="flex items-end gap-1 mb-6">
+                        <p className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-indigo-400 to-purple-400">{"$"}{plan.suggested_price.toLocaleString()}</p>
+                        <span className="text-sm text-white/30 font-bold uppercase mb-1.5">/mes</span>
                       </div>
-                      <div className="mt-4 pt-3 border-t border-white/5">
-                        <p className="text-[10px] text-white/20">
-                          {subs.filter(s => s.plan_name === plan.id).length} boxes en este plan
+                      <div className="space-y-3 text-sm text-white/60 font-medium">
+                        <p className="flex items-center gap-2"><span className="text-emerald-400">✓</span> {plan.max_students >= 9999 ? "Ilimitados" : plan.max_students} alumnos</p>
+                        <p className="flex items-center gap-2"><span className="text-emerald-400">✓</span> {plan.max_professors >= 9999 ? "Ilimitados" : plan.max_professors} profesores</p>
+                        <p className="flex items-center gap-2"><span className="text-emerald-400">✓</span> {plan.max_activities >= 9999 ? "Ilimitadas" : plan.max_activities} actividades</p>
+                      </div>
+                      <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
+                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">
+                          {subs.filter(s => s.plan_name === plan.id).length} boxes activos
                         </p>
                       </div>
                     </div>
@@ -437,12 +443,12 @@ export default function SubscriptionsPage() {
           <div className="flex items-center justify-between">
             <p className="text-sm text-white/40">Codigos de descuento para boxes</p>
             <button onClick={() => setShowNewCode(true)}
-              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-orange-400 transition shadow-lg shadow-orange-500/20">
+              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-indigo-500/25 hover:-translate-y-0.5 transition-all">
               <Plus className="w-4 h-4" /> Nuevo codigo
             </button>
           </div>
 
-          <div className="rounded-2xl border border-white/5 overflow-hidden">
+          <div className="rounded-3xl border border-white/5 bg-white/[0.01] backdrop-blur-sm overflow-hidden shadow-2xl">
             <table className="w-full">
               <thead>
                 <tr className="bg-white/[0.03] border-b border-white/5">
@@ -494,51 +500,56 @@ export default function SubscriptionsPage() {
           </div>
 
           {showNewCode && (
-            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowNewCode(false)}>
-              <div className="bg-[#141416] rounded-2xl p-6 w-full max-w-md border border-white/10" onClick={e => e.stopPropagation()}>
-                <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2"><Percent className="w-5 h-5 text-orange-400" /> Nuevo codigo</h3>
-                <p className="text-xs text-white/40 mb-5">Crea un codigo de descuento para un box o para todos.</p>
-                <div className="space-y-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowNewCode(false)}>
+              <div className="bg-[#0a0a0c] rounded-3xl p-8 w-full max-w-md border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-black text-white tracking-tight mb-2 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shadow-inner">
+                    <Percent className="w-5 h-5" />
+                  </div>
+                  Nuevo codigo
+                </h3>
+                <p className="text-xs text-white/50 mb-6 font-medium">Crea un codigo de descuento para un box o para todos.</p>
+                <div className="space-y-5">
                   <div>
-                    <label className="text-xs font-medium text-white/50 block mb-1.5">Codigo</label>
+                    <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Codigo</label>
                     <input value={codeForm.code} onChange={e => setCodeForm({ ...codeForm, code: e.target.value.toUpperCase() })}
                       placeholder="Ej: BIENVENIDO20" className={INPUT_CLS} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-medium text-white/50 block mb-1.5">Descuento %</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Desc. %</label>
                       <input type="number" min="0" max="100" value={codeForm.discount_percent} onChange={e => setCodeForm({ ...codeForm, discount_percent: +e.target.value })} className={INPUT_CLS} />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-white/50 block mb-1.5">o Descuento fijo ($)</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Desc. fijo ($)</label>
                       <input type="number" min="0" value={codeForm.discount_fixed} onChange={e => setCodeForm({ ...codeForm, discount_fixed: +e.target.value })} className={INPUT_CLS} />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-white/50 block mb-1.5">Aplicar a Box (vacio = todos)</label>
+                    <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Aplicar a Box</label>
                     <select value={codeForm.box_id} onChange={e => setCodeForm({ ...codeForm, box_id: e.target.value })} className={INPUT_CLS}>
                       <option value="" className="bg-[#141416]">Todos los boxes</option>
                       {boxes.map(b => <option key={b.id} value={b.id} className="bg-[#141416]">{b.name}</option>)}
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-medium text-white/50 block mb-1.5">Vence</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Vence</label>
                       <input type="date" value={codeForm.valid_until} onChange={e => setCodeForm({ ...codeForm, valid_until: e.target.value })} className={INPUT_CLS} />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-white/50 block mb-1.5">Max usos (0 = sin limite)</label>
+                      <label className="text-xs font-bold text-white/40 uppercase tracking-widest block mb-2">Usos (0=∞)</label>
                       <input type="number" min="0" value={codeForm.max_uses} onChange={e => setCodeForm({ ...codeForm, max_uses: +e.target.value })} className={INPUT_CLS} />
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-3 mt-6">
+                <div className="flex gap-3 mt-8 pt-6 border-t border-white/5">
                   <button onClick={createCode}
-                    className="flex-1 bg-orange-500 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-orange-400 transition shadow-lg shadow-orange-500/20">
+                    className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-indigo-500/25 hover:-translate-y-0.5 transition-all">
                     Crear codigo
                   </button>
                   <button onClick={() => setShowNewCode(false)}
-                    className="px-4 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/60 hover:bg-white/5 transition">Cancelar</button>
+                    className="px-6 py-3 rounded-xl text-sm font-bold text-white/50 hover:text-white hover:bg-white/5 transition-colors">Cancelar</button>
                 </div>
               </div>
             </div>

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Dumbbell, Loader2 } from "lucide-react";
+import { Dumbbell, Loader2, Eye, EyeOff } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -14,6 +14,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [branding, setBranding] = useState<{ name: string; color: string; logoUrl?: string } | null>(null);
 
@@ -157,19 +158,33 @@ function LoginForm() {
               <label className="block text-sm font-medium mb-1.5" style={{ color: branding ? "white" : "#0f172a" }}>
                 Contraseña
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full px-4 py-3 rounded-xl border transition"
-                style={{ 
-                  backgroundColor: branding ? "rgba(255,255,255,0.05)" : "#f8fafc",
-                  borderColor: branding ? "rgba(255,255,255,0.1)" : "#e2e8f0",
-                  color: branding ? "white" : "#0f172a"
-                }}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border transition pr-12"
+                  style={{ 
+                    backgroundColor: branding ? "rgba(255,255,255,0.05)" : "#f8fafc",
+                    borderColor: branding ? "rgba(255,255,255,0.1)" : "#e2e8f0",
+                    color: branding ? "white" : "#0f172a"
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors hover:bg-black/5"
+                  style={{ color: branding ? "rgba(255,255,255,0.5)" : "#94a3b8" }}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <button

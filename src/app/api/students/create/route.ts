@@ -30,6 +30,22 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createAdminClient();
 
+    // 0. Verificar Límite de Alumnos del Box
+    if (box_id) {
+      const { data: boxData } = await supabase.from("boxes").select("max_students, name").eq("id", box_id).single();
+      const { count } = await supabase.from("users")
+        .select("id", { count: "exact" })
+        .eq("box_id", box_id)
+        .eq("role", "student")
+        .eq("active", true);
+      
+      if (boxData && count !== null && count >= boxData.max_students && boxData.max_students < 9999) {
+        return NextResponse.json({ 
+          error: `Límite de alumnos alcanzado (${boxData.max_students}). Haz un upgrade de tu plan para agregar más.` 
+        }, { status: 403 });
+      }
+    }
+
     // 1. Crear usuario en Auth con service role
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
