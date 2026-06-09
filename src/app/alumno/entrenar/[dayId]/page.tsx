@@ -755,9 +755,9 @@ export default function EntrenarPage() {
 
   // ─── Training screen ───────────────────────────────────────
   return (
-    <div className={`min-h-screen ${viewMode === "pizarra" ? "bg-black" : "bg-background"}`}>
+    <div className={`min-h-screen ${viewMode === "pizarra" ? "bg-zinc-900" : "bg-background"}`}>
       {/* Header */}
-      <div className={`${viewMode === "pizarra" ? "bg-black border-b border-zinc-900" : "bg-sidebar"} text-white px-4 pt-12 pb-6 sticky top-0 z-10 shadow-sm`}>
+      <div className={`${viewMode === "pizarra" ? "bg-zinc-900 border-b border-zinc-800" : "bg-sidebar"} text-white px-4 pt-12 pb-6 sticky top-0 z-10 shadow-sm`}>
         <div className="flex items-center gap-3 mb-3">
           <Link href="/alumno" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition">
             <ArrowLeft className="w-4 h-4" />
@@ -1389,9 +1389,9 @@ export default function EntrenarPage() {
 
         {/* VISTA PIZARRA (ESTILO WOD PINTEREST - ACCESIBILIDAD MÁXIMA) */}
         {viewMode === "pizarra" && (
-          <div className="bg-black text-zinc-100 space-y-8 my-2 font-sans relative">
+          <div className="bg-zinc-900 text-zinc-100 space-y-8 my-2 font-sans relative">
             {/* Header de Pizarra */}
-            <div className="pb-4 border-b border-zinc-900 space-y-1">
+            <div className="pb-4 border-b border-zinc-800 space-y-1">
               <span className="text-xs font-black uppercase tracking-[0.2em] text-red-500">
                 Pizarra de Entrenamiento
               </span>
@@ -1433,7 +1433,7 @@ export default function EntrenarPage() {
                 return (
                   <div key={block.id} className="space-y-4">
                     {/* Título de Bloque en Rojo */}
-                    <h3 className="text-2xl font-black text-[#d93838] uppercase tracking-widest pt-2">
+                    <h3 className="text-2xl font-black text-[#ff5252] uppercase tracking-widest pt-2">
                       {block.name}
                     </h3>
                     
@@ -1452,31 +1452,31 @@ export default function EntrenarPage() {
                             <button
                               key={te.id}
                               onClick={() => handleExerciseTap(te)}
-                              className="w-full text-left py-2 hover:bg-zinc-900/40 transition-colors block focus:outline-none rounded-xl"
+                              className="w-full text-left py-2 hover:bg-zinc-800/40 transition-colors block focus:outline-none rounded-xl"
                             >
                               <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
                                 <span className={`text-xl sm:text-2xl font-extrabold tracking-tight transition-all ${
-                                  done ? "line-through text-zinc-700 decoration-red-500 decoration-2" : "text-white"
+                                  done ? "line-through text-zinc-500 decoration-red-500 decoration-2" : "text-white"
                                 }`}>
                                   {te.sets}x{te.reps} {te.exercises?.name}
                                   {te.exercise_variants?.name && ` (${te.exercise_variants.name})`}
                                 </span>
                                 <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
                                   {suggestedKg && (
-                                    <span className={`text-base font-extrabold transition-all ${done ? "text-zinc-800 line-through" : "text-red-500"}`}>
+                                    <span className={`text-base font-extrabold transition-all ${done ? "text-zinc-600 line-through" : "text-red-400"}`}>
                                       [Sug: {suggestedKg} kg]
                                     </span>
                                   )}
                                   {done && loggedWeight !== undefined && (
-                                    <span className="text-base font-extrabold text-emerald-500">
+                                    <span className="text-base font-extrabold text-emerald-400">
                                       [Hecho: {loggedWeight} kg]
                                     </span>
                                   )}
                                 </div>
                               </div>
                               {te.notes && (
-                                <p className={`text-sm sm:text-base italic font-semibold leading-relaxed mt-1 pl-4 border-l border-zinc-800 ${
-                                  done ? "text-zinc-800 line-through" : "text-zinc-500"
+                                <p className={`text-sm sm:text-base italic font-semibold leading-relaxed mt-1 pl-4 border-l border-zinc-800/50 ${
+                                  done ? "text-zinc-600 line-through" : "text-zinc-450"
                                 }`}>
                                   * {te.notes}
                                 </p>
@@ -1493,32 +1493,32 @@ export default function EntrenarPage() {
                             <button
                               key={item.complexId}
                               onClick={() => handleComplexTap(item.complexId, item.items)}
-                              className="w-full text-left py-2 hover:bg-zinc-900/40 transition-colors block focus:outline-none rounded-xl"
+                              className="w-full text-left py-2 hover:bg-zinc-800/40 transition-colors block focus:outline-none rounded-xl"
                             >
                               <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
                                 <span className={`text-xl sm:text-2xl font-extrabold tracking-tight transition-all ${
-                                  allSeriesDone ? "line-through text-zinc-700 decoration-red-500 decoration-2" : "text-white"
+                                  allSeriesDone ? "line-through text-zinc-500 decoration-red-500 decoration-2" : "text-white"
                                 }`}>
                                   {displayText}
                                 </span>
                                 <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
                                   {weightsSummary && (
-                                    <span className={`text-base font-extrabold transition-all ${allSeriesDone ? "text-zinc-800 line-through" : "text-red-500"}`}>
+                                    <span className={`text-base font-extrabold transition-all ${allSeriesDone ? "text-zinc-600 line-through" : "text-red-400"}`}>
                                       {weightsSummary}
                                     </span>
                                   )}
                                   {allSeriesDone && loggedWeights.length > 0 && (
-                                    <span className="text-base font-extrabold text-emerald-500">
+                                    <span className="text-base font-extrabold text-emerald-400">
                                       [Hecho: {loggedWeights.join("/")} kg]
                                     </span>
                                   )}
                                 </div>
                               </div>
                               {item.items.some(te => te.notes) && (
-                                <div className="mt-1 pl-4 border-l border-zinc-800 space-y-0.5">
+                                <div className="mt-1 pl-4 border-l border-zinc-800/50 space-y-0.5">
                                   {item.items.filter(te => te.notes).map(te => (
                                     <p key={te.id} className={`text-sm sm:text-base italic font-semibold leading-relaxed ${
-                                      allSeriesDone ? "text-zinc-800 line-through" : "text-zinc-500"
+                                      allSeriesDone ? "text-zinc-600 line-through" : "text-zinc-450"
                                     }`}>
                                       * {te.notes}
                                     </p>
@@ -1540,7 +1540,7 @@ export default function EntrenarPage() {
 
       {/* Bottom action */}
       <div className={`fixed bottom-0 left-0 right-0 px-4 py-4 backdrop-blur border-t ${
-        viewMode === "pizarra" ? "bg-black/90 border-zinc-900" : "bg-background/95 border-border"
+        viewMode === "pizarra" ? "bg-zinc-900/90 border-zinc-800" : "bg-background/95 border-border"
       }`}>
         <button onClick={handleFinish}
           className={`w-full font-semibold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-lg ${
