@@ -1290,7 +1290,12 @@ export default function EntrenarPage() {
                           let repsLine = item.items.map(te => {
                             const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
                             const r = ov ? ov.reps : te.reps;
-                            return `${r}× ${te.exercises?.name}`;
+                            if (item.items.length === 1) {
+                              return `${r} reps`;
+                            }
+                            const v = te.exercise_variants?.name ?? "";
+                            const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
+                            return `${r}× ${displayName}`;
                           }).join(" + ");
 
                           if (s.rounds && s.rounds > 1) {
@@ -1298,6 +1303,7 @@ export default function EntrenarPage() {
                           }
 
                           const isFirstRow = renderedRows === 0;
+                          const isFirstSetOfComplex = sIdx === 0;
                           renderedRows += 1;
 
                           return (
@@ -1307,19 +1313,16 @@ export default function EntrenarPage() {
                                   {block.name}
                                 </td>
                               )}
-                              <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c]">
-                                <div className="font-semibold text-white">
-                                  <span className={seriesDone ? "line-through text-slate-500" : ""}>
+                              {isFirstSetOfComplex && (
+                                <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c] align-middle animate-in fade-in" rowSpan={cSets.length}>
+                                  <div className="font-bold text-white text-sm">
                                     {complexTitle}
-                                  </span>
-                                  <span className="ml-2 text-xs bg-[#4d7c67]/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold shrink-0">
-                                    Serie {s.set_number}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-slate-400 mt-0.5">{repsLine}</div>
-                              </td>
-                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38] whitespace-nowrap text-white font-bold">
-                                1 serie
+                                  </div>
+                                </td>
+                              )}
+                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38] text-white font-bold text-xs leading-snug">
+                                <span className="text-emerald-200 block text-[9px] uppercase font-black tracking-wider">Serie {s.set_number}</span>
+                                <span className={seriesDone ? "line-through text-emerald-300/60" : ""}>{repsLine}</span>
                               </td>
                               <td className="px-4 py-3 border border-slate-700 bg-[#396e38]/90 whitespace-nowrap text-white font-bold">
                                 {calcWeight ? <span className="font-black text-white">{calcWeight} kg</span> : s.percentage_1rm ? `${s.percentage_1rm}%` : "-"}
