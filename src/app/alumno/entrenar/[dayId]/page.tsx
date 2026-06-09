@@ -440,6 +440,117 @@ export default function EntrenarPage() {
     setPendingSeriesConfirm(null);
   };
 
+  // ─── Complex tap (chalkboard) — toggle all sets inside a complex at once ───
+  const handleComplexTap = (complexId: string, items: TrainingExercise[]) => {
+    const cSets = complexSets[complexId] || [];
+    const allDone = cSets.length > 0 && cSets.every(s => checkedSeries.has(s.id));
+    
+    setCheckedSeries(prev => {
+      const next = new Set(prev);
+      cSets.forEach(s => {
+        if (allDone) {
+          next.delete(s.id);
+        } else {
+          next.add(s.id);
+        }
+      });
+      return next;
+    });
+
+    setSeriesWeights(prev => {
+      const next = { ...prev };
+      cSets.forEach(s => {
+        if (allDone) {
+          delete next[s.id];
+        } else {
+          if (next[s.id] === undefined) {
+            const firstEx = items[0];
+            const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+            const calcWeight = firstOneRM && s.percentage_1rm
+              ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
+              : s.weight_target || undefined;
+            next[s.id] = calcWeight;
+          }
+        }
+      });
+      return next;
+    });
+  };
+
+  // Helper for Pizarra view complex/trepada aggregation
+  const getComplexPizarraSummary = (items: TrainingExercise[], cSets: ComplexSet[]) => {
+    if (cSets.length === 0) return { displayText: items.map(te => te.exercises?.name).join(" + "), weightsSummary: "" };
+
+    const firstEx = items[0];
+    const isSingleExercise = items.length === 1;
+
+    // 1. Reps and exercise text
+    let displayText = "";
+    if (isSingleExercise) {
+      const repsArray = cSets.map(s => {
+        const ov = s.reps_overrides.find(o => o.training_exercise_id === firstEx.id);
+        return ov ? ov.reps : firstEx.reps;
+      });
+      const allSame = repsArray.every(r => r === repsArray[0]);
+      const repsText = allSame ? `${repsArray[0]} reps` : `${repsArray.join("-")} reps`;
+      
+      const v = firstEx.exercise_variants?.name ?? "";
+      const nameText = v ? `${firstEx.exercises?.name} (${v})` : firstEx.exercises?.name;
+      displayText = `${cSets.length} series: ${repsText} de ${nameText}`;
+    } else {
+      // Multi-exercise complex
+      const exercisesRepsConstant = items.every(te => {
+        const firstReps = cSets[0] ? (cSets[0].reps_overrides.find(o => o.training_exercise_id === te.id)?.reps ?? te.reps) : te.reps;
+        return cSets.every(s => {
+          const r = s.reps_overrides.find(o => o.training_exercise_id === te.id)?.reps ?? te.reps;
+          return r === firstReps;
+        });
+      });
+
+      if (exercisesRepsConstant) {
+        const itemsText = items.map(te => {
+          const r = cSets[0] ? (cSets[0].reps_overrides.find(o => o.training_exercise_id === te.id)?.reps ?? te.reps) : te.reps;
+          const v = te.exercise_variants?.name ?? "";
+          const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+          return `${r} ${displayName}`;
+        }).join(" + ");
+        displayText = `${cSets.length} series: ${itemsText}`;
+      } else {
+        const itemsText = items.map(te => {
+          const repsArray = cSets.map(s => s.reps_overrides.find(o => o.training_exercise_id === te.id)?.reps ?? te.reps);
+          const v = te.exercise_variants?.name ?? "";
+          const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+          return `${repsArray.join("-")} ${displayName}`;
+        }).join(" + ");
+        displayText = `${cSets.length} series: ${itemsText}`;
+      }
+    }
+
+    // 2. Weights summary
+    let weightsSummary = "";
+    const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+    const weightsArray = cSets.map(s => {
+      if (seriesWeights[s.id] !== undefined) return seriesWeights[s.id];
+      const calcWeight = firstOneRM && s.percentage_1rm
+        ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
+        : s.percentage_1rm ? null : s.weight_target || undefined;
+      return calcWeight;
+    });
+
+    const validWeights = weightsArray.filter((w): w is number => typeof w === "number");
+    if (validWeights.length > 0) {
+      const minW = Math.min(...validWeights);
+      const maxW = Math.max(...validWeights);
+      if (minW === maxW) {
+        weightsSummary = `[Sug: ${minW} kg]`;
+      } else {
+        weightsSummary = `[Sug: ${minW} a ${maxW} kg]`;
+      }
+    }
+
+    return { displayText, weightsSummary };
+  };
+
   // Tonnage
   const sessionTonnage = Object.values(exerciseLogs).reduce((total, log) => {
     if (!log.weight_used_kg) return total;
@@ -644,9 +755,9 @@ export default function EntrenarPage() {
 
   // ─── Training screen ───────────────────────────────────────
   return (
-    <div className={`min-h-screen ${viewMode === "pizarra" ? "bg-slate-950" : "bg-background"}`}>
+    <div className={`min-h-screen ${viewMode === "pizarra" ? "bg-black" : "bg-background"}`}>
       {/* Header */}
-      <div className={`${viewMode === "pizarra" ? "bg-slate-900 border-b border-slate-800" : "bg-sidebar"} text-white px-4 pt-12 pb-6 sticky top-0 z-10 shadow-sm`}>
+      <div className={`${viewMode === "pizarra" ? "bg-black border-b border-zinc-900" : "bg-sidebar"} text-white px-4 pt-12 pb-6 sticky top-0 z-10 shadow-sm`}>
         <div className="flex items-center gap-3 mb-3">
           <Link href="/alumno" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition">
             <ArrowLeft className="w-4 h-4" />
@@ -975,20 +1086,20 @@ export default function EntrenarPage() {
 
         {/* VISTA PLANILLA / EXCEL */}
         {viewMode === "excel" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden my-2">
+          <div className="bg-slate-950 rounded-2xl border border-slate-800 shadow-sm overflow-hidden my-2">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
-                  <tr className="bg-slate-800 text-white text-xs font-bold uppercase tracking-wider">
+                  <tr className="bg-slate-900 text-white text-xs font-bold uppercase tracking-wider">
                     <th className="px-4 py-3 border border-slate-700 w-24 text-center">Bloque</th>
                     <th className="px-4 py-3 border border-slate-700">Ejercicio</th>
-                    <th className="px-4 py-3 border border-slate-700 w-36">Series x Reps</th>
-                    <th className="px-4 py-3 border border-slate-700 w-32">Sugerido</th>
+                    <th className="px-4 py-3 border border-slate-700 w-36 bg-[#2a4e2b]">Series x Reps</th>
+                    <th className="px-4 py-3 border border-slate-700 w-32 bg-[#2a4e2b]">Sugerido</th>
                     <th className="px-4 py-3 border border-slate-700 w-44 text-center">Tu Registro</th>
-                    <th className="px-4 py-3 border border-slate-700">Observaciones</th>
+                    <th className="px-4 py-3 border border-slate-700 bg-[#142f42]">Observaciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 text-slate-800 text-sm">
+                <tbody className="divide-y divide-slate-800 text-slate-800 text-sm">
                   {blocks.map(block => {
                     type BlockItem =
                       | { type: "single"; te: TrainingExercise }
@@ -1041,34 +1152,34 @@ export default function EntrenarPage() {
                         renderedRows += 1;
 
                         return (
-                          <tr key={te.id} className={`${done ? "bg-emerald-50/40" : "hover:bg-slate-50/50"}`}>
+                          <tr key={te.id} className={`${done ? "opacity-75" : "hover:bg-[#222222]/30"}`}>
                             {isFirstRow && (
-                              <td className="px-4 py-3 font-bold border border-slate-200 align-middle bg-slate-50 text-slate-700 text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
+                              <td className="px-4 py-3 font-bold border border-slate-700 align-middle bg-[#4d7c67] text-white text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
                                 {block.name}
                               </td>
                             )}
-                            <td className="px-4 py-3 border border-slate-200">
-                              <div className="font-semibold flex items-center gap-1.5 flex-wrap text-slate-900">
-                                <span className={done ? "line-through text-slate-400" : ""}>
+                            <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c]">
+                              <div className="font-semibold flex items-center gap-1.5 flex-wrap text-white">
+                                <span className={done ? "line-through text-slate-500" : ""}>
                                   {te.exercises?.name}
                                   {te.exercise_variants?.name && (
-                                    <span className="text-primary font-bold ml-1">— {te.exercise_variants.name}</span>
+                                    <span className="text-emerald-300 font-bold ml-1">— {te.exercise_variants.name}</span>
                                   )}
                                 </span>
                                 {videoUrl && (
-                                  <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-0.5 text-xs shrink-0">
+                                  <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline flex items-center gap-0.5 text-xs shrink-0">
                                     <Video className="w-3.5 h-3.5" />
                                   </a>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600 font-medium">
+                            <td className="px-4 py-3 border border-slate-700 bg-[#396e38] whitespace-nowrap text-white font-bold">
                               {te.sets} series × {te.reps} reps
                             </td>
-                            <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600">
-                              {suggestedKg ? <span className="font-bold text-slate-700">{suggestedKg} kg</span> : te.percentage_1rm ? `${te.percentage_1rm}%` : "-"}
+                            <td className="px-4 py-3 border border-slate-700 bg-[#396e38]/90 whitespace-nowrap text-white font-bold">
+                              {suggestedKg ? <span className="font-black text-white">{suggestedKg} kg</span> : te.percentage_1rm ? `${te.percentage_1rm}%` : "-"}
                             </td>
-                            <td className="px-4 py-3 border border-slate-200 text-center whitespace-nowrap bg-emerald-50/10">
+                            <td className="px-4 py-3 border border-slate-700 text-center whitespace-nowrap bg-slate-100">
                               <div className="flex items-center gap-2.5 justify-center">
                                 <input
                                   type="number"
@@ -1099,7 +1210,7 @@ export default function EntrenarPage() {
                                       });
                                     }
                                   }}
-                                  className="w-16 px-1.5 py-1 text-center font-bold border rounded bg-slate-50 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                  className="w-16 px-1.5 py-1 text-center font-bold border border-slate-300 rounded bg-[#fbfdf5] text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
                                 />
                                 <input
                                   type="checkbox"
@@ -1130,11 +1241,11 @@ export default function EntrenarPage() {
                                       });
                                     }
                                   }}
-                                  className="w-4 h-4 rounded text-primary border-slate-300 focus:ring-primary"
+                                  className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500"
                                 />
                               </div>
                             </td>
-                            <td className="px-4 py-3 border border-slate-200 text-xs text-slate-500 italic max-w-xs truncate" title={te.notes}>
+                            <td className="px-4 py-3 border border-slate-700 bg-[#1d3d54] text-xs text-slate-200 italic max-w-xs truncate" title={te.notes}>
                               {te.notes || "-"}
                             </td>
                           </tr>
@@ -1153,16 +1264,16 @@ export default function EntrenarPage() {
                           const isFirstRow = renderedRows === 0;
                           renderedRows += 1;
                           return (
-                            <tr key={item.complexId} className="hover:bg-slate-50/50">
+                            <tr key={item.complexId} className="hover:bg-[#222222]/30">
                               {isFirstRow && (
-                                <td className="px-4 py-3 font-bold border border-slate-200 align-middle bg-slate-50 text-slate-700 text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
+                                <td className="px-4 py-3 font-bold border border-slate-700 align-middle bg-[#4d7c67] text-white text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
                                   {block.name}
                                 </td>
                               )}
-                              <td className="px-4 py-3 border border-slate-200">
-                                <div className="font-semibold text-slate-900">{complexTitle}</div>
+                              <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c] text-white font-bold">
+                                <div>{complexTitle}</div>
                               </td>
-                              <td className="px-4 py-3 border border-slate-200 text-slate-400 italic" colSpan={4}>
+                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38] text-emerald-200 italic" colSpan={4}>
                                 Sin series configuradas
                               </td>
                             </tr>
@@ -1190,30 +1301,30 @@ export default function EntrenarPage() {
                           renderedRows += 1;
 
                           return (
-                            <tr key={s.id} className={`${seriesDone ? "bg-emerald-50/40" : "hover:bg-slate-50/50"}`}>
+                            <tr key={s.id} className={`${seriesDone ? "opacity-75" : "hover:bg-[#222222]/30"}`}>
                               {isFirstRow && (
-                                <td className="px-4 py-3 font-bold border border-slate-200 align-middle bg-slate-50 text-slate-700 text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
+                                <td className="px-4 py-3 font-bold border border-slate-700 align-middle bg-[#4d7c67] text-white text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
                                   {block.name}
                                 </td>
                               )}
-                              <td className="px-4 py-3 border border-slate-200">
-                                <div className="font-semibold text-slate-900">
-                                  <span className={seriesDone ? "line-through text-slate-400" : ""}>
+                              <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c]">
+                                <div className="font-semibold text-white">
+                                  <span className={seriesDone ? "line-through text-slate-500" : ""}>
                                     {complexTitle}
                                   </span>
-                                  <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold shrink-0">
+                                  <span className="ml-2 text-xs bg-[#4d7c67]/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold shrink-0">
                                     Serie {s.set_number}
                                   </span>
                                 </div>
-                                <div className="text-xs text-slate-500 mt-0.5">{repsLine}</div>
+                                <div className="text-xs text-slate-400 mt-0.5">{repsLine}</div>
                               </td>
-                              <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600 font-medium">
+                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38] whitespace-nowrap text-white font-bold">
                                 1 serie
                               </td>
-                              <td className="px-4 py-3 border border-slate-200 whitespace-nowrap text-slate-600">
-                                {calcWeight ? <span className="font-bold text-slate-700">{calcWeight} kg</span> : s.percentage_1rm ? `${s.percentage_1rm}%` : "-"}
+                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38]/90 whitespace-nowrap text-white font-bold">
+                                {calcWeight ? <span className="font-black text-white">{calcWeight} kg</span> : s.percentage_1rm ? `${s.percentage_1rm}%` : "-"}
                               </td>
-                              <td className="px-4 py-3 border border-slate-200 text-center whitespace-nowrap bg-emerald-50/10">
+                              <td className="px-4 py-3 border border-slate-700 text-center whitespace-nowrap bg-slate-100">
                                 <div className="flex items-center gap-2.5 justify-center">
                                   <input
                                     type="number"
@@ -1235,7 +1346,7 @@ export default function EntrenarPage() {
                                         });
                                       }
                                     }}
-                                    className="w-16 px-1.5 py-1 text-center font-bold border rounded bg-slate-50 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                    className="w-16 px-1.5 py-1 text-center font-bold border border-slate-300 rounded bg-[#fbfdf5] text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
                                   />
                                   <input
                                     type="checkbox"
@@ -1254,11 +1365,11 @@ export default function EntrenarPage() {
                                         });
                                       }
                                     }}
-                                    className="w-4 h-4 rounded text-primary border-slate-300 focus:ring-primary"
+                                    className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500"
                                   />
                                 </div>
                               </td>
-                              <td className="px-4 py-3 border border-slate-200 text-xs text-slate-500 italic max-w-xs truncate">
+                              <td className="px-4 py-3 border border-slate-700 bg-[#1d3d54] text-xs text-slate-200 italic max-w-xs truncate">
                                 {s.rounds && s.rounds > 1 ? `${s.rounds} rondas` : "-"}
                               </td>
                             </tr>
@@ -1273,23 +1384,20 @@ export default function EntrenarPage() {
           </div>
         )}
 
-        {/* VISTA PIZARRA (ALTO CONTRASTE Y TIPOGRAFÍA GIGANTE) */}
+        {/* VISTA PIZARRA (ESTILO WOD PINTEREST - ACCESIBILIDAD MÁXIMA) */}
         {viewMode === "pizarra" && (
-          <div className="bg-[#122217] border-[12px] border-amber-950 rounded-3xl p-6 text-[#faf6e5] shadow-2xl space-y-8 my-2 font-mono relative overflow-hidden">
+          <div className="bg-black text-zinc-100 space-y-8 my-2 font-sans relative">
             {/* Header de Pizarra */}
-            <div className="border-b-2 border-dashed border-emerald-800/40 pb-6 text-center space-y-2">
-              <span className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-400">
-                * PIZARRA DE ENTRENAMIENTO *
+            <div className="pb-4 border-b border-zinc-900 space-y-1">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-red-500">
+                Pizarra de Entrenamiento
               </span>
-              <h2 className="text-3xl font-black text-white tracking-wide uppercase">
+              <h2 className="text-3xl font-extrabold text-white tracking-tight uppercase">
                 {dayInfo?.cycle_name || "Planificación"}
               </h2>
-              <p className="text-lg text-emerald-300 font-bold">
-                SEMANA {dayInfo?.week_number}
+              <p className="text-base text-zinc-400 font-semibold">
+                Semana {dayInfo?.week_number}
               </p>
-              <div className="text-slate-400 text-xs tracking-wider">
-                ===================================
-              </div>
             </div>
 
             {/* Bloques y Ejercicios */}
@@ -1320,13 +1428,13 @@ export default function EntrenarPage() {
                 });
 
                 return (
-                  <div key={block.id} className="space-y-6">
-                    {/* Título de Bloque */}
-                    <h3 className="text-2xl font-black text-yellow-300 uppercase tracking-widest border-b border-dashed border-emerald-800/30 pb-2">
-                      --- {block.name} ---
+                  <div key={block.id} className="space-y-4">
+                    {/* Título de Bloque en Rojo */}
+                    <h3 className="text-2xl font-black text-[#d93838] uppercase tracking-widest pt-2">
+                      {block.name}
                     </h3>
                     
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {blockItems.map(item => {
                         if (item.type === "single") {
                           const te = item.te;
@@ -1335,122 +1443,86 @@ export default function EntrenarPage() {
                           const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
                             ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
                             : te.weight_target || undefined;
+                          const loggedWeight = log?.weight_used_kg;
 
                           return (
                             <button
                               key={te.id}
                               onClick={() => handleExerciseTap(te)}
-                              className="w-full text-left py-2 hover:bg-emerald-950/20 transition-colors block focus:outline-none rounded-xl px-2 -mx-2"
+                              className="w-full text-left py-2 hover:bg-zinc-900/40 transition-colors block focus:outline-none rounded-xl"
                             >
-                              <div className="space-y-1">
-                                <h4 className={`text-2xl font-bold tracking-wide transition-all ${
-                                  done ? "line-through text-emerald-800/50 decoration-2" : "text-white"
+                              <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                                <span className={`text-xl sm:text-2xl font-extrabold tracking-tight transition-all ${
+                                  done ? "line-through text-zinc-700 decoration-red-500 decoration-2" : "text-white"
                                 }`}>
-                                  • {te.exercises?.name}
-                                  {te.exercise_variants?.name && (
-                                    <span className={`ml-1.5 ${done ? "text-emerald-900/30" : "text-emerald-300"}`}>
-                                      — {te.exercise_variants.name}
-                                    </span>
-                                  )}
-                                </h4>
-                                <p className={`text-lg font-bold transition-all ${
-                                  done ? "text-emerald-900/30" : "text-amber-100"
-                                }`}>
-                                  {te.sets} series × {te.reps} repeticiones
+                                  {te.sets}x{te.reps} {te.exercises?.name}
+                                  {te.exercise_variants?.name && ` (${te.exercise_variants.name})`}
+                                </span>
+                                <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
                                   {suggestedKg && (
-                                    <span className="text-emerald-400 font-extrabold ml-3">
+                                    <span className={`text-base font-extrabold transition-all ${done ? "text-zinc-800 line-through" : "text-red-500"}`}>
                                       [Sug: {suggestedKg} kg]
                                     </span>
                                   )}
-                                </p>
-                                {te.notes && (
-                                  <p className={`text-sm italic font-medium leading-relaxed ${
-                                    done ? "text-emerald-900/20" : "text-yellow-200/90"
-                                  }`}>
-                                    * Nota: {te.notes}
-                                  </p>
-                                )}
-                                {done && log && log.weight_used_kg !== undefined && (
-                                  <p className="text-base text-emerald-400 font-extrabold tracking-wide">
-                                    [✓] HECHO CON: {log.weight_used_kg} kg
-                                  </p>
-                                )}
-                                {done && (!log || log.weight_used_kg === undefined) && (
-                                  <p className="text-base text-emerald-500 font-extrabold tracking-wide">
-                                    [✓] COMPLETADO
-                                  </p>
-                                )}
+                                  {done && loggedWeight !== undefined && (
+                                    <span className="text-base font-extrabold text-emerald-500">
+                                      [Hecho: {loggedWeight} kg]
+                                    </span>
+                                  )}
+                                </div>
                               </div>
+                              {te.notes && (
+                                <p className={`text-sm sm:text-base italic font-semibold leading-relaxed mt-1 pl-4 border-l border-zinc-800 ${
+                                  done ? "text-zinc-800 line-through" : "text-zinc-500"
+                                }`}>
+                                  * {te.notes}
+                                </p>
+                              )}
                             </button>
                           );
                         } else {
                           const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
-                          const firstEx = item.items[0];
-                          const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+                          const { displayText, weightsSummary } = getComplexPizarraSummary(item.items, cSets);
                           const allSeriesDone = cSets.length > 0 && cSets.every(s => checkedSeries.has(s.id));
-
-                          const complexTitle = item.items.map(te => {
-                            const v = te.exercise_variants?.name ?? "";
-                            return v ? `${te.exercises?.name} ${v}` : te.exercises?.name;
-                          }).join(" + ");
+                          const loggedWeights = cSets.map(s => seriesWeights[s.id]).filter((w): w is number => w !== undefined);
 
                           return (
-                            <div key={item.complexId} className="space-y-3">
-                              <h4 className={`text-2xl font-bold tracking-wide transition-all ${
-                                allSeriesDone ? "line-through text-emerald-800/50 decoration-2" : "text-white"
-                              }`}>
-                                • COMPLEX: {complexTitle}
-                              </h4>
-                              
-                              <div className="space-y-3 pl-4 border-l-2 border-emerald-900/30">
-                                {cSets.map(s => {
-                                  const seriesDone = checkedSeries.has(s.id);
-                                  const calcWeight = firstOneRM && s.percentage_1rm
-                                    ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
-                                    : null;
-                                  const loggedWeight = seriesWeights[s.id];
-
-                                  let repsLine = item.items.map(te => {
-                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                    const r = ov ? ov.reps : te.reps;
-                                    return `${r}× ${te.exercises?.name}`;
-                                  }).join(" + ");
-
-                                  if (s.rounds && s.rounds > 1) {
-                                    repsLine = `${s.rounds} rondas: ${repsLine}`;
-                                  }
-
-                                  return (
-                                    <button
-                                      key={s.id}
-                                      onClick={() => handleSeriesTap(s, item.items)}
-                                      className="w-full text-left py-1 hover:bg-emerald-950/20 transition-colors block focus:outline-none rounded-lg px-2 -mx-2"
-                                    >
-                                      <p className={`text-lg font-bold transition-all ${
-                                        seriesDone ? "line-through text-emerald-800/40" : "text-emerald-300"
-                                      }`}>
-                                        - Serie {s.set_number}: <span className={seriesDone ? "text-emerald-900/30" : "text-slate-300 font-normal"}>{repsLine}</span>
-                                        {calcWeight && (
-                                          <span className="text-emerald-400 font-extrabold ml-2">
-                                            [Sug: {calcWeight} kg]
-                                          </span>
-                                        )}
-                                      </p>
-                                      {seriesDone && loggedWeight !== undefined && (
-                                        <p className="text-sm text-emerald-400 font-extrabold tracking-wide pl-4">
-                                          [✓] HECHO CON: {loggedWeight} kg
-                                        </p>
-                                      )}
-                                      {seriesDone && loggedWeight === undefined && (
-                                        <p className="text-sm text-emerald-500 font-extrabold tracking-wide pl-4">
-                                          [✓] COMPLETADO
-                                        </p>
-                                      )}
-                                    </button>
-                                  );
-                                })}
+                            <button
+                              key={item.complexId}
+                              onClick={() => handleComplexTap(item.complexId, item.items)}
+                              className="w-full text-left py-2 hover:bg-zinc-900/40 transition-colors block focus:outline-none rounded-xl"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                                <span className={`text-xl sm:text-2xl font-extrabold tracking-tight transition-all ${
+                                  allSeriesDone ? "line-through text-zinc-700 decoration-red-500 decoration-2" : "text-white"
+                                }`}>
+                                  {displayText}
+                                </span>
+                                <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
+                                  {weightsSummary && (
+                                    <span className={`text-base font-extrabold transition-all ${allSeriesDone ? "text-zinc-800 line-through" : "text-red-500"}`}>
+                                      {weightsSummary}
+                                    </span>
+                                  )}
+                                  {allSeriesDone && loggedWeights.length > 0 && (
+                                    <span className="text-base font-extrabold text-emerald-500">
+                                      [Hecho: {loggedWeights.join("/")} kg]
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                              {item.items.some(te => te.notes) && (
+                                <div className="mt-1 pl-4 border-l border-zinc-800 space-y-0.5">
+                                  {item.items.filter(te => te.notes).map(te => (
+                                    <p key={te.id} className={`text-sm sm:text-base italic font-semibold leading-relaxed ${
+                                      allSeriesDone ? "text-zinc-800 line-through" : "text-zinc-500"
+                                    }`}>
+                                      * {te.notes}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </button>
                           );
                         }
                       })}
@@ -1464,12 +1536,16 @@ export default function EntrenarPage() {
       </div>
 
       {/* Bottom action */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 py-4 bg-background/95 backdrop-blur border-t border-border">
+      <div className={`fixed bottom-0 left-0 right-0 px-4 py-4 backdrop-blur border-t ${
+        viewMode === "pizarra" ? "bg-black/90 border-zinc-900" : "bg-background/95 border-border"
+      }`}>
         <button onClick={handleFinish}
           className={`w-full font-semibold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-lg ${
             completedItems === totalItems && totalItems > 0
               ? "bg-primary text-white hover:bg-primary/90"
-              : "bg-muted text-foreground hover:bg-muted/80"
+              : viewMode === "pizarra"
+                ? "bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+                : "bg-muted text-foreground hover:bg-muted/80"
           }`}>
           <Dumbbell className="w-5 h-5" />
           {completedItems === totalItems && totalItems > 0
