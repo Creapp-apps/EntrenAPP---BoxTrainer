@@ -1485,47 +1485,90 @@ export default function EntrenarPage() {
                           );
                         } else {
                           const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
-                          const { displayText, weightsSummary } = getComplexPizarraSummary(item.items, cSets);
-                          const allSeriesDone = cSets.length > 0 && cSets.every(s => checkedSeries.has(s.id));
-                          const loggedWeights = cSets.map(s => seriesWeights[s.id]).filter((w): w is number => w !== undefined);
+                          const complexTitle = item.items.map(te => {
+                            const v = te.exercise_variants?.name ?? "";
+                            return v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+                          }).join(" + ");
 
                           return (
-                            <button
-                              key={item.complexId}
-                              onClick={() => handleComplexTap(item.complexId, item.items)}
-                              className="w-full text-left py-2 hover:bg-zinc-800/40 transition-colors block focus:outline-none rounded-xl"
-                            >
-                              <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                                <span className={`text-xl sm:text-2xl font-extrabold tracking-tight transition-all ${
-                                  allSeriesDone ? "line-through text-zinc-500 decoration-red-500 decoration-2" : "text-white"
-                                }`}>
-                                  {displayText}
-                                </span>
-                                <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
-                                  {weightsSummary && (
-                                    <span className={`text-base font-extrabold transition-all ${allSeriesDone ? "text-zinc-600 line-through" : "text-red-400"}`}>
-                                      {weightsSummary}
-                                    </span>
-                                  )}
-                                  {allSeriesDone && loggedWeights.length > 0 && (
-                                    <span className="text-base font-extrabold text-emerald-400">
-                                      [Hecho: {loggedWeights.join("/")} kg]
-                                    </span>
-                                  )}
-                                </div>
+                            <div key={item.complexId} className="space-y-2.5">
+                              {/* Título del Complex */}
+                              <h4 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                                {complexTitle}
+                              </h4>
+
+                              {/* Lista de series en vertical */}
+                              <div className="space-y-2 pl-4 border-l border-zinc-800/80">
+                                {cSets.map(s => {
+                                  const seriesDone = checkedSeries.has(s.id);
+                                  const firstEx = item.items[0];
+                                  const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+                                  const calcWeight = firstOneRM && s.percentage_1rm
+                                    ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
+                                    : s.percentage_1rm ? null : s.weight_target || undefined;
+                                  const loggedWeight = seriesWeights[s.id];
+
+                                  // Formato de repeticiones por serie
+                                  const repsLine = item.items.map(te => {
+                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                    const r = ov ? ov.reps : te.reps;
+                                    if (item.items.length === 1) {
+                                      return r; // Solo el número de repes para simplificar
+                                    }
+                                    const v = te.exercise_variants?.name ?? "";
+                                    const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+                                    return `${r} ${displayName}`;
+                                  }).join(" + ");
+
+                                  let targetText = "";
+                                  if (s.percentage_1rm) {
+                                    targetText = `${s.percentage_1rm}%`;
+                                  } else if (calcWeight) {
+                                    targetText = `${calcWeight} kg`;
+                                  }
+
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      onClick={() => handleSeriesTap(s, item.items)}
+                                      className="w-full text-left py-1.5 hover:bg-zinc-800/40 transition-colors block focus:outline-none rounded-lg"
+                                    >
+                                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
+                                        <span className={`text-lg sm:text-xl font-bold tracking-tight transition-all ${
+                                          seriesDone ? "line-through text-zinc-500 decoration-red-500 decoration-2" : "text-zinc-200"
+                                        }`}>
+                                          S{s.set_number}: {repsLine}
+                                          {targetText && ` - ${targetText}`}
+                                        </span>
+                                        <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
+                                          {calcWeight && s.percentage_1rm && (
+                                            <span className={`text-sm font-extrabold transition-all ${seriesDone ? "text-zinc-600 line-through" : "text-red-400"}`}>
+                                              [Sug: {calcWeight} kg]
+                                            </span>
+                                          )}
+                                          {seriesDone && loggedWeight !== undefined && (
+                                            <span className="text-sm font-extrabold text-emerald-400">
+                                              [Hecho: {loggedWeight} kg]
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
                               </div>
+
+                              {/* Notas de entrenadores */}
                               {item.items.some(te => te.notes) && (
                                 <div className="mt-1 pl-4 border-l border-zinc-800/50 space-y-0.5">
                                   {item.items.filter(te => te.notes).map(te => (
-                                    <p key={te.id} className={`text-sm sm:text-base italic font-semibold leading-relaxed ${
-                                      allSeriesDone ? "text-zinc-600 line-through" : "text-zinc-450"
-                                    }`}>
+                                    <p key={te.id} className="text-sm italic font-semibold leading-relaxed text-zinc-450">
                                       * {te.notes}
                                     </p>
                                   ))}
                                 </div>
                               )}
-                            </button>
+                            </div>
                           );
                         }
                       })}
