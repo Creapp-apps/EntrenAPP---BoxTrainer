@@ -139,3 +139,21 @@
   --sidebar-primary: 38 92% 50%;
   --sidebar-ring: 38 92% 50%;
 }
+
+/* ─── Arcade / Neon Custom Styles ─── */
+.glow-neon-emerald {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.55), inset 0 0 8px rgba(16, 185, 129, 0.3);
+}
+.glow-neon-blue {
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.45), inset 0 0 8px rgba(59, 130, 246, 0.25);
+}
+.glow-neon-red {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.45), inset 0 0 8px rgba(239, 68, 68, 0.25);
+}
+.glow-neon-amber {
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.45), inset 0 0 8px rgba(245, 158, 11, 0.25);
+}
+.animate-pulse-fast {
+  animation: pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+

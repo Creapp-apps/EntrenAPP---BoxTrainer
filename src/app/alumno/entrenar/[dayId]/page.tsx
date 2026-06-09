@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -43,7 +43,7 @@ type ExerciseLog = {
   suggested_kg?: number;
   sets_completed: number;
   reps_completed: string;
-  set_weights?: number[];
+  set_weights?: (number | undefined)[];
 };
 
 type Phase = "training" | "summary" | "done";
@@ -52,6 +52,7 @@ type ComplexSet = {
   complex_id: string;
   set_number: number;
   percentage_1rm: number | null;
+  weight_target?: number | null;
   reps_overrides: { training_exercise_id: string; reps: string }[];
   rounds?: number;
 };
@@ -82,6 +83,110 @@ function InlineWeightEdit({
       <button onClick={() => { const n = parseFloat(val); onSave(isNaN(n) ? undefined : n); }}
         className="p-1 rounded-md bg-primary text-white"><Check className="w-3 h-3" /></button>
       <button onClick={onCancel} className="p-1 rounded-md bg-muted text-muted-foreground"><X className="w-3 h-3" /></button>
+    </div>
+  );
+}
+
+// ─── Arcade Weight Control ───────────────────────────────────
+function ArcadeWeightControl({
+  value,
+  onChange,
+  suggestedValue,
+  placeholder = "0"
+}: {
+  value: number | undefined;
+  onChange: (val: number | undefined) => void;
+  suggestedValue?: number;
+  placeholder?: string;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempVal, setTempVal] = useState("");
+  const clickTimeoutRef = useRef<any>(null);
+
+  const handleIncrement = (amount: number) => {
+    const base = value !== undefined ? value : (suggestedValue !== undefined ? suggestedValue : 0);
+    const next = Math.max(0, base + amount);
+    onChange(parseFloat(next.toFixed(2)));
+  };
+
+  const handleBtnClick = (amountSingle: number, amountDouble: number) => {
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+      handleIncrement(amountDouble);
+    } else {
+      clickTimeoutRef.current = setTimeout(() => {
+        handleIncrement(amountSingle);
+        clickTimeoutRef.current = null;
+      }, 250);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center justify-center gap-1 select-none">
+        <input
+          type="number"
+          step="any"
+          autoFocus
+          value={tempVal}
+          onChange={e => setTempVal(e.target.value)}
+          className="w-16 h-8 text-center font-bold border border-emerald-500 rounded bg-zinc-950 text-white text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          onBlur={() => {
+            setIsEditing(false);
+            const n = parseFloat(tempVal);
+            onChange(isNaN(n) ? undefined : n);
+          }}
+          onKeyDown={e => {
+            if (e.key === "Enter") {
+              setIsEditing(false);
+              const n = parseFloat(tempVal);
+              onChange(isNaN(n) ? undefined : n);
+            } else if (e.key === "Escape") {
+              setIsEditing(false);
+            }
+          }}
+        />
+        <span className="text-[10px] text-zinc-400 font-bold">kg</span>
+      </div>
+    );
+  }
+
+  const displayVal = value !== undefined ? `${value} kg` : (suggestedValue !== undefined ? `[${suggestedValue} kg]` : placeholder);
+
+  return (
+    <div className="inline-flex items-center gap-1 select-none">
+      <button
+        type="button"
+        onClick={() => handleBtnClick(-2.5, -10)}
+        className="w-7 h-7 rounded-full flex items-center justify-center bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white active:scale-90 transition-all text-xs font-black"
+      >
+        -
+      </button>
+      <div
+        onClick={() => {
+          setTempVal(value !== undefined ? value.toString() : "");
+          setIsEditing(true);
+        }}
+        className="min-w-[4.2rem] px-1 py-1 rounded border border-dashed border-zinc-700 hover:border-zinc-500 text-center font-bold text-xs cursor-pointer text-white hover:bg-zinc-800/50 transition-colors"
+      >
+        {displayVal}
+      </div>
+      <button
+        type="button"
+        onClick={() => handleBtnClick(2.5, 10)}
+        className="w-7 h-7 rounded-full flex items-center justify-center bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white active:scale-90 transition-all text-xs font-black"
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -259,10 +364,17 @@ export default function EntrenarPage() {
   const [checkedSeries, setCheckedSeries] = useState<Set<string>>(new Set());
   const [seriesWeights, setSeriesWeights] = useState<Record<string, number | undefined>>({});
   const [editingSeriesWeight, setEditingSeriesWeight] = useState<string | null>(null);
+  const [completedSingleSets, setCompletedSingleSets] = useState<Set<string>>(new Set());
+  const [expandedSet, setExpandedSet] = useState<string | null>(null);
   // Series confirmation modal state
   const [pendingSeriesConfirm, setPendingSeriesConfirm] = useState<{
     set: ComplexSet;
     items: TrainingExercise[];
+    calcWeight: number | null;
+  } | null>(null);
+  const [pendingSingleSetConfirm, setPendingSingleSetConfirm] = useState<{
+    te: TrainingExercise;
+    setIdx: number;
     calcWeight: number | null;
   } | null>(null);
   const [customSeriesWeight, setCustomSeriesWeight] = useState("");
@@ -308,6 +420,7 @@ export default function EntrenarPage() {
               id: s.id, complex_id: s.complex_id,
               set_number: s.set_number,
               percentage_1rm: s.percentage_1rm ?? null,
+              weight_target: s.weight_target ?? null,
               reps_overrides: (s.reps_overrides as { training_exercise_id: string; reps: string }[]) || [],
               rounds: s.rounds ?? 1,
             });
@@ -341,6 +454,20 @@ export default function EntrenarPage() {
           if (parsed.checkedSeries) setCheckedSeries(new Set(parsed.checkedSeries));
           if (parsed.exerciseLogs) setExerciseLogs(parsed.exerciseLogs);
           if (parsed.seriesWeights) setSeriesWeights(parsed.seriesWeights);
+          if (parsed.completedSingleSets) {
+            setCompletedSingleSets(new Set(parsed.completedSingleSets));
+          } else if (parsed.exerciseLogs) {
+            const initialCompleted = new Set<string>();
+            Object.keys(parsed.exerciseLogs).forEach(teId => {
+              const log = parsed.exerciseLogs[teId];
+              if (log && log.set_weights) {
+                log.set_weights.forEach((w: any, idx: number) => {
+                  if (w !== undefined) initialCompleted.add(`${teId}-${idx}`);
+                });
+              }
+            });
+            setCompletedSingleSets(initialCompleted);
+          }
         }
       } catch (e) {
         console.error("Error al cargar progreso guardado:", e);
@@ -360,12 +487,13 @@ export default function EntrenarPage() {
         checkedSeries: Array.from(checkedSeries),
         exerciseLogs,
         seriesWeights,
+        completedSingleSets: Array.from(completedSingleSets),
       };
       localStorage.setItem(`entrenapp_progress_${dayId}`, JSON.stringify(data));
     } catch (e) {
       console.error("Error al guardar progreso:", e);
     }
-  }, [checkedExercises, checkedSeries, exerciseLogs, seriesWeights, loading, dayId]);
+  }, [checkedExercises, checkedSeries, exerciseLogs, seriesWeights, completedSingleSets, loading, dayId]);
 
 
 
@@ -438,6 +566,102 @@ export default function EntrenarPage() {
     setCheckedSeries(prev => new Set([...prev, set.id]));
     setSeriesWeights(prev => ({ ...prev, [set.id]: weight }));
     setPendingSeriesConfirm(null);
+  };
+
+  const handleSingleSetWeightChange = (te: TrainingExercise, setIdx: number, weight: number | undefined) => {
+    setExerciseLogs(prev => {
+      const log = prev[te.id] || {
+        training_exercise_id: te.id,
+        exercise_id: te.exercise_id,
+        variant_id: te.variant_id,
+        weight_used_kg: undefined,
+        used_suggested: false,
+        suggested_kg: te.percentage_1rm && oneRMs[te.exercise_id]
+          ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+          : te.weight_target || undefined,
+        sets_completed: 0,
+        reps_completed: te.reps,
+        set_weights: Array(te.sets).fill(undefined),
+      };
+
+      const newWeights = [...(log.set_weights || Array(te.sets).fill(undefined))];
+      newWeights[setIdx] = weight;
+
+      const completedWeights = newWeights.filter((w): w is number => w !== undefined);
+      const avgWeight = completedWeights.length > 0
+        ? parseFloat((completedWeights.reduce((a, b) => a + b, 0) / completedWeights.length).toFixed(2))
+        : undefined;
+
+      return {
+        ...prev,
+        [te.id]: {
+          ...log,
+          set_weights: newWeights,
+          weight_used_kg: avgWeight,
+        }
+      };
+    });
+  };
+
+  const handleSingleSetCompleteToggle = (te: TrainingExercise, setIdx: number) => {
+    const setKey = `${te.id}-${setIdx}`;
+    const isDone = completedSingleSets.has(setKey);
+    const next = new Set(completedSingleSets);
+
+    if (isDone) {
+      next.delete(setKey);
+    } else {
+      next.add(setKey);
+      const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
+        ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+        : te.weight_target || undefined;
+
+      const log = exerciseLogs[te.id];
+      const currentSetWeight = log?.set_weights?.[setIdx];
+      if (currentSetWeight === undefined && suggestedKg !== undefined) {
+        handleSingleSetWeightChange(te, setIdx, suggestedKg);
+      }
+    }
+
+    setCompletedSingleSets(next);
+
+    const completedCountForTe = Array.from({ length: te.sets }).filter((_, idx) =>
+      next.has(`${te.id}-${idx}`)
+    ).length;
+
+    setCheckedExercises(prev => {
+      const newChecked = new Set(prev);
+      if (completedCountForTe === te.sets) {
+        newChecked.add(te.id);
+      } else {
+        newChecked.delete(te.id);
+      }
+      return newChecked;
+    });
+
+    setExerciseLogs(prev => {
+      const log = prev[te.id] || {
+        training_exercise_id: te.id,
+        exercise_id: te.exercise_id,
+        variant_id: te.variant_id,
+        weight_used_kg: undefined,
+        used_suggested: false,
+        suggested_kg: te.percentage_1rm && oneRMs[te.exercise_id]
+          ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+          : te.weight_target || undefined,
+        sets_completed: 0,
+        reps_completed: te.reps,
+        set_weights: Array(te.sets).fill(undefined),
+      };
+
+      return {
+        ...prev,
+        [te.id]: {
+          ...log,
+          sets_completed: completedCountForTe,
+        }
+      };
+    });
   };
 
   // ─── Complex tap (chalkboard) — toggle all sets inside a complex at once ───
@@ -556,7 +780,7 @@ export default function EntrenarPage() {
     if (!log.weight_used_kg) return total;
     const reps = parseFloat(log.reps_completed) || 1;
     if (log.set_weights && log.set_weights.length > 0) {
-      return total + log.set_weights.reduce((s, w) => s + (w ?? 0) * reps, 0);
+      return total + log.set_weights.reduce<number>((acc, w) => acc + (w ?? 0) * reps, 0);
     }
     return total + log.weight_used_kg * log.sets_completed * reps;
   }, 0);
@@ -755,9 +979,9 @@ export default function EntrenarPage() {
 
   // ─── Training screen ───────────────────────────────────────
   return (
-    <div className={`min-h-screen ${viewMode === "pizarra" ? "bg-zinc-900" : "bg-background"}`}>
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className={`${viewMode === "pizarra" ? "bg-zinc-900 border-b border-zinc-800" : "bg-sidebar"} text-white px-4 pt-12 pb-6 sticky top-0 z-10 shadow-sm`}>
+      <div className="bg-sidebar text-white px-4 pt-12 pb-6 sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3 mb-3">
           <Link href="/alumno" className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition">
             <ArrowLeft className="w-4 h-4" />
@@ -1085,325 +1309,357 @@ export default function EntrenarPage() {
         )}
 
         {/* VISTA PLANILLA / EXCEL */}
-        {viewMode === "excel" && (
-          <div className="bg-slate-950 rounded-2xl border border-slate-800 shadow-sm overflow-hidden my-2">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[700px]">
-                <thead>
-                  <tr className="bg-slate-900 text-white text-xs font-bold uppercase tracking-wider">
-                    <th className="px-4 py-3 border border-slate-700 w-24 text-center">Bloque</th>
-                    <th className="px-4 py-3 border border-slate-700">Ejercicio</th>
-                    <th className="px-4 py-3 border border-slate-700 w-36 bg-[#2a4e2b]">Series x Reps</th>
-                    <th className="px-4 py-3 border border-slate-700 w-32 bg-[#2a4e2b]">Sugerido</th>
-                    <th className="px-4 py-3 border border-slate-700 w-44 text-center">Tu Registro</th>
-                    <th className="px-4 py-3 border border-slate-700 bg-[#142f42]">Observaciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-slate-800 text-sm">
-                  {blocks.map(block => {
-                    type BlockItem =
-                      | { type: "single"; te: TrainingExercise }
-                      | { type: "complex"; complexId: string; items: TrainingExercise[] };
+        {viewMode === "excel" && (() => {
+          interface FlatExcelRow {
+            blockId: string;
+            blockName: string;
+            blockTotalRows: number;
+            isFirstRowInBlock: boolean;
 
-                    const complexMap = new Map<string, TrainingExercise[]>();
-                    const blockItems: BlockItem[] = [];
+            itemId: string; // te.id or s.id
+            exerciseTitle: string;
+            exerciseTotalRows: number;
+            isFirstRowInExercise: boolean;
 
-                    for (const te of block.training_exercises) {
-                      if (!te.complex_id) {
-                        blockItems.push({ type: "single", te });
-                      } else {
-                        if (!complexMap.has(te.complex_id)) complexMap.set(te.complex_id, []);
-                        complexMap.get(te.complex_id)!.push(te);
-                      }
+            setNumber: number;
+            repsText: string;
+            suggestedText: string;
+            suggestedKg?: number;
+            notes?: string;
+
+            // type-specific data
+            type: "single" | "complex";
+            te?: TrainingExercise;
+            setIdx?: number;
+            complexSet?: ComplexSet;
+            complexItems?: TrainingExercise[];
+          }
+
+          const flatRows: FlatExcelRow[] = [];
+
+          blocks.forEach(block => {
+            type BlockItem =
+              | { type: "single"; te: TrainingExercise }
+              | { type: "complex"; complexId: string; items: TrainingExercise[] };
+
+            const complexMap = new Map<string, TrainingExercise[]>();
+            const blockItems: BlockItem[] = [];
+
+            for (const te of block.training_exercises) {
+              if (!te.complex_id) {
+                blockItems.push({ type: "single", te });
+              } else {
+                if (!complexMap.has(te.complex_id)) complexMap.set(te.complex_id, []);
+                complexMap.get(te.complex_id)!.push(te);
+              }
+            }
+            for (const [complexId, items] of complexMap.entries()) {
+              blockItems.push({
+                type: "complex",
+                complexId,
+                items: items.sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0))
+              });
+            }
+            blockItems.sort((a, b) => {
+              const aOrd = a.type === "single" ? a.te.order : Math.min(...a.items.map(e => e.order));
+              const bOrd = b.type === "single" ? b.te.order : Math.min(...b.items.map(e => e.order));
+              return aOrd - bOrd;
+            });
+
+            // Calculate total rows in block
+            let blockTotalRows = 0;
+            blockItems.forEach(item => {
+              if (item.type === "single") {
+                blockTotalRows += item.te.sets;
+              } else {
+                const sets = complexSets[item.complexId] || [];
+                blockTotalRows += Math.max(1, sets.length);
+              }
+            });
+
+            let isFirstRowInBlock = true;
+
+            blockItems.forEach(item => {
+              if (item.type === "single") {
+                const te = item.te;
+                const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
+                  ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+                  : te.weight_target || undefined;
+                const variantText = te.exercise_variants?.name ? ` — ${te.exercise_variants.name}` : "";
+                const exerciseTitle = `${te.exercises?.name}${variantText}`;
+
+                let isFirstRowInExercise = true;
+                for (let setIdx = 0; setIdx < te.sets; setIdx++) {
+                  flatRows.push({
+                    blockId: block.id,
+                    blockName: block.name,
+                    blockTotalRows,
+                    isFirstRowInBlock,
+                    itemId: te.id,
+                    exerciseTitle,
+                    exerciseTotalRows: te.sets,
+                    isFirstRowInExercise,
+                    setNumber: setIdx + 1,
+                    repsText: `${te.reps} reps`,
+                    suggestedText: suggestedKg ? `${suggestedKg} kg` : (te.percentage_1rm ? `${te.percentage_1rm}%` : "-"),
+                    suggestedKg,
+                    notes: te.notes,
+                    type: "single",
+                    te,
+                    setIdx,
+                  });
+                  isFirstRowInBlock = false;
+                  isFirstRowInExercise = false;
+                }
+              } else {
+                const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
+                const firstEx = item.items[0];
+                const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+                const complexTitle = item.items.map(te => {
+                  const v = te.exercise_variants?.name ?? "";
+                  return v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+                }).join(" + ");
+
+                const notes = item.items.filter(te => te.notes).map(te => te.notes).join(" / ");
+
+                if (cSets.length === 0) {
+                  flatRows.push({
+                    blockId: block.id,
+                    blockName: block.name,
+                    blockTotalRows,
+                    isFirstRowInBlock,
+                    itemId: item.complexId,
+                    exerciseTitle: complexTitle,
+                    exerciseTotalRows: 1,
+                    isFirstRowInExercise: true,
+                    setNumber: 1,
+                    repsText: "Sin series",
+                    suggestedText: "-",
+                    notes,
+                    type: "complex",
+                    complexItems: item.items,
+                  });
+                  isFirstRowInBlock = false;
+                } else {
+                  let isFirstRowInExercise = true;
+                  cSets.forEach((s) => {
+                    const calcWeight = firstOneRM && s.percentage_1rm
+                      ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
+                      : s.weight_target || undefined;
+
+                    let repsLine = item.items.map(te => {
+                      const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                      const r = ov ? ov.reps : te.reps;
+                      if (item.items.length === 1) return r;
+                      return `${r}x ${te.exercises?.name}`;
+                    }).join(" + ");
+
+                    if (s.rounds && s.rounds > 1) {
+                      repsLine = `${s.rounds}r: ${repsLine}`;
                     }
-                    for (const [complexId, items] of complexMap.entries()) {
-                      blockItems.push({ type: "complex", complexId, items: items.sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0)) });
-                    }
-                    blockItems.sort((a, b) => {
-                      const aOrd = a.type === "single" ? a.te.order : Math.min(...a.items.map(e => e.order));
-                      const bOrd = b.type === "single" ? b.te.order : Math.min(...b.items.map(e => e.order));
-                      return aOrd - bOrd;
-                    });
 
-                    // Calculate total rows for rowSpan
-                    let totalRows = 0;
-                    blockItems.forEach(item => {
-                      if (item.type === "single") {
-                        totalRows += 1;
-                      } else {
-                        const sets = complexSets[item.complexId] || [];
-                        totalRows += Math.max(1, sets.length);
+                    flatRows.push({
+                      blockId: block.id,
+                      blockName: block.name,
+                      blockTotalRows,
+                      isFirstRowInBlock,
+                      itemId: item.complexId,
+                      exerciseTitle: complexTitle,
+                      exerciseTotalRows: cSets.length,
+                      isFirstRowInExercise,
+                      setNumber: s.set_number,
+                      repsText: repsLine,
+                      suggestedText: calcWeight ? `${calcWeight} kg` : (s.percentage_1rm ? `${s.percentage_1rm}%` : "-"),
+                      suggestedKg: calcWeight,
+                      notes: notes || undefined,
+                      type: "complex",
+                      complexSet: s,
+                      complexItems: item.items,
+                    });
+                    isFirstRowInBlock = false;
+                    isFirstRowInExercise = false;
+                  });
+                }
+              }
+            });
+          });
+
+          let bgToggle = false;
+
+          return (
+            <div className="bg-zinc-950 rounded-2xl border border-zinc-800 shadow-xl overflow-hidden my-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-zinc-900 border-b border-zinc-800 text-zinc-300 text-[10px] font-bold uppercase tracking-wider">
+                      <th className="px-3 py-3 border border-zinc-800 w-24 text-center">Bloque</th>
+                      <th className="px-3 py-3 border border-zinc-800">Ejercicio</th>
+                      <th className="px-3 py-3 border border-zinc-800 w-32 text-center">Serie</th>
+                      <th className="px-3 py-3 border border-zinc-800 w-28 text-center">Sugerido</th>
+                      <th className="px-3 py-3 border border-zinc-800 w-28 text-center">Completar</th>
+                      <th className="px-3 py-3 border border-zinc-800 max-w-xs">Obs / Notas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/80 text-zinc-300 text-xs">
+                    {flatRows.map((row, idx) => {
+                      if (row.isFirstRowInExercise) {
+                        bgToggle = !bgToggle;
                       }
-                    });
 
-                    let renderedRows = 0;
+                      const isCompleted = row.type === "single"
+                        ? completedSingleSets.has(`${row.te!.id}-${row.setIdx!}`)
+                        : !!(row.complexSet && checkedSeries.has(row.complexSet.id));
 
-                    return blockItems.map((item) => {
-                      if (item.type === "single") {
-                        const te = item.te;
-                        const done = checkedExercises.has(te.id);
-                        const log = exerciseLogs[te.id];
-                        const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
-                          ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
-                          : te.weight_target || undefined;
+                      const loggedWeight = row.type === "single"
+                        ? exerciseLogs[row.te!.id]?.set_weights?.[row.setIdx!]
+                        : (row.complexSet ? seriesWeights[row.complexSet.id] : undefined);
 
-                        const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
-                        const isFirstRow = renderedRows === 0;
-                        renderedRows += 1;
+                      const rowBg = isCompleted
+                        ? "bg-emerald-950/20"
+                        : bgToggle
+                          ? "bg-zinc-950"
+                          : "bg-zinc-900/40";
 
-                        return (
-                          <tr key={te.id} className={`${done ? "opacity-75" : "hover:bg-[#222222]/30"}`}>
-                            {isFirstRow && (
-                              <td className="px-4 py-3 font-bold border border-slate-700 align-middle bg-[#4d7c67] text-white text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
-                                {block.name}
-                              </td>
-                            )}
-                            <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c]">
-                              <div className="font-semibold flex items-center gap-1.5 flex-wrap text-white">
-                                <span className={done ? "line-through text-slate-500" : ""}>
-                                  {te.exercises?.name}
-                                  {te.exercise_variants?.name && (
-                                    <span className="text-emerald-300 font-bold ml-1">— {te.exercise_variants.name}</span>
-                                  )}
-                                </span>
-                                {videoUrl && (
-                                  <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline flex items-center gap-0.5 text-xs shrink-0">
-                                    <Video className="w-3.5 h-3.5" />
+                      return (
+                        <tr
+                          key={`${row.itemId}-${row.setNumber}-${idx}`}
+                          className={`transition-colors duration-150 ${rowBg} hover:bg-zinc-800/20`}
+                        >
+                          {row.isFirstRowInBlock && (
+                            <td
+                              className="px-3 py-4 border border-zinc-800 text-white font-extrabold text-xs text-center uppercase tracking-widest bg-zinc-900 select-none align-middle"
+                              rowSpan={row.blockTotalRows}
+                            >
+                              {row.blockName}
+                            </td>
+                          )}
+                          {row.isFirstRowInExercise && (
+                            <td
+                              className="px-3 py-4 border border-zinc-800 text-white font-bold text-sm align-middle min-w-[150px]"
+                              rowSpan={row.exerciseTotalRows}
+                            >
+                              <div className="flex flex-col gap-1">
+                                <span className="leading-tight text-white">{row.exerciseTitle}</span>
+                                {row.type === "single" && (row.te!.exercise_variants?.video_url || row.te!.exercises?.video_url) && (
+                                  <a
+                                    href={row.te!.exercise_variants?.video_url || row.te!.exercises?.video_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold mt-1 w-max"
+                                  >
+                                    <Video className="w-3 h-3" /> Ver video
                                   </a>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3 border border-slate-700 bg-[#396e38] whitespace-nowrap text-white font-bold">
-                              {te.sets} series × {te.reps} reps
-                            </td>
-                            <td className="px-4 py-3 border border-slate-700 bg-[#396e38]/90 whitespace-nowrap text-white font-bold">
-                              {suggestedKg ? <span className="font-black text-white">{suggestedKg} kg</span> : te.percentage_1rm ? `${te.percentage_1rm}%` : "-"}
-                            </td>
-                            <td className="px-4 py-3 border border-slate-700 text-center whitespace-nowrap bg-slate-100">
-                              <div className="flex items-center gap-2.5 justify-center">
-                                <input
-                                  type="number"
-                                  placeholder="kg"
-                                  value={log?.weight_used_kg ?? ""}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value);
-                                    setExerciseLogs(prev => ({
-                                      ...prev,
-                                      [te.id]: {
-                                        training_exercise_id: te.id,
-                                        exercise_id: te.exercise_id,
-                                        variant_id: te.variant_id,
-                                        weight_used_kg: isNaN(val) ? undefined : val,
-                                        used_suggested: false,
-                                        suggested_kg: suggestedKg,
-                                        sets_completed: te.sets,
-                                        reps_completed: te.reps,
-                                      }
-                                    }));
-                                    if (!isNaN(val)) {
-                                      setCheckedExercises(prev => new Set([...prev, te.id]));
-                                    } else {
-                                      setCheckedExercises(prev => {
-                                        const next = new Set(prev);
-                                        next.delete(te.id);
-                                        return next;
-                                      });
-                                    }
-                                  }}
-                                  className="w-16 px-1.5 py-1 text-center font-bold border border-slate-300 rounded bg-[#fbfdf5] text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                />
-                                <input
-                                  type="checkbox"
-                                  checked={done}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setCheckedExercises(prev => new Set([...prev, te.id]));
-                                      if (!log?.weight_used_kg) {
-                                        setExerciseLogs(prev => ({
-                                          ...prev,
-                                          [te.id]: {
-                                            training_exercise_id: te.id,
-                                            exercise_id: te.exercise_id,
-                                            variant_id: te.variant_id,
-                                            weight_used_kg: suggestedKg,
-                                            used_suggested: !!suggestedKg,
-                                            suggested_kg: suggestedKg,
-                                            sets_completed: te.sets,
-                                            reps_completed: te.reps,
-                                          }
-                                        }));
-                                      }
-                                    } else {
-                                      setCheckedExercises(prev => {
-                                        const next = new Set(prev);
-                                        next.delete(te.id);
-                                        return next;
-                                      });
-                                    }
-                                  }}
-                                  className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500"
-                                />
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 border border-slate-700 bg-[#1d3d54] text-xs text-slate-200 italic max-w-xs truncate" title={te.notes}>
-                              {te.notes || "-"}
-                            </td>
-                          </tr>
-                        );
-                      } else {
-                        const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
-                        const firstEx = item.items[0];
-                        const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
-
-                        const complexTitle = item.items.map(te => {
-                          const v = te.exercise_variants?.name ?? "";
-                          return v ? `${te.exercises?.name} ${v}` : te.exercises?.name;
-                        }).join(" + ");
-
-                        if (cSets.length === 0) {
-                          const isFirstRow = renderedRows === 0;
-                          renderedRows += 1;
-                          return (
-                            <tr key={item.complexId} className="hover:bg-[#222222]/30">
-                              {isFirstRow && (
-                                <td className="px-4 py-3 font-bold border border-slate-700 align-middle bg-[#4d7c67] text-white text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
-                                  {block.name}
-                                </td>
-                              )}
-                              <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c] text-white font-bold">
-                                <div>{complexTitle}</div>
-                              </td>
-                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38] text-emerald-200 italic" colSpan={4}>
-                                Sin series configuradas
-                              </td>
-                            </tr>
-                          );
-                        }
-
-                        return cSets.map((s, sIdx) => {
-                          const seriesDone = checkedSeries.has(s.id);
-                          const calcWeight = firstOneRM && s.percentage_1rm
-                            ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
-                            : null;
-                          const loggedWeight = seriesWeights[s.id];
-
-                          let repsLine = item.items.map(te => {
-                            const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                            const r = ov ? ov.reps : te.reps;
-                            if (item.items.length === 1) {
-                              return `${r} reps`;
-                            }
-                            const v = te.exercise_variants?.name ?? "";
-                            const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
-                            return `${r}× ${displayName}`;
-                          }).join(" + ");
-
-                          if (s.rounds && s.rounds > 1) {
-                            repsLine = `${s.rounds} rondas: ${repsLine}`;
-                          }
-
-                          const isFirstRow = renderedRows === 0;
-                          const isFirstSetOfComplex = sIdx === 0;
-                          renderedRows += 1;
-
-                          return (
-                            <tr key={s.id} className={`${seriesDone ? "opacity-75" : "hover:bg-[#222222]/30"}`}>
-                              {isFirstRow && (
-                                <td className="px-4 py-3 font-bold border border-slate-700 align-middle bg-[#4d7c67] text-white text-center text-xs uppercase tracking-wider" rowSpan={totalRows}>
-                                  {block.name}
-                                </td>
-                              )}
-                              {isFirstSetOfComplex && (
-                                <td className="px-4 py-3 border border-slate-700 bg-[#1c1c1c] align-middle animate-in fade-in" rowSpan={cSets.length}>
-                                  <div className="font-bold text-white text-sm">
-                                    {complexTitle}
-                                  </div>
-                                </td>
-                              )}
-                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38] text-white font-bold text-xs leading-snug">
-                                <span className="text-emerald-200 block text-[9px] uppercase font-black tracking-wider">Serie {s.set_number}</span>
-                                <span className={seriesDone ? "line-through text-emerald-300/60" : ""}>{repsLine}</span>
-                              </td>
-                              <td className="px-4 py-3 border border-slate-700 bg-[#396e38]/90 whitespace-nowrap text-white font-bold">
-                                {calcWeight ? <span className="font-black text-white">{calcWeight} kg</span> : s.percentage_1rm ? `${s.percentage_1rm}%` : "-"}
-                              </td>
-                              <td className="px-4 py-3 border border-slate-700 text-center whitespace-nowrap bg-slate-100">
-                                <div className="flex items-center gap-2.5 justify-center">
-                                  <input
-                                    type="number"
-                                    placeholder="kg"
-                                    value={loggedWeight ?? ""}
-                                    onChange={(e) => {
-                                      const val = parseFloat(e.target.value);
-                                      setSeriesWeights(prev => ({
-                                        ...prev,
-                                        [s.id]: isNaN(val) ? undefined : val
-                                      }));
-                                      if (!isNaN(val)) {
-                                        setCheckedSeries(prev => new Set([...prev, s.id]));
-                                      } else {
-                                        setCheckedSeries(prev => {
-                                          const next = new Set(prev);
-                                          next.delete(s.id);
-                                          return next;
-                                        });
-                                      }
-                                    }}
-                                    className="w-16 px-1.5 py-1 text-center font-bold border border-slate-300 rounded bg-[#fbfdf5] text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                  />
-                                  <input
-                                    type="checkbox"
-                                    checked={seriesDone}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setCheckedSeries(prev => new Set([...prev, s.id]));
-                                        if (loggedWeight === undefined && calcWeight) {
-                                          setSeriesWeights(prev => ({ ...prev, [s.id]: calcWeight }));
-                                        }
-                                      } else {
-                                        setCheckedSeries(prev => {
-                                          const next = new Set(prev);
-                                          next.delete(s.id);
-                                          return next;
-                                        });
-                                      }
-                                    }}
-                                    className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500"
-                                  />
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 border border-slate-700 bg-[#1d3d54] text-xs text-slate-200 italic max-w-xs truncate">
-                                {s.rounds && s.rounds > 1 ? `${s.rounds} rondas` : "-"}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      }
-                    });
-                  })}
-                </tbody>
-              </table>
+                          )}
+                          <td className="px-3 py-2.5 border border-zinc-800 text-zinc-300 text-center font-semibold text-xs leading-none">
+                            <span className="text-zinc-400 block text-[9px] uppercase font-bold tracking-wider mb-0.5">S{row.setNumber}</span>
+                            <span className="text-white text-xs">{row.repsText}</span>
+                          </td>
+                          <td className="px-3 py-2.5 border border-zinc-800 text-center text-zinc-300 text-xs font-bold whitespace-nowrap">
+                            {row.suggestedText}
+                          </td>
+                          <td className="px-3 py-2 border border-zinc-800 text-center align-middle">
+                            {row.type === "single" ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isCompleted) {
+                                    handleSingleSetCompleteToggle(row.te!, row.setIdx!);
+                                  } else {
+                                    const suggestedKg = row.te!.percentage_1rm && oneRMs[row.te!.exercise_id]
+                                      ? calculateWeight(oneRMs[row.te!.exercise_id], row.te!.percentage_1rm)
+                                      : row.te!.weight_target || undefined;
+                                    setPendingSingleSetConfirm({
+                                      te: row.te!,
+                                      setIdx: row.setIdx!,
+                                      calcWeight: suggestedKg || null,
+                                    });
+                                  }
+                                }}
+                                className={`min-w-10 px-2.5 py-1.5 rounded-lg border flex items-center justify-center gap-1 mx-auto transition-all active:scale-95 text-xs font-bold ${
+                                  isCompleted
+                                    ? "bg-emerald-500 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                                    : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-400"
+                                }`}
+                              >
+                                {isCompleted ? (
+                                  <span>{loggedWeight !== undefined ? `${loggedWeight} kg` : "✓"}</span>
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )}
+                              </button>
+                            ) : row.complexSet ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const sId = row.complexSet!.id;
+                                  const done = checkedSeries.has(sId);
+                                  if (done) {
+                                    setCheckedSeries(prev => {
+                                      const next = new Set(prev);
+                                      next.delete(sId);
+                                      return next;
+                                    });
+                                    setSeriesWeights(prev => {
+                                      const next = { ...prev };
+                                      delete next[sId];
+                                      return next;
+                                    });
+                                  } else {
+                                    setPendingSeriesConfirm({
+                                      set: row.complexSet!,
+                                      items: row.complexItems!,
+                                      calcWeight: row.suggestedKg || null,
+                                    });
+                                    setCustomSeriesWeight("");
+                                  }
+                                }}
+                                className={`min-w-10 px-2.5 py-1.5 rounded-lg border flex items-center justify-center gap-1 mx-auto transition-all active:scale-95 text-xs font-bold ${
+                                  isCompleted
+                                    ? "bg-emerald-500 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                                    : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-400"
+                                }`}
+                              >
+                                {isCompleted ? (
+                                  <span>{loggedWeight !== undefined ? `${loggedWeight} kg` : "✓"}</span>
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="text-zinc-600">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 border border-zinc-800 text-left text-[11px] text-zinc-300 italic max-w-xs truncate" title={row.notes}>
+                            {row.notes || "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* VISTA PIZARRA (ESTILO WOD PINTEREST - ACCESIBILIDAD MÁXIMA) */}
         {viewMode === "pizarra" && (
-          <div className="bg-zinc-900 text-zinc-100 space-y-8 my-2 font-sans relative">
-            {/* Header de Pizarra */}
-            <div className="pb-4 border-b border-zinc-800 space-y-1">
-              <span className="text-xs font-black uppercase tracking-[0.2em] text-red-500">
+          <div className="space-y-8 my-2 font-sans relative">
+            <div className="pb-4 border-b border-zinc-200 space-y-1">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-[#ff5252]">
                 Pizarra de Entrenamiento
               </span>
-              <h2 className="text-3xl font-extrabold text-white tracking-tight uppercase">
+              <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight uppercase">
                 {dayInfo?.cycle_name || "Planificación"}
               </h2>
-              <p className="text-base text-zinc-400 font-semibold">
+              <p className="text-base text-zinc-500 font-semibold">
                 Semana {dayInfo?.week_number}
               </p>
             </div>
 
-            {/* Bloques y Ejercicios */}
             <div className="space-y-10">
               {blocks.map(block => {
                 type BlockItem =
@@ -1431,8 +1687,7 @@ export default function EntrenarPage() {
                 });
 
                 return (
-                  <div key={block.id} className="space-y-4">
-                    {/* Título de Bloque en Rojo */}
+                  <div key={block.id} className="space-y-4 animate-in fade-in duration-300">
                     <h3 className="text-2xl font-black text-[#ff5252] uppercase tracking-widest pt-2">
                       {block.name}
                     </h3>
@@ -1441,133 +1696,375 @@ export default function EntrenarPage() {
                       {blockItems.map(item => {
                         if (item.type === "single") {
                           const te = item.te;
-                          const done = checkedExercises.has(te.id);
-                          const log = exerciseLogs[te.id];
                           const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
                             ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
                             : te.weight_target || undefined;
-                          const loggedWeight = log?.weight_used_kg;
+
+                          const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
 
                           return (
-                            <button
+                            <div
                               key={te.id}
-                              onClick={() => handleExerciseTap(te)}
-                              className="w-full text-left py-2 hover:bg-zinc-800/40 transition-colors block focus:outline-none rounded-xl"
+                              className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-4 hover:border-zinc-300 transition-colors"
                             >
-                              <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                                <span className={`text-xl sm:text-2xl font-extrabold tracking-tight transition-all ${
-                                  done ? "line-through text-zinc-500 decoration-red-500 decoration-2" : "text-white"
-                                }`}>
-                                  {te.sets}x{te.reps} {te.exercises?.name}
-                                  {te.exercise_variants?.name && ` (${te.exercise_variants.name})`}
-                                </span>
-                                <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
-                                  {suggestedKg && (
-                                    <span className={`text-base font-extrabold transition-all ${done ? "text-zinc-600 line-through" : "text-red-400"}`}>
-                                      [Sug: {suggestedKg} kg]
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1">
+                                  <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                    {te.exercises?.name}
+                                    {te.exercise_variants?.name && (
+                                      <span className="text-emerald-600 font-bold ml-1.5">— {te.exercise_variants.name}</span>
+                                    )}
+                                  </h4>
+                                  <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                    <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700">
+                                      {te.sets} series × {te.reps} reps
                                     </span>
-                                  )}
-                                  {done && loggedWeight !== undefined && (
-                                    <span className="text-base font-extrabold text-emerald-400">
-                                      [Hecho: {loggedWeight} kg]
-                                    </span>
-                                  )}
+                                    {suggestedKg && (
+                                      <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
+                                        Sug: {suggestedKg} kg
+                                      </span>
+                                    )}
+                                    {videoUrl && (
+                                      <a
+                                        href={videoUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold"
+                                      >
+                                        <Video className="w-3.5 h-3.5" /> Video
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
+
                               {te.notes && (
-                                <p className={`text-sm sm:text-base italic font-semibold leading-relaxed mt-1 pl-4 border-l border-zinc-800/50 ${
-                                  done ? "text-zinc-600 line-through" : "text-zinc-450"
-                                }`}>
+                                <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
                                   * {te.notes}
                                 </p>
                               )}
-                            </button>
-                          );
-                        } else {
-                          const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
-                          const complexTitle = item.items.map(te => {
-                            const v = te.exercise_variants?.name ?? "";
-                            return v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
-                          }).join(" + ");
 
-                          return (
-                            <div key={item.complexId} className="space-y-2.5">
-                              {/* Título del Complex */}
-                              <h4 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                                {complexTitle}
-                              </h4>
-
-                              {/* Lista de series en vertical */}
-                              <div className="space-y-2 pl-4 border-l border-zinc-800/80">
-                                {cSets.map(s => {
-                                  const seriesDone = checkedSeries.has(s.id);
-                                  const firstEx = item.items[0];
-                                  const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
-                                  const calcWeight = firstOneRM && s.percentage_1rm
-                                    ? Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5
-                                    : s.percentage_1rm ? null : s.weight_target || undefined;
-                                  const loggedWeight = seriesWeights[s.id];
-
-                                  // Formato de repeticiones por serie
-                                  const repsLine = item.items.map(te => {
-                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                    const r = ov ? ov.reps : te.reps;
-                                    if (item.items.length === 1) {
-                                      return r; // Solo el número de repes para simplificar
-                                    }
-                                    const v = te.exercise_variants?.name ?? "";
-                                    const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
-                                    return `${r} ${displayName}`;
-                                  }).join(" + ");
-
-                                  let targetText = "";
-                                  if (s.percentage_1rm) {
-                                    targetText = `${s.percentage_1rm}%`;
-                                  } else if (calcWeight) {
-                                    targetText = `${calcWeight} kg`;
-                                  }
+                              {/* Grid de círculos de sets */}
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                {Array.from({ length: te.sets }).map((_, setIdx) => {
+                                  const isSetDone = completedSingleSets.has(`${te.id}-${setIdx}`);
+                                  const isExpanded = expandedSet === `${te.id}-${setIdx}`;
+                                  const reps = te.reps;
+                                  const pct = te.percentage_1rm;
+                                  const wt = te.weight_target;
+                                  
+                                  const line1 = `${reps}`;
+                                  const loggedWeight = exerciseLogs[te.id]?.set_weights?.[setIdx];
+                                  const line2 = isSetDone 
+                                    ? (loggedWeight !== undefined ? `${loggedWeight} kg` : "✓") 
+                                    : (pct ? `${pct}%` : wt ? `${wt} kg` : null);
 
                                   return (
                                     <button
-                                      key={s.id}
-                                      onClick={() => handleSeriesTap(s, item.items)}
-                                      className="w-full text-left py-1.5 hover:bg-zinc-800/40 transition-colors block focus:outline-none rounded-lg"
+                                      key={setIdx}
+                                      type="button"
+                                      onClick={() => setExpandedSet(isExpanded ? null : `${te.id}-${setIdx}`)}
+                                      className={`w-14 h-14 rounded-full font-black flex flex-col items-center justify-center border-2 transition-all active:scale-95 duration-200 ${
+                                        isSetDone
+                                          ? "bg-emerald-500 border-emerald-400 text-white shadow-sm"
+                                          : isExpanded
+                                            ? "bg-zinc-100 border-primary text-primary shadow-sm"
+                                            : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:text-zinc-800"
+                                      }`}
                                     >
-                                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                                        <span className={`text-lg sm:text-xl font-bold tracking-tight transition-all ${
-                                          seriesDone ? "line-through text-zinc-500 decoration-red-500 decoration-2" : "text-zinc-200"
-                                        }`}>
-                                          S{s.set_number}: {repsLine}
-                                          {targetText && ` - ${targetText}`}
+                                      <span className={`${line2 ? "text-[10px]" : "text-xs"} leading-tight font-extrabold`}>{line1}</span>
+                                      {line2 && (
+                                        <span className="text-[8px] leading-none mt-0.5 text-emerald-100">
+                                          {line2}
                                         </span>
-                                        <div className="flex items-center gap-2 mt-0.5 sm:mt-0">
-                                          {calcWeight && s.percentage_1rm && (
-                                            <span className={`text-sm font-extrabold transition-all ${seriesDone ? "text-zinc-600 line-through" : "text-red-400"}`}>
-                                              [Sug: {calcWeight} kg]
-                                            </span>
-                                          )}
-                                          {seriesDone && loggedWeight !== undefined && (
-                                            <span className="text-sm font-extrabold text-emerald-400">
-                                              [Hecho: {loggedWeight} kg]
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
+                                      )}
                                     </button>
                                   );
                                 })}
                               </div>
 
-                              {/* Notas de entrenadores */}
+                              {/* Expansor de Peso/Completado */}
+                              {(() => {
+                                const activeSetIdx = Array.from({ length: te.sets })
+                                  .map((_, idx) => idx)
+                                  .find(idx => expandedSet === `${te.id}-${idx}`);
+
+                                if (activeSetIdx === undefined) return null;
+
+                                const isSetDone = completedSingleSets.has(`${te.id}-${activeSetIdx}`);
+                                const currentWeight = exerciseLogs[te.id]?.set_weights?.[activeSetIdx];
+                                const oneRM = oneRMs[te.exercise_id];
+                                const hasOneRM = oneRM !== undefined && oneRM > 0;
+                                const targetText = te.percentage_1rm 
+                                  ? `${te.reps}-${te.percentage_1rm}%${!hasOneRM ? " (sin 1RM)" : ""}`
+                                  : `${te.reps} reps`;
+
+                                return (
+                                  <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                                    <div className="flex items-center justify-between">
+                                      <div className="space-y-0.5">
+                                        <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider block">Serie {activeSetIdx + 1}</span>
+                                        <span className="text-base font-extrabold text-slate-900">{targetText}</span>
+                                      </div>
+                                      {isSetDone && (
+                                        <div className="text-right">
+                                          <span className="text-xs font-bold text-zinc-500 block">Registrado</span>
+                                          <span className="text-sm font-extrabold text-emerald-600">
+                                            {currentWeight !== undefined ? `${currentWeight} kg` : "Peso corporal"}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="pt-1">
+                                      {isSetDone ? (
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              // Uncheck set
+                                              const setKey = `${te.id}-${activeSetIdx}`;
+                                              setCompletedSingleSets(prev => {
+                                                const next = new Set(prev);
+                                                next.delete(setKey);
+                                                return next;
+                                              });
+
+                                              const completedCount = Array.from({ length: te.sets }).filter((_, idx) =>
+                                                idx === activeSetIdx ? false : completedSingleSets.has(`${te.id}-${idx}`)
+                                              ).length;
+
+                                              setCheckedExercises(prev => {
+                                                const next = new Set(prev);
+                                                next.delete(te.id);
+                                                return next;
+                                              });
+
+                                              setExerciseLogs(prev => {
+                                                const log = prev[te.id];
+                                                if (!log) return prev;
+                                                const newWeights = [...(log.set_weights || [])];
+                                                newWeights[activeSetIdx] = undefined;
+                                                return {
+                                                  ...prev,
+                                                  [te.id]: {
+                                                    ...log,
+                                                    set_weights: newWeights,
+                                                    sets_completed: completedCount,
+                                                  }
+                                                };
+                                              });
+                                            }}
+                                            className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-center text-xs transition-colors"
+                                          >
+                                            Desmarcar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setPendingSingleSetConfirm({ te, setIdx: activeSetIdx, calcWeight: suggestedKg || null });
+                                            }}
+                                            className="flex-1 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 font-bold py-2.5 rounded-xl text-center text-xs transition-colors"
+                                          >
+                                            Modificar peso
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPendingSingleSetConfirm({ te, setIdx: activeSetIdx, calcWeight: suggestedKg || null });
+                                          }}
+                                          className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-xl text-center text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                        >
+                                          <Check className="w-4 h-4" /> Completar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          );
+                        } else {
+                          const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
+                          const firstEx = item.items[0];
+                          const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+
+                          const complexTitle = item.items.map(te => {
+                            const v = te.exercise_variants?.name ?? "";
+                            return v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+                          }).join(" + ");
+
+                          const firstSuggestedKg = firstOneRM && cSets[0]?.percentage_1rm
+                            ? Math.round((firstOneRM * cSets[0].percentage_1rm / 100) / 2.5) * 2.5
+                            : cSets[0]?.weight_target || undefined;
+
+                          return (
+                            <div key={item.complexId} className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-4 hover:border-zinc-300 transition-colors">
+                              <div className="space-y-1">
+                                <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                  {complexTitle}
+                                </h4>
+                                <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                  <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700">
+                                    Complex ({cSets.length} series)
+                                  </span>
+                                  {firstSuggestedKg && (
+                                    <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
+                                      Sug: {firstSuggestedKg} kg
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
                               {item.items.some(te => te.notes) && (
-                                <div className="mt-1 pl-4 border-l border-zinc-800/50 space-y-0.5">
+                                <div className="space-y-1 mt-1 border-l border-zinc-200 pl-3">
                                   {item.items.filter(te => te.notes).map(te => (
-                                    <p key={te.id} className="text-sm italic font-semibold leading-relaxed text-zinc-450">
-                                      * {te.notes}
+                                    <p key={te.id} className="text-zinc-500 text-xs italic font-medium leading-relaxed">
+                                      * {te.exercises?.name}: {te.notes}
                                     </p>
                                   ))}
                                 </div>
                               )}
+
+                              {/* Grid de círculos de sets */}
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                {cSets.map((s) => {
+                                  const isSetDone = checkedSeries.has(s.id);
+                                  const isExpanded = expandedSet === s.id;
+                                  
+                                  const repsText = item.items.map(te => {
+                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                    return ov ? ov.reps : te.reps;
+                                  }).join("+");
+
+                                  const pct = s.percentage_1rm;
+                                  const wt = s.weight_target;
+
+                                  const line1 = repsText;
+                                  const line2 = isSetDone 
+                                    ? (seriesWeights[s.id] !== undefined ? `${seriesWeights[s.id]} kg` : "✓") 
+                                    : (pct ? `${pct}%` : wt ? `${wt} kg` : null);
+
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      type="button"
+                                      onClick={() => setExpandedSet(isExpanded ? null : s.id)}
+                                      className={`w-14 h-14 rounded-full font-black flex flex-col items-center justify-center border-2 transition-all active:scale-95 duration-200 ${
+                                        isSetDone
+                                          ? "bg-emerald-500 border-emerald-400 text-white shadow-sm"
+                                          : isExpanded
+                                            ? "bg-zinc-100 border-primary text-primary shadow-sm"
+                                            : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:text-zinc-800"
+                                      }`}
+                                    >
+                                      <span className={`${line2 ? "text-[10px]" : "text-xs"} leading-tight font-extrabold`}>{line1}</span>
+                                      {line2 && (
+                                        <span className={`text-[8px] leading-none mt-0.5 ${isSetDone ? "text-emerald-100" : "text-zinc-400 font-medium"}`}>
+                                          {line2}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Expansor de Peso/Completado para Complex */}
+                              {(() => {
+                                const activeSet = cSets.find(s => expandedSet === s.id);
+                                if (!activeSet) return null;
+
+                                const isSetDone = checkedSeries.has(activeSet.id);
+                                const currentWeight = seriesWeights[activeSet.id];
+                                const calcWeight = firstOneRM && activeSet.percentage_1rm
+                                  ? Math.round((firstOneRM * activeSet.percentage_1rm / 100) / 2.5) * 2.5
+                                  : activeSet.weight_target || undefined;
+
+                                const repsText = item.items.map(te => {
+                                  const ov = activeSet.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                  return ov ? ov.reps : te.reps;
+                                }).join("+");
+
+                                const hasOneRM = firstOneRM !== undefined && firstOneRM > 0;
+                                const targetText = activeSet.percentage_1rm 
+                                  ? `${repsText}-${activeSet.percentage_1rm}%${!hasOneRM ? " (sin 1RM)" : ""}`
+                                  : `${repsText} reps`;
+
+                                return (
+                                  <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                                    <div className="flex items-center justify-between">
+                                      <div className="space-y-0.5">
+                                        <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider block">Serie {activeSet.set_number}</span>
+                                        <span className="text-base font-extrabold text-slate-900">{targetText}</span>
+                                        <div className="text-zinc-500 text-[11px] font-medium pl-2 border-l border-zinc-200">
+                                          {item.items.map(te => {
+                                            const ov = activeSet.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                            const r = ov ? ov.reps : te.reps;
+                                            return (
+                                              <p key={te.id}>
+                                                {r}x {te.exercises?.name}
+                                              </p>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                      {isSetDone && (
+                                        <div className="text-right">
+                                          <span className="text-xs font-bold text-zinc-500 block">Registrado</span>
+                                          <span className="text-sm font-extrabold text-emerald-600">
+                                            {currentWeight !== undefined ? `${currentWeight} kg` : "Peso corporal"}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="pt-1">
+                                      {isSetDone ? (
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const sId = activeSet.id;
+                                              setCheckedSeries(prev => {
+                                                const next = new Set(prev);
+                                                next.delete(sId);
+                                                return next;
+                                              });
+                                              setSeriesWeights(prev => {
+                                                const next = { ...prev };
+                                                delete next[sId];
+                                                return next;
+                                              });
+                                            }}
+                                            className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-center text-xs transition-colors"
+                                          >
+                                            Desmarcar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setPendingSeriesConfirm({ set: activeSet, items: item.items, calcWeight: calcWeight || null });
+                                            }}
+                                            className="flex-1 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 font-bold py-2.5 rounded-xl text-center text-xs transition-colors"
+                                          >
+                                            Modificar peso
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPendingSeriesConfirm({ set: activeSet, items: item.items, calcWeight: calcWeight || null });
+                                          }}
+                                          className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-xl text-center text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                        >
+                                          <Check className="w-4 h-4" /> Completar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         }
@@ -1582,16 +2079,12 @@ export default function EntrenarPage() {
       </div>
 
       {/* Bottom action */}
-      <div className={`fixed bottom-0 left-0 right-0 px-4 py-4 backdrop-blur border-t ${
-        viewMode === "pizarra" ? "bg-zinc-900/90 border-zinc-800" : "bg-background/95 border-border"
-      }`}>
+      <div className="fixed bottom-0 left-0 right-0 px-4 py-4 backdrop-blur border-t bg-background/95 border-border">
         <button onClick={handleFinish}
           className={`w-full font-semibold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-lg ${
             completedItems === totalItems && totalItems > 0
               ? "bg-primary text-white hover:bg-primary/90"
-              : viewMode === "pizarra"
-                ? "bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
-                : "bg-muted text-foreground hover:bg-muted/80"
+              : "bg-muted text-foreground hover:bg-muted/80"
           }`}>
           <Dumbbell className="w-5 h-5" />
           {completedItems === totalItems && totalItems > 0
@@ -1615,6 +2108,243 @@ export default function EntrenarPage() {
           onClose={() => setPendingPrompt(null)}
         />
       )}
+
+      {/* Single set weight confirmation modal */}
+      {pendingSingleSetConfirm && (() => {
+        const { te, setIdx, calcWeight } = pendingSingleSetConfirm;
+        const suggestedKg = calcWeight;
+
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center">
+            <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+              <div>
+                <h3 className="font-bold text-foreground text-lg">Serie {setIdx + 1} completada</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {te.exercises?.name} {te.exercise_variants?.name ? `(${te.exercise_variants.name})` : ""}
+                  {" · "}{te.reps} reps
+                </p>
+              </div>
+
+              {suggestedKg ? (
+                <>
+                  <p className="text-sm font-medium text-foreground">¿Hiciste esta serie con <span className="text-primary font-bold">{suggestedKg} kg</span>?</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        handleSingleSetWeightChange(te, setIdx, suggestedKg);
+                        const setKey = `${te.id}-${setIdx}`;
+                        setCompletedSingleSets(prev => {
+                          const next = new Set(prev);
+                          next.add(setKey);
+                          return next;
+                        });
+                        const completedCount = Array.from({ length: te.sets }).filter((_, idx) =>
+                          idx === setIdx ? true : completedSingleSets.has(`${te.id}-${idx}`)
+                        ).length;
+
+                        setCheckedExercises(prev => {
+                          const next = new Set(prev);
+                          if (completedCount === te.sets) next.add(te.id);
+                          else next.delete(te.id);
+                          return next;
+                        });
+
+                        setExerciseLogs(prev => {
+                          const log = prev[te.id] || {
+                            training_exercise_id: te.id,
+                            exercise_id: te.exercise_id,
+                            variant_id: te.variant_id,
+                            weight_used_kg: undefined,
+                            used_suggested: false,
+                            suggested_kg: suggestedKg,
+                            sets_completed: 0,
+                            reps_completed: te.reps,
+                            set_weights: Array(te.sets).fill(undefined),
+                          };
+                          const newWeights = [...(log.set_weights || Array(te.sets).fill(undefined))];
+                          newWeights[setIdx] = suggestedKg;
+                          return {
+                            ...prev,
+                            [te.id]: {
+                              ...log,
+                              set_weights: newWeights,
+                              sets_completed: completedCount,
+                            }
+                          };
+                        });
+
+                        setPendingSingleSetConfirm(null);
+                      }}
+                      className="flex-1 py-3.5 rounded-2xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Check className="w-4 h-4" /> Sí, con {suggestedKg} kg
+                    </button>
+                    <button
+                      onClick={() => {
+                        const div = document.getElementById("single-custom-input");
+                        if (div) div.classList.toggle("hidden");
+                      }}
+                      className="flex-1 py-3.5 rounded-2xl border-2 border-border font-semibold text-sm hover:border-primary/30 transition-colors"
+                    >
+                      No, otro peso
+                    </button>
+                  </div>
+                  <div id="single-custom-input" className="hidden space-y-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        id="single-custom-weight-field"
+                        placeholder="Ej: 52.5"
+                        className="flex-1 px-4 py-3 rounded-xl border border-border text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <span className="text-muted-foreground font-medium">kg</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const input = document.getElementById("single-custom-weight-field") as HTMLInputElement;
+                          const val = input ? parseFloat(input.value) : NaN;
+                          const weight = isNaN(val) ? undefined : val;
+
+                          handleSingleSetWeightChange(te, setIdx, weight);
+
+                          const setKey = `${te.id}-${setIdx}`;
+                          setCompletedSingleSets(prev => {
+                            const next = new Set(prev);
+                            next.add(setKey);
+                            return next;
+                          });
+
+                          const completedCount = Array.from({ length: te.sets }).filter((_, idx) =>
+                            idx === setIdx ? true : completedSingleSets.has(`${te.id}-${idx}`)
+                          ).length;
+
+                          setCheckedExercises(prev => {
+                            const next = new Set(prev);
+                            if (completedCount === te.sets) next.add(te.id);
+                            else next.delete(te.id);
+                            return next;
+                          });
+
+                          setExerciseLogs(prev => {
+                            const log = prev[te.id] || {
+                              training_exercise_id: te.id,
+                              exercise_id: te.exercise_id,
+                              variant_id: te.variant_id,
+                              weight_used_kg: undefined,
+                              used_suggested: false,
+                              suggested_kg: suggestedKg,
+                              sets_completed: 0,
+                              reps_completed: te.reps,
+                              set_weights: Array(te.sets).fill(undefined),
+                            };
+                            const newWeights = [...(log.set_weights || Array(te.sets).fill(undefined))];
+                            newWeights[setIdx] = weight;
+                            return {
+                              ...prev,
+                              [te.id]: {
+                                ...log,
+                                set_weights: newWeights,
+                                sets_completed: completedCount,
+                              }
+                            };
+                          });
+
+                          setPendingSingleSetConfirm(null);
+                        }}
+                        className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold text-sm"
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleSingleSetWeightChange(te, setIdx, undefined);
+                          const setKey = `${te.id}-${setIdx}`;
+                          setCompletedSingleSets(prev => {
+                            const next = new Set(prev);
+                            next.add(setKey);
+                            return next;
+                          });
+
+                          const completedCount = Array.from({ length: te.sets }).filter((_, idx) =>
+                            idx === setIdx ? true : completedSingleSets.has(`${te.id}-${idx}`)
+                          ).length;
+
+                          setCheckedExercises(prev => {
+                            const next = new Set(prev);
+                            if (completedCount === te.sets) next.add(te.id);
+                            else next.delete(te.id);
+                            return next;
+                          });
+
+                          setPendingSingleSetConfirm(null);
+                        }}
+                        className="px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground font-medium"
+                      >
+                        Omitir
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">¿Con qué peso hiciste esta serie? <span className="text-xs">(opcional)</span></p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      id="single-custom-weight-field-no-suggested"
+                      placeholder="Ej: 52.5"
+                      className="flex-1 px-4 py-3 rounded-xl border border-border text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <span className="text-muted-foreground font-medium">kg</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const input = document.getElementById("single-custom-weight-field-no-suggested") as HTMLInputElement;
+                        const val = input ? parseFloat(input.value) : NaN;
+                        const weight = isNaN(val) ? undefined : val;
+
+                        handleSingleSetWeightChange(te, setIdx, weight);
+
+                        const setKey = `${te.id}-${setIdx}`;
+                        setCompletedSingleSets(prev => {
+                          const next = new Set(prev);
+                          next.add(setKey);
+                          return next;
+                        });
+
+                        const completedCount = Array.from({ length: te.sets }).filter((_, idx) =>
+                          idx === setIdx ? true : completedSingleSets.has(`${te.id}-${idx}`)
+                        ).length;
+
+                        setCheckedExercises(prev => {
+                          const next = new Set(prev);
+                          if (completedCount === te.sets) next.add(te.id);
+                          else next.delete(te.id);
+                          return next;
+                        });
+
+                        setPendingSingleSetConfirm(null);
+                      }}
+                      className="flex-1 py-3.5 rounded-2xl bg-primary text-white font-semibold text-sm"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <button
+                onClick={() => setPendingSingleSetConfirm(null)}
+                className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Series confirmation modal */}
       {pendingSeriesConfirm && (() => {
