@@ -8,7 +8,7 @@ import {
   ArrowLeft, Plus, Loader2, ChevronDown, ChevronRight,
   Dumbbell, Trash2, GripVertical, Search, X, Check, Copy,
   MoreVertical, BookMarked, Link2, UserPlus, Users, Moon,
-  ArrowRightLeft, UserMinus
+  ArrowRightLeft, UserMinus, Eye
 } from "lucide-react";
 import Link from "next/link";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, getInitials } from "@/lib/utils";
@@ -35,6 +35,7 @@ type ComplexSet = {
   day_id: string;
   set_number: number;
   percentage_1rm: number | null;
+  weight_target?: number | null;
   reps_overrides: { training_exercise_id: string; reps: string }[];
   rounds?: number;
 };
@@ -1084,6 +1085,7 @@ export default function CicloDetailPage() {
   const [weekMenuOpen, setWeekMenuOpen] = useState<string | null>(null);
   // tracks which blocks are EXPANDED (empty = all collapsed by default)
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
+  const [previewDay, setPreviewDay] = useState<Day | null>(null);
 
   const toggleBlock = (blockId: string) => {
     setExpandedBlocks(prev => {
@@ -2044,6 +2046,19 @@ export default function CicloDetailPage() {
                         : <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       )}
                     </button>
+                    {/* Vista previa de alumno */}
+                    {!day.is_rest && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewDay(day);
+                        }}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0"
+                        title="Ver vista previa de alumno"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {/* Toggle descanso */}
                     <button
                       onClick={() => toggleRestDay(week.id, day.id, day.is_rest)}
@@ -2241,6 +2256,200 @@ export default function CicloDetailPage() {
           assigning={assigning}
         />
       )}
+
+      {/* Modal de Vista Previa de Alumno */}
+      {previewDay && (
+        <DayPreviewModal
+          day={previewDay}
+          cycleName={cycle?.name || "Ciclo"}
+          weekNumber={weeks.find(w => w.days.some(d => d.id === previewDay.id))?.week_number || 1}
+          complexSets={complexSets}
+          onClose={() => setPreviewDay(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Day Preview Modal (Blackboard style) ──────────────────────
+function DayPreviewModal({
+  day,
+  cycleName,
+  weekNumber,
+  complexSets,
+  onClose,
+}: {
+  day: Day;
+  cycleName: string;
+  weekNumber: number;
+  complexSets: Record<string, ComplexSet[]>;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      {/* Container simulating a mobile device or a premium preview card */}
+      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+        {/* Header bar simulating a mobile phone screen header or blackboard */}
+        <div className="flex items-center justify-between px-6 py-4 bg-zinc-900 border-b border-zinc-800 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#ff5252] animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-widest text-[#ff5252] font-mono">
+              Pizarra Alumno
+            </span>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* WOD Content area ( chalkboard theme ) */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-6 text-zinc-100 font-sans selection:bg-[#ff5252]/30">
+          <div className="space-y-1 pb-4 border-b border-zinc-800">
+            <h2 className="text-2xl font-black text-white tracking-tight uppercase">
+              {cycleName}
+            </h2>
+            <p className="text-sm text-zinc-400 font-semibold">
+              Semana {weekNumber} · {DAY_NAMES[day.day_of_week]} — {day.label}
+            </p>
+          </div>
+
+          <div className="space-y-8">
+            {day.blocks.map(block => {
+              const blockItems = getBlockItems(block.training_exercises);
+              if (blockItems.length === 0) return null;
+
+              return (
+                <div key={block.id} className="space-y-4">
+                  <h3 className="text-lg font-black text-[#ff5252] uppercase tracking-widest border-b border-zinc-900 pb-1">
+                    {block.name}
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    {blockItems.map((item) => {
+                      if (item.type === "single") {
+                        const te = item.ex;
+                        const hasPct = te.percentage_1rm !== undefined && te.percentage_1rm !== null;
+                        const hasWt = te.weight_target !== undefined && te.weight_target !== null;
+                        
+                        return (
+                          <div
+                            key={te.id}
+                            className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-2 hover:border-zinc-800 transition-colors"
+                          >
+                            <h4 className="text-white font-extrabold text-base leading-tight">
+                              {te.exercise?.name || "Ejercicio"}
+                              {te.variant?.name && (
+                                <span className="text-primary font-bold ml-1.5">— {te.variant.name}</span>
+                              )}
+                            </h4>
+                            
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-zinc-400">
+                              <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">
+                                {te.sets} series × {te.reps} reps
+                              </span>
+                              {hasPct && (
+                                <span className="px-2 py-0.5 bg-zinc-800 rounded text-primary font-bold">
+                                  {te.percentage_1rm}% 1RM
+                                </span>
+                              )}
+                              {hasWt && (
+                                <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 font-bold">
+                                  {te.weight_target} kg
+                                </span>
+                              )}
+                              {te.rest_seconds && (
+                                <span className="text-zinc-500 font-normal">
+                                  Descanso: {te.rest_seconds}s
+                                </span>
+                              )}
+                            </div>
+
+                            {te.notes && (
+                              <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-800 pl-2">
+                                * {te.notes}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      } else {
+                        const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
+                        const complexTitle = item.exs.map(te => {
+                          return te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name;
+                        }).join(" + ");
+
+                        return (
+                          <div
+                            key={item.complexId}
+                            className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-3 hover:border-zinc-800 transition-colors"
+                          >
+                            <div className="space-y-1">
+                              <h4 className="text-white font-extrabold text-base leading-tight">
+                                {complexTitle}
+                              </h4>
+                              <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
+                                <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">
+                                  Complex ({cSets.length} series)
+                                </span>
+                              </div>
+                            </div>
+
+                            {item.exs.some(te => te.notes) && (
+                              <div className="space-y-1 border-l border-zinc-800 pl-2">
+                                {item.exs.filter(te => te.notes).map(te => (
+                                  <p key={te.id} className="text-zinc-500 text-xs italic font-medium">
+                                    * {te.exercise?.name}: {te.notes}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Desglose de series */}
+                            <div className="space-y-1.5 pt-1">
+                              {cSets.map((s) => {
+                                const repsText = item.exs.map(te => {
+                                  const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                  return ov ? ov.reps : te.reps;
+                                }).join("+");
+
+                                const targetLoad = s.percentage_1rm 
+                                  ? `@ ${s.percentage_1rm}%` 
+                                  : s.weight_target 
+                                    ? `@ ${s.weight_target} kg` 
+                                    : "";
+                                const roundsText = s.rounds && s.rounds > 1 ? ` (${s.rounds} rondas)` : "";
+
+                                return (
+                                  <div key={s.id} className="flex items-center gap-2 text-xs font-mono text-zinc-300">
+                                    <span className="text-[#ff5252] font-bold">S{s.set_number}:</span>
+                                    <span>{repsText} {targetLoad}{roundsText}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex justify-end shrink-0">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm font-semibold text-white transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
