@@ -178,13 +178,13 @@ export default function LandingClient() {
             : "bg-transparent"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-8 h-[72px] flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="bg-gradient-to-br from-primary to-orange-600 p-2.5 rounded-[14px] shadow-lg shadow-primary/30 group-hover:scale-105 transition-all duration-300">
-              <Dumbbell className="w-5 h-5 text-white" />
+          <Link href="/" className="flex items-center gap-1.5 sm:gap-2.5 group">
+            <div className="bg-gradient-to-br from-primary to-orange-600 p-1.5 sm:p-2.5 rounded-[10px] sm:rounded-[14px] shadow-lg shadow-primary/30 group-hover:scale-105 transition-all duration-300">
+              <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="text-xl font-black tracking-tight text-white">
+            <span className="text-lg sm:text-xl font-black tracking-tight text-white">
               EntrenAPP
             </span>
           </Link>
@@ -199,19 +199,19 @@ export default function LandingClient() {
 
           {/* CTA buttons */}
           <div className="flex items-center justify-end gap-1 sm:gap-3">
-            <div className="flex items-center gap-0 sm:gap-2">
+            <div className="flex items-center gap-0.5 sm:gap-2">
               <Link
                 href="/buscar-box"
-                className="text-xs sm:text-sm font-bold text-white/60 hover:text-white px-2 sm:px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                className="text-xs sm:text-sm font-bold text-white/60 hover:text-white px-1.5 sm:px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap"
               >
-                Soy Alumno
+                <span className="hidden min-[480px]:inline">Soy </span>Alumno
               </Link>
               <span className="text-white/20 text-xs sm:hidden">|</span>
               <Link
                 href="/buscar-box"
-                className="text-sm font-bold text-slate-400 hover:text-white transition px-2 sm:px-3 py-2 rounded-lg hover:bg-white/5"
+                className="text-xs sm:text-sm font-bold text-slate-400 hover:text-white transition px-1.5 sm:px-3 py-1.5 rounded-lg hover:bg-white/5 whitespace-nowrap"
               >
-                Soy Entrenador
+                <span className="hidden min-[480px]:inline">Soy </span>Entrenador
               </Link>
             </div>
             <Link

@@ -98,7 +98,6 @@ export default function NuevoCicloPage() {
 
     const { data: cycle, error: cycleError } = await supabase.from("training_cycles").insert({
       trainer_id: user!.id,
-      student_id: isTemplate ? null : form.student_id,
       name: form.name.trim(),
       start_date: form.start_date,
       total_weeks: form.total_weeks,
@@ -119,6 +118,21 @@ export default function NuevoCicloPage() {
       type: p.type,
     }));
     await supabase.from("training_weeks").insert(weeksToInsert);
+
+    if (!isTemplate) {
+      const { error: enrollError } = await supabase.rpc("enroll_student", {
+        p_cycle_id: cycle.id,
+        p_student_id: form.student_id,
+        p_sync_mode: "SYNC",
+        p_enrolled_at: new Date().toISOString(),
+      });
+
+      if (enrollError) {
+        toast.error("Error al enrolar al alumno: " + enrollError.message);
+        setLoading(false);
+        return;
+      }
+    }
 
     toast.success(isTemplate ? "Plantilla creada. Ahora cargale los ejercicios." : "Ciclo creado. Ahora agregá los días y ejercicios.");
     router.push(`/entrenador/ciclos/${cycle.id}`);

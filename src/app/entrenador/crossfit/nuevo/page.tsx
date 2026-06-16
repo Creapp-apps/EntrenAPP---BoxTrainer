@@ -98,7 +98,6 @@ export default function NuevoCicloCFPage() {
 
     const { data: cycle, error: cycleError } = await supabase.from("training_cycles").insert({
       trainer_id: user!.id,
-      student_id: isTemplate ? null : form.student_id,
       name: form.name.trim(),
       start_date: form.start_date,
       total_weeks: form.total_weeks,
@@ -120,6 +119,21 @@ export default function NuevoCicloCFPage() {
       type: p.type,
     }));
     await supabase.from("training_weeks").insert(weeksToInsert);
+
+    if (!isTemplate) {
+      const { error: enrollError } = await supabase.rpc("enroll_student", {
+        p_cycle_id: cycle.id,
+        p_student_id: form.student_id,
+        p_sync_mode: "SYNC",
+        p_enrolled_at: new Date().toISOString(),
+      });
+
+      if (enrollError) {
+        toast.error("Error al enrolar al alumno: " + enrollError.message);
+        setLoading(false);
+        return;
+      }
+    }
 
     toast.success(isTemplate ? "Plantilla CF creada. Ahora cargá los bloques." : "Ciclo CF creado. Ahora agregá los días y bloques.");
     router.push(`/entrenador/crossfit/${cycle.id}`);

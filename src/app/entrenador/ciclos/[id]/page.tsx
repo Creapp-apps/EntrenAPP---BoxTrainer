@@ -36,7 +36,12 @@ type ComplexSet = {
   set_number: number;
   percentage_1rm: number | null;
   weight_target?: number | null;
-  reps_overrides: { training_exercise_id: string; reps: string }[];
+  reps_overrides: {
+    training_exercise_id: string;
+    reps: string;
+    weight_target?: number | null;
+    percentage_1rm?: number | null;
+  }[];
   rounds?: number;
 };
 
@@ -820,6 +825,433 @@ function ComplexCard({
   );
 }
 
+// ─── Prep. Física Block Component ─────────────────────────────
+function PrepFisicaBlock({
+  block,
+  dayId,
+  sets,
+  onAddExercise,
+  onDeleteExercise,
+  onUpdateExerciseField,
+  onAddSet,
+  onRemoveSet,
+  onUpdateSetRepsOverride,
+  onUpdateRest,
+}: {
+  block: Block;
+  dayId: string;
+  sets: ComplexSet[];
+  onAddExercise: () => void;
+  onDeleteExercise: (blockId: string, exId: string) => void;
+  onUpdateExerciseField: (blockId: string, exId: string, fieldOrFields: string | Record<string, any>, value?: unknown) => void;
+  onAddSet: (complexId: string, dayId: string) => void;
+  onRemoveSet: (setId: string) => void;
+  onUpdateSetRepsOverride: (setId: string, overrides: any[]) => void;
+  onUpdateRest: (blockId: string, complexId: string, value: number | null) => void;
+}) {
+  const sortedExs = [...block.training_exercises].sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0));
+  const sortedSets = [...sets].sort((a, b) => a.set_number - b.set_number);
+  const sharedRest = sortedExs[0]?.rest_seconds;
+
+  // Local inputs for cells and rounds to avoid lags when typing
+  const [repsInputs, setRepsInputs] = useState<Record<string, string>>({});
+  const [weightInputs, setWeightInputs] = useState<Record<string, string>>({});
+  const [pctInputs, setPctInputs] = useState<Record<string, string>>({});
+  const [justSaved, setJustSaved] = useState(false);
+
+  useEffect(() => {
+    const nextReps: Record<string, string> = {};
+    const nextWeight: Record<string, string> = {};
+    const nextPct: Record<string, string> = {};
+
+    sets.forEach(s => {
+      sortedExs.forEach(te => {
+        const key = `${s.id}-${te.id}`;
+        const ov = s.reps_overrides?.find(o => o.training_exercise_id === te.id);
+        nextReps[key] = ov?.reps ?? te.reps ?? "";
+        nextWeight[key] = ov?.weight_target?.toString() ?? te.weight_target?.toString() ?? "";
+        nextPct[key] = ov?.percentage_1rm?.toString() ?? te.percentage_1rm?.toString() ?? "";
+      });
+    });
+
+    setRepsInputs(prev => ({ ...nextReps, ...prev }));
+    setWeightInputs(prev => ({ ...nextWeight, ...prev }));
+    setPctInputs(prev => ({ ...nextPct, ...prev }));
+  }, [sets, block.training_exercises]);
+
+  const handleRepsChange = (setId: string, teId: string, val: string) => {
+    const key = `${setId}-${teId}`;
+    setRepsInputs(prev => ({ ...prev, [key]: val }));
+    setJustSaved(false);
+  };
+
+  const handleWeightChange = (setId: string, teId: string, val: string) => {
+    const key = `${setId}-${teId}`;
+    setWeightInputs(prev => ({ ...prev, [key]: val }));
+    setJustSaved(false);
+  };
+
+  const handlePctChange = (setId: string, teId: string, val: string) => {
+    const key = `${setId}-${teId}`;
+    setPctInputs(prev => ({ ...prev, [key]: val }));
+    setJustSaved(false);
+  };
+
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveAll = async () => {
+    setSaving(true);
+    try {
+      for (const s of sets) {
+        const overrides = [...(s.reps_overrides || [])];
+        let hasChanges = false;
+
+        for (const te of sortedExs) {
+          const key = `${s.id}-${te.id}`;
+          const repsVal = repsInputs[key] ?? te.reps ?? "";
+          const wtVal = weightInputs[key] ?? "";
+          const pctVal = pctInputs[key] ?? "";
+
+          const isPctMode = te.percentage_1rm !== null;
+          
+          const idx = overrides.findIndex(o => o.training_exercise_id === te.id);
+          let ov = idx >= 0 ? overrides[idx] : null;
+
+          if (!ov) {
+            ov = {
+              training_exercise_id: te.id,
+              reps: te.reps ?? "",
+              weight_target: te.weight_target ?? null,
+              percentage_1rm: te.percentage_1rm ?? null,
+            };
+            overrides.push(ov);
+            hasChanges = true;
+          }
+
+          if (ov.reps !== repsVal) {
+            ov.reps = repsVal;
+            hasChanges = true;
+          }
+
+          if (isPctMode) {
+            const pctNum = pctVal !== "" ? parseFloat(pctVal) : null;
+            if (ov.percentage_1rm !== pctNum || ov.weight_target !== null) {
+              ov.percentage_1rm = pctNum;
+              ov.weight_target = null;
+              hasChanges = true;
+            }
+          } else {
+            const wtNum = wtVal !== "" ? parseFloat(wtVal) : null;
+            if (ov.weight_target !== wtNum || ov.percentage_1rm !== null) {
+              ov.weight_target = wtNum;
+              ov.percentage_1rm = null;
+              hasChanges = true;
+            }
+          }
+        }
+
+        if (hasChanges) {
+          await onUpdateSetRepsOverride(s.id, overrides);
+        }
+      }
+      toast.success("Circuito guardado correctamente");
+      setJustSaved(true);
+    } catch (err: any) {
+      console.error("Error saving circuit:", err);
+      toast.error("Error al guardar el circuito");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveCell = (
+    setId: string,
+    teId: string,
+    field: "reps" | "weight_target" | "percentage_1rm",
+    rawVal: string
+  ) => {
+    const currentSet = sets.find(s => s.id === setId);
+    if (!currentSet) return;
+
+    const overrides = [...(currentSet.reps_overrides || [])];
+    const idx = overrides.findIndex(o => o.training_exercise_id === teId);
+
+    const te = sortedExs.find(e => e.id === teId);
+    const baseReps = te?.reps ?? "";
+    const baseWeight = te?.weight_target ?? null;
+    const basePct = te?.percentage_1rm ?? null;
+
+    let ov = idx >= 0 ? overrides[idx] : null;
+    if (!ov) {
+      ov = {
+        training_exercise_id: teId,
+        reps: baseReps,
+        weight_target: baseWeight,
+        percentage_1rm: basePct,
+      };
+      overrides.push(ov);
+    }
+
+    if (field === "reps") {
+      if (ov.reps === rawVal) return;
+      ov.reps = rawVal;
+    } else if (field === "weight_target") {
+      const num = rawVal !== "" ? parseFloat(rawVal) : null;
+      if (ov.weight_target === num) return;
+      ov.weight_target = num;
+      ov.percentage_1rm = null;
+    } else if (field === "percentage_1rm") {
+      const num = rawVal !== "" ? parseFloat(rawVal) : null;
+      if (ov.percentage_1rm === num) return;
+      ov.percentage_1rm = num;
+      ov.weight_target = null;
+    }
+
+    onUpdateSetRepsOverride(setId, overrides);
+  };
+
+  return (
+    <div className="border-2 border-emerald-500/35 rounded-2xl overflow-hidden bg-emerald-50/5">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 bg-emerald-500/10 border-b border-emerald-500/20">
+        <Dumbbell className="w-4 h-4 text-emerald-600 shrink-0" />
+        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide flex-1">
+          Circuito de Preparación Física
+        </span>
+        <span className="text-[10px] bg-emerald-100 text-emerald-700 font-extrabold px-2 py-0.5 rounded-full uppercase">
+          {sortedExs.length} Ejercicios · {sortedSets.length} Rondas
+        </span>
+      </div>
+
+      {/* Ejercicios del circuito */}
+      <div className="p-4 space-y-3 border-b border-emerald-500/10">
+        <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+          1. Ejercicios del Circuito
+        </p>
+        {sortedExs.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic pl-1">No hay ejercicios en este circuito. Agrega uno abajo.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {sortedExs.map((te, index) => {
+              const name = te.exercise?.name ?? "";
+              const variantName = te.variant?.name ?? "";
+              const displayName = variantName ? `${name} — ${variantName}` : name;
+              return (
+                <div key={te.id} className="flex items-start gap-2 bg-emerald-50/20 border border-emerald-500/10 rounded-xl p-3 relative group">
+                  <span className="text-xs font-bold text-emerald-600/60 bg-emerald-50 w-5 h-5 rounded-full flex items-center justify-center shrink-0">
+                    {index + 1}
+                  </span>
+                  <div className="flex-1 min-w-0 space-y-1.5 pr-6">
+                    <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
+                    <input
+                      type="text"
+                      value={te.notes ?? ""}
+                      onChange={e => {
+                        onUpdateExerciseField(block.id, te.id, "notes", e.target.value);
+                        setJustSaved(false);
+                      }}
+                      placeholder="Notas del ejercicio..."
+                      className="w-full px-2 py-1 rounded-lg border border-border text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      onDeleteExercise(block.id, te.id);
+                      setJustSaved(false);
+                    }}
+                    className="absolute top-2 right-2 p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Eliminar del circuito"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="pt-1">
+          <button
+            onClick={() => {
+              onAddExercise();
+              setJustSaved(false);
+            }}
+            className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold hover:underline"
+          >
+            <Plus className="w-3.5 h-3.5" /> Agregar Ejercicio al Circuito
+          </button>
+        </div>
+      </div>
+
+      {/* Grilla de Rondas */}
+      {sortedExs.length > 0 && (
+        <div className="p-4 space-y-3">
+          <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+            2. Programación de Rondas
+          </p>
+
+          <div className="overflow-x-auto border border-emerald-500/15 rounded-xl bg-white shadow-sm">
+            <table className="w-full text-left border-collapse min-w-[500px]">
+              <thead>
+                <tr className="bg-emerald-500/5 border-b border-emerald-500/10 text-xs font-bold text-emerald-800">
+                  <th className="p-3 w-24">Ronda</th>
+                  {sortedExs.map(te => {
+                    const isPctMode = te.percentage_1rm !== null;
+                    const name = te.exercise?.name ?? "";
+                    return (
+                      <th key={te.id} className="p-3 min-w-[140px] border-l border-emerald-500/10">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="truncate max-w-[150px]" title={name}>{name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isPctMode) {
+                                onUpdateExerciseField(block.id, te.id, {
+                                  percentage_1rm: null,
+                                  weight_target: 0
+                                });
+                              } else {
+                                onUpdateExerciseField(block.id, te.id, {
+                                  weight_target: null,
+                                  percentage_1rm: 0
+                                });
+                              }
+                              setJustSaved(false);
+                            }}
+                            className="text-[9px] text-emerald-600 hover:underline text-left font-semibold uppercase tracking-wider"
+                          >
+                            {isPctMode ? "Usar peso (kg)" : "Usar % 1RM"}
+                          </button>
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th className="p-3 w-12 text-center border-l border-emerald-500/10"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-500/10 text-sm">
+                {sortedSets.map((s, sIdx) => (
+                  <tr key={s.id} className="hover:bg-emerald-50/10">
+                    <td className="p-3 font-bold text-emerald-700 font-mono">
+                      Ronda {s.set_number || sIdx + 1}
+                    </td>
+                    {sortedExs.map(te => {
+                      const isPctMode = te.percentage_1rm !== null;
+                      const cellKey = `${s.id}-${te.id}`;
+                      
+                      const repsVal = repsInputs[cellKey] ?? "";
+                      const wtVal = weightInputs[cellKey] ?? "";
+                      const pctVal = pctInputs[cellKey] ?? "";
+
+                      return (
+                        <td key={te.id} className="p-3 border-l border-emerald-500/10">
+                          <div className="flex items-center gap-1.5">
+                            {/* Reps */}
+                            <div className="flex-1 min-w-[50px]">
+                              <input
+                                type="text"
+                                value={repsVal}
+                                placeholder="Reps"
+                                onChange={e => handleRepsChange(s.id, te.id, e.target.value)}
+                                onBlur={() => saveCell(s.id, te.id, "reps", repsVal)}
+                                onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground select-none">@</span>
+                            {/* Load (Weight or % 1RM) */}
+                            <div className="flex-1 min-w-[50px]">
+                              <input
+                                type="number"
+                                value={isPctMode ? pctVal : wtVal}
+                                placeholder={isPctMode ? "%" : "kg"}
+                                onChange={e => isPctMode ? handlePctChange(s.id, te.id, e.target.value) : handleWeightChange(s.id, te.id, e.target.value)}
+                                onBlur={() => saveCell(s.id, te.id, isPctMode ? "percentage_1rm" : "weight_target", isPctMode ? pctVal : wtVal)}
+                                onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="p-3 text-center border-l border-emerald-500/10">
+                      <button
+                        onClick={() => {
+                          onRemoveSet(s.id);
+                          setJustSaved(false);
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Eliminar ronda"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 flex-wrap gap-3">
+            <button
+              onClick={() => {
+                onAddSet(block.id, dayId);
+                setJustSaved(false);
+              }}
+              className="flex items-center gap-1 text-xs text-emerald-600 font-bold hover:underline"
+            >
+              <Plus className="w-3.5 h-3.5" /> Agregar Ronda
+            </button>
+
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Descanso */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground font-semibold uppercase">Descanso Ronda (seg):</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={sharedRest ?? ""}
+                  onChange={e => {
+                    onUpdateRest(block.id, block.id, e.target.value ? parseInt(e.target.value) : null);
+                    setJustSaved(false);
+                  }}
+                  placeholder="90"
+                  className="w-16 px-2 py-1 rounded-lg border border-border text-xs text-center font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Guardar Button */}
+              <button
+                onClick={handleSaveAll}
+                disabled={saving}
+                className={`flex items-center gap-1.5 px-4 py-2 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 shrink-0 ${
+                  justSaved
+                    ? "bg-emerald-700 hover:bg-emerald-700"
+                    : "bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400"
+                }`}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando...
+                  </>
+                ) : justSaved ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" /> Guardado
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" /> Guardar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Exercise Row ─────────────────────────────────────────────
 function ExerciseRow({
   ex, blockId, onUpdate, onDelete, oneRM
@@ -833,6 +1265,11 @@ function ExerciseRow({
   const name = ex.exercise?.name ?? "";
   const variantName = ex.variant?.name ?? "";
   const displayName = variantName ? `${name} — ${variantName}` : name;
+
+  const [chargeMode, setChargeMode] = useState<"percent" | "weight">(
+    ex.weight_target !== null && ex.weight_target !== undefined ? "weight" : "percent"
+  );
+
   const calculatedWeight = oneRM && ex.percentage_1rm
     ? Math.round((oneRM * ex.percentage_1rm / 100) / 2.5) * 2.5
     : null;
@@ -857,12 +1294,37 @@ function ExerciseRow({
               className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">% 1RM</label>
-            <input type="number" min="0" max="110" value={ex.percentage_1rm ?? ""}
-              onChange={e => onUpdate(blockId, ex.id, "percentage_1rm", e.target.value ? parseFloat(e.target.value) : null)}
-              placeholder="75"
-              className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
-
+            <div className="flex items-center justify-between mb-0.5">
+              <label className="text-xs text-muted-foreground">
+                {chargeMode === "percent" ? "% 1RM" : "Peso (kg)"}
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const newMode = chargeMode === "percent" ? "weight" : "percent";
+                  setChargeMode(newMode);
+                  if (newMode === "percent") {
+                    onUpdate(blockId, ex.id, "weight_target", null);
+                  } else {
+                    onUpdate(blockId, ex.id, "percentage_1rm", null);
+                  }
+                }}
+                className="text-[9px] text-primary hover:underline font-bold"
+              >
+                {chargeMode === "percent" ? "usar kg" : "usar %"}
+              </button>
+            </div>
+            {chargeMode === "percent" ? (
+              <input type="number" min="0" max="110" value={ex.percentage_1rm ?? ""}
+                onChange={e => onUpdate(blockId, ex.id, "percentage_1rm", e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="75"
+                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
+            ) : (
+              <input type="number" min="0" value={ex.weight_target ?? ""}
+                onChange={e => onUpdate(blockId, ex.id, "weight_target", e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="kg"
+                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
+            )}
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Descanso (seg)</label>
@@ -1245,7 +1707,7 @@ export default function CicloDetailPage() {
               day_id: s.day_id,
               set_number: s.set_number,
               percentage_1rm: s.percentage_1rm ?? null,
-              reps_overrides: (s.reps_overrides as { training_exercise_id: string; reps: string }[]) || [],
+              reps_overrides: (s.reps_overrides as any[]) || [],
               rounds: s.rounds ?? 1,
             });
           }
@@ -1442,10 +1904,15 @@ export default function CicloDetailPage() {
             }
             let newComplexId: string | null = null;
             if (te.complex_id) {
-              if (!dailyComplexIdMap.has(te.complex_id)) {
-                dailyComplexIdMap.set(te.complex_id, crypto.randomUUID());
+              if (sourceBlock.type === "prep_fisica") {
+                newComplexId = newBlock.id;
+                dailyComplexIdMap.set(te.complex_id, newBlock.id);
+              } else {
+                if (!dailyComplexIdMap.has(te.complex_id)) {
+                  dailyComplexIdMap.set(te.complex_id, crypto.randomUUID());
+                }
+                newComplexId = dailyComplexIdMap.get(te.complex_id)!;
               }
-              newComplexId = dailyComplexIdMap.get(te.complex_id)!;
             }
             return {
               block_id: newBlock.id,
@@ -1498,7 +1965,9 @@ export default function CicloDetailPage() {
             // Update reps_overrides
             const newOverrides = oldSet.reps_overrides.map(override => ({
               training_exercise_id: exerciseIdMap.get(override.training_exercise_id) || override.training_exercise_id,
-              reps: override.reps
+              reps: override.reps,
+              weight_target: override.weight_target ?? null,
+              percentage_1rm: override.percentage_1rm ?? null,
             }));
 
             setsToInsert.push({
@@ -1536,18 +2005,99 @@ export default function CicloDetailPage() {
     if (!pickerBlock) return;
     const supabase = createClient();
     const block = weeks.flatMap(w => w.days).flatMap(d => d.blocks).find(b => b.id === pickerBlock);
+    if (!block) return;
+
+    const isPrep = block.type === "prep_fisica";
+    const complexId = isPrep ? block.id : null;
+    const complexOrder = isPrep ? (block.training_exercises.length || 0) : null;
+
+    let dayId = "";
+    for (const w of weeks) {
+      for (const d of w.days) {
+        if (d.blocks.some(b => b.id === pickerBlock)) {
+          dayId = d.id;
+          break;
+        }
+      }
+      if (dayId) break;
+    }
 
     const { data, error } = await supabase.from("training_exercises").insert({
       block_id: pickerBlock,
       exercise_id: ex.id,
       variant_id: variant?.id || null,
       sets: 3,
-      reps: "5",
+      reps: isPrep ? "10" : "5",
       percentage_1rm: null,
-      order: block?.training_exercises.length || 0,
+      order: block.training_exercises.length || 0,
+      complex_id: complexId,
+      complex_order: complexOrder,
     }).select().single();
 
     if (error) { toast.error("Error: " + error.message); return; }
+
+    const existingSets = complexSets[block.id] || [];
+    let newComplexSets = [...existingSets];
+    if (isPrep && existingSets.length === 0) {
+      // Check if sets already exist in the database first to prevent duplicate key violations
+      const { data: dbSets } = await supabase
+        .from("training_complex_sets")
+        .select("*")
+        .eq("complex_id", block.id);
+
+      if (dbSets && dbSets.length > 0) {
+        newComplexSets = dbSets.map(s => ({
+          id: s.id,
+          complex_id: s.complex_id,
+          day_id: s.day_id,
+          set_number: s.set_number,
+          percentage_1rm: s.percentage_1rm ?? null,
+          reps_overrides: s.reps_overrides || [],
+          rounds: s.rounds ?? 1,
+        }));
+      } else {
+        const defaultSets = [1, 2, 3].map(n => ({
+          complex_id: block.id,
+          day_id: dayId,
+          set_number: n,
+          percentage_1rm: null,
+          reps_overrides: [],
+          rounds: 1,
+        }));
+        const { data: setsData, error: setsError } = await supabase
+          .from("training_complex_sets").insert(defaultSets).select("*");
+        if (setsError) {
+          // If it fails with duplicate key (concurrency), double-check one more time
+          const { data: retrySets } = await supabase
+            .from("training_complex_sets")
+            .select("*")
+            .eq("complex_id", block.id);
+          if (retrySets && retrySets.length > 0) {
+            newComplexSets = retrySets.map(s => ({
+              id: s.id,
+              complex_id: s.complex_id,
+              day_id: s.day_id,
+              set_number: s.set_number,
+              percentage_1rm: s.percentage_1rm ?? null,
+              reps_overrides: s.reps_overrides || [],
+              rounds: s.rounds ?? 1,
+            }));
+          } else {
+            toast.error("Error al crear series: " + setsError.message);
+          }
+        } else if (setsData) {
+          newComplexSets = setsData.map(s => ({
+            id: s.id,
+            complex_id: s.complex_id,
+            day_id: s.day_id,
+            set_number: s.set_number,
+            percentage_1rm: s.percentage_1rm ?? null,
+            reps_overrides: s.reps_overrides || [],
+            rounds: s.rounds ?? 1,
+          }));
+        }
+      }
+    }
 
     const newEx: TrainingExercise = { ...data, exercise: ex, variant };
     setWeeks(weeks.map(w => ({
@@ -1559,6 +2109,11 @@ export default function CicloDetailPage() {
         } : b),
       })),
     })));
+
+    if (isPrep) {
+      setComplexSets(prev => ({ ...prev, [block.id]: newComplexSets }));
+    }
+
     setPickerBlock(null);
   };
 
@@ -1640,21 +2195,28 @@ export default function CicloDetailPage() {
   };
 
   // ─── Actualizar ejercicio ─────────────────────────────────
-  const updateExercise = async (blockId: string, exId: string, field: string, value: unknown) => {
-    setWeeks(weeks.map(w => ({
+  const updateExercise = async (
+    blockId: string,
+    exId: string,
+    fieldOrFields: string | Record<string, any>,
+    value?: unknown
+  ) => {
+    const updates = typeof fieldOrFields === "string" ? { [fieldOrFields]: value } : fieldOrFields;
+
+    setWeeks(prevWeeks => prevWeeks.map(w => ({
       ...w,
       days: w.days.map(d => ({
         ...d,
         blocks: d.blocks.map(b => b.id === blockId ? {
           ...b,
           training_exercises: b.training_exercises.map(te =>
-            te.id === exId ? { ...te, [field]: value } : te
+            te.id === exId ? { ...te, ...updates } : te
           ),
         } : b),
       })),
     })));
     const supabase = createClient();
-    await supabase.from("training_exercises").update({ [field]: value }).eq("id", exId);
+    await supabase.from("training_exercises").update(updates).eq("id", exId);
   };
 
   // ─── Actualizar descanso del complex (solo rest_seconds) ──
@@ -2135,52 +2697,69 @@ export default function CicloDetailPage() {
                           {/* Block content — collapsible */}
                           {!isCollapsed && (
                             <div className="space-y-3 mt-1">
-                              {/* Render exercises (singles + complexes) */}
-                              <div className="space-y-2">
-                                {getBlockItems(block.training_exercises).map(item =>
-                                  item.type === "single" ? (
-                                    <ExerciseRow
-                                      key={item.ex.id}
-                                      ex={item.ex}
-                                      blockId={block.id}
-                                      onUpdate={updateExercise}
-                                      onDelete={deleteExercise}
-                                      oneRM={!cycle?.is_template && item.ex.exercise_id ? studentOneRMs[item.ex.exercise_id] : undefined}
-                                    />
-                                  ) : (
-                                    <ComplexCard
-                                      key={item.complexId}
-                                      exs={item.exs}
-                                      complexId={item.complexId}
-                                      blockId={block.id}
-                                      dayId={day.id}
-                                      sets={complexSets[item.complexId] || []}
-                                      onUpdateField={updateExercise}
-                                      onUpdateSetPercentage={updateComplexSetPercentage}
-                                      onUpdateSetRepsOverride={updateComplexSetRepsOverride}
-                                      onUpdateSetRounds={updateComplexSetRounds}
-                                      onAddSet={addComplexSet}
-                                      onRemoveSet={removeComplexSet}
-                                      onUpdateRest={updateComplexRest}
-                                      onDelete={deleteExercise}
-                                      onUngroup={ungroupComplex}
-                                      studentOneRMs={cycle?.is_template ? {} : studentOneRMs}
-                                    />
-                                  )
-                                )}
-                              </div>
+                              {block.type === "prep_fisica" ? (
+                                <PrepFisicaBlock
+                                  block={block}
+                                  dayId={day.id}
+                                  sets={complexSets[block.id] || []}
+                                  onAddExercise={() => setPickerBlock(block.id)}
+                                  onDeleteExercise={deleteExercise}
+                                  onUpdateExerciseField={updateExercise}
+                                  onAddSet={addComplexSet}
+                                  onRemoveSet={removeComplexSet}
+                                  onUpdateSetRepsOverride={updateComplexSetRepsOverride}
+                                  onUpdateRest={updateComplexRest}
+                                />
+                              ) : (
+                                <>
+                                  {/* Render exercises (singles + complexes) */}
+                                  <div className="space-y-2">
+                                    {getBlockItems(block.training_exercises).map(item =>
+                                      item.type === "single" ? (
+                                        <ExerciseRow
+                                          key={item.ex.id}
+                                          ex={item.ex}
+                                          blockId={block.id}
+                                          onUpdate={updateExercise}
+                                          onDelete={deleteExercise}
+                                          oneRM={!cycle?.is_template && item.ex.exercise_id ? studentOneRMs[item.ex.exercise_id] : undefined}
+                                        />
+                                      ) : (
+                                        <ComplexCard
+                                          key={item.complexId}
+                                          exs={item.exs}
+                                          complexId={item.complexId}
+                                          blockId={block.id}
+                                          dayId={day.id}
+                                          sets={complexSets[item.complexId] || []}
+                                          onUpdateField={updateExercise}
+                                          onUpdateSetPercentage={updateComplexSetPercentage}
+                                          onUpdateSetRepsOverride={updateComplexSetRepsOverride}
+                                          onUpdateSetRounds={updateComplexSetRounds}
+                                          onAddSet={addComplexSet}
+                                          onRemoveSet={removeComplexSet}
+                                          onUpdateRest={updateComplexRest}
+                                          onDelete={deleteExercise}
+                                          onUngroup={ungroupComplex}
+                                          studentOneRMs={cycle?.is_template ? {} : studentOneRMs}
+                                        />
+                                      )
+                                    )}
+                                  </div>
 
-                              {/* Add buttons */}
-                              <div className="flex gap-3 flex-wrap">
-                                <button onClick={() => setPickerBlock(block.id)}
-                                  className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
-                                  <Plus className="w-4 h-4" /> Agregar ejercicio
-                                </button>
-                                <button onClick={() => setComplexPickerBlock(block.id)}
-                                  className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium hover:text-primary transition-colors">
-                                  <Link2 className="w-4 h-4" /> Complex / Trepada
-                                </button>
-                              </div>
+                                  {/* Add buttons */}
+                                  <div className="flex gap-3 flex-wrap">
+                                    <button onClick={() => setPickerBlock(block.id)}
+                                      className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
+                                      <Plus className="w-4 h-4" /> Agregar ejercicio
+                                    </button>
+                                    <button onClick={() => setComplexPickerBlock(block.id)}
+                                      className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium hover:text-primary transition-colors">
+                                      <Link2 className="w-4 h-4" /> Complex / Trepada
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2376,6 +2955,84 @@ function DayPreviewModal({
                         );
                       } else {
                         const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
+                        const isPrep = block.type === "prep_fisica";
+
+                        if (isPrep) {
+                          return (
+                            <div
+                              key={item.complexId}
+                              className="p-4 rounded-xl bg-zinc-900/50 border border-emerald-800/30 space-y-3 hover:border-emerald-800/50 transition-colors"
+                            >
+                              <div className="space-y-1">
+                                <h4 className="text-white font-extrabold text-base leading-tight flex items-center gap-1.5">
+                                  <Dumbbell className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                                  <span>Circuito de Preparación Física</span>
+                                </h4>
+                                <div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400">
+                                  <span className="px-2 py-0.5 bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 rounded">
+                                    {cSets.length} Rondas
+                                  </span>
+                                  {item.exs[0]?.rest_seconds && (
+                                    <span className="text-zinc-500 font-normal">
+                                      Descanso: {item.exs[0].rest_seconds}s
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {item.exs.some(te => te.notes) && (
+                                <div className="space-y-1 border-l border-emerald-900 pl-2">
+                                  {item.exs.filter(te => te.notes).map(te => (
+                                    <p key={te.id} className="text-zinc-500 text-[10px] italic">
+                                      * {te.exercise?.name}: {te.notes}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Desglose de rondas */}
+                              <div className="space-y-3 pt-1">
+                                {cSets.map((s, sIdx) => (
+                                  <div key={s.id} className="space-y-1 border-t border-zinc-800/40 pt-1.5 first:border-t-0 first:pt-0">
+                                    <span className="text-emerald-500 font-bold text-xs">Ronda {s.set_number || sIdx + 1}:</span>
+                                    <div className="space-y-0.5 pl-2">
+                                      {item.exs.map(te => {
+                                        const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                        const r = ov?.reps ?? te.reps;
+                                        
+                                        const ovPct = ov?.percentage_1rm;
+                                        const ovWt = ov?.weight_target;
+                                        const basePct = te.percentage_1rm;
+                                        const baseWt = te.weight_target;
+
+                                        let pct = null;
+                                        let wt = null;
+
+                                        if (ovPct !== undefined || ovWt !== undefined) {
+                                          pct = ovPct ?? null;
+                                          wt = ovWt ?? null;
+                                        } else {
+                                          pct = basePct ?? null;
+                                          wt = baseWt ?? null;
+                                        }
+
+                                        const loadText = pct !== null ? `@ ${pct}% 1RM` : wt !== null ? `@ ${wt} kg` : "";
+
+                                        return (
+                                          <div key={te.id} className="text-xs text-zinc-300 flex justify-between">
+                                            <span className="truncate max-w-[200px]">{te.exercise?.name}</span>
+                                            <span className="font-mono text-zinc-400">{r} reps {loadText}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+
                         const complexTitle = item.exs.map(te => {
                           return te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name;
                         }).join(" + ");
