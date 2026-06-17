@@ -56,6 +56,34 @@ function getDayOfWeek(dayName: string): number {
   return 1;
 }
 
+type PreviewBlockItem =
+  | { type: "single"; ex: ParsedExercise }
+  | { type: "complex"; complexId: string; exs: ParsedExercise[] };
+
+function getPreviewBlockItems(exercises: ParsedExercise[]): PreviewBlockItem[] {
+  const complexMap = new Map<string, ParsedExercise[]>();
+  const items: PreviewBlockItem[] = [];
+
+  for (const ex of exercises) {
+    if (!ex.complex_id) {
+      items.push({ type: "single", ex });
+    } else {
+      if (!complexMap.has(ex.complex_id)) complexMap.set(ex.complex_id, []);
+      complexMap.get(ex.complex_id)!.push(ex);
+    }
+  }
+  for (const [complexId, exs] of complexMap.entries()) {
+    items.push({ type: "complex", complexId, exs });
+  }
+
+  // Sort them by their original order in the exercises array
+  return items.sort((a, b) => {
+    const aIndex = exercises.indexOf(a.type === "single" ? a.ex : a.exs[0]);
+    const bIndex = exercises.indexOf(b.type === "single" ? b.ex : b.exs[0]);
+    return aIndex - bIndex;
+  });
+}
+
 export default function CycleImportWizard({
   onCancel,
   studentId: initialStudentId,
@@ -1156,15 +1184,16 @@ export default function CycleImportWizard({
                         {day.blocks.map(block => (
                           <div key={block.name} className="bg-zinc-50 rounded-xl p-3 border border-zinc-200/50 space-y-2">
                             <span className="font-bold text-[10px] text-zinc-400 uppercase tracking-widest block">{block.name}</span>
-                            <div className="space-y-1.5">
-                              {block.exercises.map((ex, exIdx) => {
+                            {getPreviewBlockItems(block.exercises).map((item, itemIdx) => {
+                              if (item.type === "single") {
+                                const ex = item.ex;
                                 const matchedEx = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId);
                                 const matchedExName = matchedEx?.name || ex.name;
                                 const matchedVarName = mappings[ex.name]?.matchedVariantId && matchedEx
                                   ? matchedEx.exercise_variants?.find(v => v.id === mappings[ex.name]?.matchedVariantId)?.name
                                   : null;
                                 return (
-                                  <div key={exIdx} className="text-xs text-zinc-700 font-medium">
+                                  <div key={itemIdx} className="text-xs text-zinc-700 font-medium">
                                     • {matchedExName}
                                     {matchedVarName && (
                                       <span className="text-[10px] text-zinc-500 font-normal ml-1 bg-zinc-200/50 px-1.5 py-0.5 rounded">
@@ -1195,8 +1224,52 @@ export default function CycleImportWizard({
                                     {ex.notes && <p className="text-[10px] text-zinc-400 italic font-normal ml-3 leading-tight">* {ex.notes}</p>}
                                   </div>
                                 );
-                              })}
-                            </div>
+                              } else {
+                                // Complex exercise
+                                const sortedExs = [...item.exs].sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0));
+                                const firstEx = sortedExs[0];
+                                
+                                return (
+                                  <div key={itemIdx} className="border border-primary/20 bg-primary/[0.02] rounded-xl p-2.5 space-y-1 text-xs">
+                                    <span className="text-[9px] font-bold text-primary uppercase tracking-wide">
+                                      Complex ({sortedExs.length} ejercicios)
+                                    </span>
+                                    <div className="space-y-0.5">
+                                      {sortedExs.map((ex, exIdx) => {
+                                        const matchedEx = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId);
+                                        const matchedExName = matchedEx?.name || ex.name;
+                                        return (
+                                          <p key={exIdx} className="font-semibold text-zinc-700">
+                                            {exIdx + 1}. {matchedExName}
+                                          </p>
+                                        );
+                                      })}
+                                    </div>
+                                    
+                                    {firstEx.complex_sets && firstEx.complex_sets.length > 0 && (
+                                      <div className="text-[10px] text-zinc-400 font-normal mt-0.5 leading-normal">
+                                        <span className="font-semibold text-zinc-400/80">Series:</span>{" "}
+                                        <span className="text-zinc-600 font-medium">
+                                          {firstEx.complex_sets.map((set, sIdx) => {
+                                            const pct = set.percentage_1rm ? `${set.percentage_1rm}%` : "";
+                                            const weight = set.weight_target ? `${set.weight_target} kg` : "";
+                                            const load = pct || weight || "";
+                                            
+                                            // Combine reps from all exercises in this complex
+                                            const repsText = sortedExs.map(ex => {
+                                              const override = set.reps_overrides?.find(ov => ov.name === ex.name);
+                                              return override ? override.reps : ex.reps;
+                                            }).join("+");
+                                            
+                                            return `${repsText}${load ? ` @ ${load}` : ""}`;
+                                          }).join(" · ")}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                            })}
                           </div>
                         ))}
                       </div>
