@@ -167,14 +167,15 @@ const CATEGORY_TABS = [
 ];
 
 function ExercisePicker({
-  exercises, onSelect, onClose
+  exercises, onSelect, onClose, initialCategory = "all",
 }: {
   exercises: Exercise[];
   onSelect: (ex: Exercise, variant?: Variant) => void;
   onClose: () => void;
+  initialCategory?: string;
 }) {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
+  const [category, setCategory] = useState(initialCategory);
   const [selected, setSelected] = useState<Exercise | null>(null);
 
   const filtered = exercises.filter(e => {
@@ -371,14 +372,15 @@ function SetRepsOverrideModal({
 
 // ─── Complex / Trepada Picker Modal ───────────────────────────
 function ComplexPicker({
-  exercises, onConfirm, onClose,
+  exercises, onConfirm, onClose, initialCategory = "all",
 }: {
   exercises: Exercise[];
   onConfirm: (items: { ex: Exercise; variant?: Variant }[]) => void;
   onClose: () => void;
+  initialCategory?: string;
 }) {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
+  const [category, setCategory] = useState(initialCategory);
   const [selectedItems, setSelectedItems] = useState<{ ex: Exercise; variant?: Variant }[]>([]);
   const [pickingVariantFor, setPickingVariantFor] = useState<Exercise | null>(null);
 
@@ -2805,6 +2807,14 @@ export default function CicloDetailPage() {
           exercises={exercises}
           onSelect={handleExerciseSelect}
           onClose={() => setPickerBlock(null)}
+          initialCategory={(
+            () => {
+              const block = weeks.flatMap(w => w.days).flatMap(d => d.blocks).find(b => b.id === pickerBlock);
+              if (block?.type === "fuerza") return "fuerza";
+              if (block?.type === "prep_fisica") return "prep_fisica";
+              return "all";
+            }
+          )()}
         />
       )}
 
@@ -2813,6 +2823,14 @@ export default function CicloDetailPage() {
           exercises={exercises}
           onConfirm={handleComplexCreate}
           onClose={() => setComplexPickerBlock(null)}
+          initialCategory={(
+            () => {
+              const block = weeks.flatMap(w => w.days).flatMap(d => d.blocks).find(b => b.id === complexPickerBlock);
+              if (block?.type === "fuerza") return "fuerza";
+              if (block?.type === "prep_fisica") return "prep_fisica";
+              return "all";
+            }
+          )()}
         />
       )}
 
