@@ -473,111 +473,92 @@ export default function CycleImportWizard({
               throw new Error(`Error al crear bloque ${pBlock.name} en día ${pDay.name}: ${blockErr?.message}`);
             }
 
-            // Group complexes by complex_id in memory to manage Supabase inserts cleanly
-            const complexGroups = new Map<string, ParsedExercise[]>();
-            const singleExercises: ParsedExercise[] = [];
+            // Insert exercises in their exact parsed order
+            for (let exIdx = 0; exIdx < pBlock.exercises.length; exIdx++) {
+              const pEx = pBlock.exercises[exIdx];
 
-            pBlock.exercises.forEach(ex => {
-              if (ex.complex_id) {
-                if (!complexGroups.has(ex.complex_id)) {
-                  complexGroups.set(ex.complex_id, []);
+              if (!pEx.complex_id) {
+                // Single exercise
+                const { error: exErr } = await supabase
+                  .from("training_exercises")
+                  .insert({
+                    block_id: block.id,
+                    exercise_id: resolvedMappings[pEx.name],
+                    variant_id: resolvedVariantMappings[pEx.name] || null,
+                    sets: pEx.sets,
+                    reps: pEx.reps,
+                    percentage_1rm: pEx.percentage_1rm || null,
+                    weight_target: pEx.weight_target || null,
+                    notes: pEx.notes || null,
+                    order: exIdx + 1,
+                  });
+
+                if (exErr) {
+                  throw new Error(`Error al insertar ejercicio '${pEx.name}': ${exErr.message}`);
                 }
-                complexGroups.get(ex.complex_id)!.push(ex);
               } else {
-                singleExercises.push(ex);
-              }
-            });
+                // Complex exercise (variable sets/trepada)
+                const newComplexId = crypto.randomUUID();
 
-            // Insert single exercises
-            for (let exIdx = 0; exIdx < singleExercises.length; exIdx++) {
-              const pEx = singleExercises[exIdx];
-              const { error: exErr } = await supabase
-                .from("training_exercises")
-                .insert({
-                  block_id: block.id,
-                  exercise_id: resolvedMappings[pEx.name],
-                  variant_id: resolvedVariantMappings[pEx.name] || null,
-                  sets: pEx.sets,
-                  reps: pEx.reps,
-                  percentage_1rm: pEx.percentage_1rm || null,
-                  weight_target: pEx.weight_target || null,
-                  notes: pEx.notes || null,
-                  order: exIdx + 1,
-                });
+                // Insert training exercise
+                const { data: insertedExercises, error: cExsErr } = await supabase
+                  .from("training_exercises")
+                  .insert({
+                    block_id: block.id,
+                    exercise_id: resolvedMappings[pEx.name],
+                    variant_id: resolvedVariantMappings[pEx.name] || null,
+                    sets: pEx.sets,
+                    reps: pEx.reps,
+                    percentage_1rm: pEx.percentage_1rm || null,
+                    weight_target: pEx.weight_target || null,
+                    notes: pEx.notes || null,
+                    order: exIdx + 1,
+                    complex_id: newComplexId,
+                    complex_order: pEx.complex_order || 1,
+                  })
+                  .select();
 
-              if (exErr) {
-                throw new Error(`Error al insertar ejercicio '${pEx.name}': ${exErr.message}`);
-              }
-            }
+                if (cExsErr || !insertedExercises || insertedExercises.length === 0) {
+                  throw new Error(`Error al insertar ejercicio complex '${pEx.name}': ${cExsErr?.message}`);
+                }
 
-            // Insert complexes
-            let currentExOrder = singleExercises.length + 1;
-            for (const [_, cExercises] of Array.from(complexGroups.entries())) {
-              const newComplexId = crypto.randomUUID();
+                // Insert complex sets (with overrides mapped to the correct training exercise UUID)
+                if (pEx.complex_sets && (pEx.complex_order === 1 || !pEx.complex_order)) {
+                  const setsToInsert = pEx.complex_sets.map(cSet => {
+                    const overrides = cSet.reps_overrides.map(ov => {
+                      const matchedTe = insertedExercises.find(
+                        inserted => {
+                          const originalExId = resolvedMappings[ov.name];
+                          return originalExId === inserted.exercise_id;
+                        }
+                      );
+                      return {
+                        training_exercise_id: matchedTe?.id || crypto.randomUUID(),
+                        reps: ov.reps,
+                        weight_target: cSet.weight_target || null,
+                        percentage_1rm: cSet.percentage_1rm || null,
+                      };
+                    });
 
-              // Insert complex exercises
-              const exercisesToInsert = cExercises.map((cEx, idx) => ({
-                block_id: block.id,
-                exercise_id: resolvedMappings[cEx.name],
-                variant_id: resolvedVariantMappings[cEx.name] || null,
-                sets: cEx.sets,
-                reps: cEx.reps,
-                percentage_1rm: cEx.percentage_1rm || null,
-                weight_target: cEx.weight_target || null,
-                notes: cEx.notes || null,
-                order: currentExOrder + idx,
-                complex_id: newComplexId,
-                complex_order: cEx.complex_order,
-              }));
-
-              const { data: insertedExercises, error: cExsErr } = await supabase
-                .from("training_exercises")
-                .insert(exercisesToInsert)
-                .select();
-
-              if (cExsErr || !insertedExercises) {
-                throw new Error(`Error al insertar complejos: ${cExsErr?.message}`);
-              }
-
-              // Insert complex sets (with overrides mapped to the correct training exercise UUIDs)
-              const firstExercise = cExercises[0];
-              if (firstExercise.complex_sets) {
-                const setsToInsert = firstExercise.complex_sets.map(cSet => {
-                  const overrides = cSet.reps_overrides.map(ov => {
-                    const matchedTe = insertedExercises.find(
-                      inserted => {
-                        const originalExId = resolvedMappings[ov.name];
-                        return originalExId === inserted.exercise_id;
-                      }
-                    );
                     return {
-                      training_exercise_id: matchedTe?.id || crypto.randomUUID(),
-                      reps: ov.reps,
-                      weight_target: cSet.weight_target || null,
-                      percentage_1rm: cSet.percentage_1rm || null,
+                      day_id: day.id,
+                      complex_id: newComplexId,
+                      set_number: cSet.set_number,
+                      percentage_1rm: cSet.percentage_1rm,
+                      reps_overrides: overrides,
+                      rounds: 1,
                     };
                   });
 
-                  return {
-                    day_id: day.id,
-                    complex_id: newComplexId,
-                    set_number: cSet.set_number,
-                    percentage_1rm: cSet.percentage_1rm,
-                    reps_overrides: overrides,
-                    rounds: 1,
-                  };
-                });
+                  const { error: setsErr } = await supabase
+                    .from("training_complex_sets")
+                    .insert(setsToInsert);
 
-                const { error: setsErr } = await supabase
-                  .from("training_complex_sets")
-                  .insert(setsToInsert);
-
-                if (setsErr) {
-                  throw new Error(`Error al insertar series del complejo: ${setsErr.message}`);
+                  if (setsErr) {
+                    throw new Error(`Error al insertar series del complejo: ${setsErr.message}`);
+                  }
                 }
               }
-
-              currentExOrder += cExercises.length;
             }
           }
         }

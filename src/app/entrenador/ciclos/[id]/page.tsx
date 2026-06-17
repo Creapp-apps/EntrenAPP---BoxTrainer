@@ -1658,13 +1658,15 @@ export default function CicloDetailPage() {
           order: d.order as number,
           is_rest: !!(d.is_rest as boolean),
           expanded: false,
-          blocks: ((d.training_blocks || []) as Record<string, unknown>[]).map((b: Record<string, unknown>) => ({
-            id: b.id as string,
-            name: b.name as string,
-            type: b.type as string,
-            order: b.order as number,
-            training_exercises: ((b.training_exercises || []) as Record<string, unknown>[])
-              .sort((a, b) => (a.order as number) - (b.order as number))
+          blocks: ((d.training_blocks || []) as Record<string, unknown>[])
+            .sort((a, b) => (a.order as number) - (b.order as number))
+            .map((b: Record<string, unknown>) => ({
+              id: b.id as string,
+              name: b.name as string,
+              type: b.type as string,
+              order: b.order as number,
+              training_exercises: ((b.training_exercises || []) as Record<string, unknown>[])
+                .sort((a, b) => (a.order as number) - (b.order as number))
               .map((te: Record<string, unknown>) => ({
                 id: te.id as string,
                 exercise_id: te.exercise_id as string,
@@ -3066,7 +3068,7 @@ function DayPreviewModal({
                               </h4>
                               <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
                                 <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">
-                                  Complex ({cSets.length} series)
+                                  {item.exs.length > 1 ? "Complex" : "Trepada"} ({cSets.length} series)
                                 </span>
                               </div>
                             </div>
