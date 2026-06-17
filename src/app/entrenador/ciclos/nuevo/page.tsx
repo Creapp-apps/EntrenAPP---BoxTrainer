@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Calendar, Copy, Plus, Check } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Copy, Plus, Check, FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
 import { WEEK_TYPE_LABELS, WEEK_TYPE_COLORS } from "@/lib/utils";
+import CycleImportWizard from "@/components/CycleImportWizard";
 
 const WEEK_TYPES = ["carga", "descarga", "intensificacion", "acumulacion", "test"] as const;
 const WEEK_TYPE_COLORS_BTN: Record<string, string> = {
@@ -24,7 +25,7 @@ type Template = {
   phase_structure: { week_number: number; type: string }[];
 };
 
-type Mode = "pick" | "scratch" | "template";
+type Mode = "pick" | "scratch" | "template" | "import";
 
 export default function NuevoCicloPage() {
   const router = useRouter();
@@ -238,6 +239,21 @@ export default function NuevoCicloPage() {
             </div>
           </button>
 
+          <button onClick={() => setMode("import")}
+            className="bg-white rounded-2xl p-6 shadow-sm border-2 border-border hover:border-primary/50 hover:shadow-md transition-all text-left group">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                <FileSpreadsheet className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-lg">Importar desde Excel / CSV</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Subí una planilla de cálculo en formato CSV para importar un ciclo completo con semanas, días y ejercicios.
+                </p>
+              </div>
+            </div>
+          </button>
+
           <button onClick={() => { setMode("scratch"); setForm(f => ({ ...f, is_template_only: true, student_id: "" })); }}
             className="bg-white rounded-2xl p-5 shadow-sm border border-dashed border-border hover:border-primary/50 transition-all text-left group">
             <div className="flex items-center gap-3">
@@ -250,6 +266,15 @@ export default function NuevoCicloPage() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  if (mode === "import") {
+    return (
+      <CycleImportWizard
+        onCancel={() => setMode("pick")}
+        studentId={preselectedStudent || undefined}
+      />
     );
   }
 
