@@ -1185,8 +1185,10 @@ export default function CycleImportWizard({
                           <div key={block.name} className="bg-zinc-50 rounded-xl p-3 border border-zinc-200/50 space-y-2">
                             <span className="font-bold text-[10px] text-zinc-400 uppercase tracking-widest block">{block.name}</span>
                             {getPreviewBlockItems(block.exercises).map((item, itemIdx) => {
-                              if (item.type === "single") {
-                                const ex = item.ex;
+                              const isSingle = item.type === "single" || (item.type === "complex" && item.exs.length === 1);
+
+                              if (isSingle) {
+                                const ex = item.type === "single" ? item.ex : item.exs[0];
                                 const matchedEx = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId);
                                 const matchedExName = matchedEx?.name || ex.name;
                                 const matchedVarName = mappings[ex.name]?.matchedVariantId && matchedEx
@@ -1225,29 +1227,26 @@ export default function CycleImportWizard({
                                   </div>
                                 );
                               } else {
-                                // Complex exercise
+                                // Complex exercise with multiple movements
                                 const sortedExs = [...item.exs].sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0));
                                 const firstEx = sortedExs[0];
                                 
                                 return (
-                                  <div key={itemIdx} className="border border-primary/20 bg-primary/[0.02] rounded-xl p-2.5 space-y-1 text-xs">
-                                    <span className="text-[9px] font-bold text-primary uppercase tracking-wide">
-                                      Complex ({sortedExs.length} ejercicios)
-                                    </span>
+                                  <div key={itemIdx} className="border border-zinc-200 bg-zinc-50/50 rounded-xl p-2.5 space-y-1.5 text-xs">
                                     <div className="space-y-0.5">
                                       {sortedExs.map((ex, exIdx) => {
                                         const matchedEx = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId);
                                         const matchedExName = matchedEx?.name || ex.name;
                                         return (
                                           <p key={exIdx} className="font-semibold text-zinc-700">
-                                            {exIdx + 1}. {matchedExName}
+                                            • {matchedExName}
                                           </p>
                                         );
                                       })}
                                     </div>
                                     
                                     {firstEx.complex_sets && firstEx.complex_sets.length > 0 && (
-                                      <div className="text-[10px] text-zinc-400 font-normal mt-0.5 leading-normal">
+                                      <div className="text-[10px] text-zinc-400 font-normal mt-0.5 leading-normal pl-2.5">
                                         <span className="font-semibold text-zinc-400/80">Series:</span>{" "}
                                         <span className="text-zinc-600 font-medium">
                                           {firstEx.complex_sets.map((set, sIdx) => {
