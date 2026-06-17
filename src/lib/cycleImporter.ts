@@ -181,40 +181,81 @@ export function parseWolfpackFormat(rows: string[][], cycleName: string = "Ciclo
         day.blocks.push(block);
       }
 
-      // Check if percentages or reps vary across sets
-      const firstSet = setsData[0];
-      const isUniform = setsData.every(s => s.percentage === firstSet.percentage && s.reps === firstSet.reps);
+      // Parse exercise names (handles complexes with "+")
+      const isComplex = exerciseRawName.includes("+");
+      const parts = exerciseRawName.split("+").map(p => p.trim());
 
-      if (isUniform) {
-        block.exercises.push({
-          name: exerciseRawName,
-          sets: setsData.length,
-          reps: firstSet.reps,
-          percentage_1rm: firstSet.percentage || undefined,
-          is_complex: false,
-        });
-      } else {
-        // If sets vary, we represent it as a single-exercise complex in the DB
+      if (isComplex) {
         const complexId = crypto.randomUUID();
-        const singleEx = {
-          name: exerciseRawName,
+        
+        // Create the individual exercises for the complex
+        const complexExercises = parts.map((partName, idx) => ({
+          name: partName,
           sets: setsData.length,
-          reps: "1",
+          reps: "1", // will use overrides
           is_complex: true,
           complex_id: complexId,
-          complex_order: 1,
-        };
-
-        const complexSets = setsData.map((sData, setIdx) => ({
-          set_number: setIdx + 1,
-          percentage_1rm: sData.percentage,
-          reps_overrides: [{ name: exerciseRawName, reps: sData.reps }],
+          complex_order: idx + 1,
         }));
 
-        block.exercises.push({
-          ...singleEx,
-          complex_sets: complexSets,
+        // Build sets overrides
+        const complexSets = setsData.map((sData, setIdx) => {
+          const repsOverrideParts = sData.reps.split("+").map(r => r.trim());
+          const overrides = complexExercises.map((ex, exIdx) => ({
+            name: ex.name,
+            reps: repsOverrideParts[exIdx] || repsOverrideParts[0] || "1",
+          }));
+
+          return {
+            set_number: setIdx + 1,
+            percentage_1rm: sData.percentage,
+            reps_overrides: overrides,
+          };
         });
+
+        // Add to block
+        complexExercises.forEach(ex => {
+          block!.exercises.push({
+            ...ex,
+            complex_sets: complexSets,
+          });
+        });
+      } else {
+        // Check if percentages or reps vary across sets
+        const firstSet = setsData[0];
+        const isUniform = setsData.every(s => s.percentage === firstSet.percentage && s.reps === firstSet.reps);
+
+        if (isUniform) {
+          block.exercises.push({
+            name: exerciseRawName,
+            sets: setsData.length,
+            reps: firstSet.reps,
+            percentage_1rm: firstSet.percentage || undefined,
+            is_complex: false,
+          });
+        } else {
+          // If sets vary, we represent it as a single-exercise complex in the DB
+          const complexId = crypto.randomUUID();
+          const singleEx = {
+            name: exerciseRawName,
+            sets: setsData.length,
+            reps: "1",
+            is_complex: true,
+            complex_id: complexId,
+            complex_order: 1,
+          };
+
+          const complexSets = setsData.map((sData, setIdx) => ({
+            set_number: setIdx + 1,
+            percentage_1rm: sData.percentage,
+            reps_overrides: [{ name: exerciseRawName, reps: sData.reps }],
+          }));
+
+          block.exercises.push({
+            ...singleEx,
+            complex_sets: complexSets,
+          });
+        }
       }
     }
   }
@@ -359,16 +400,58 @@ export function parseDavidFormat(rows: string[][], cycleName: string = "Ciclo Da
               day.blocks.push(block);
             }
 
-            // Single exercise
-            block.exercises.push({
-              name: exerciseRawName,
-              sets: parsed.sets,
-              reps: parsed.reps,
-              percentage_1rm: parsed.percentage,
-              weight_target: parsed.weight_target,
-              notes: parsed.notes,
-              is_complex: false,
-            });
+            // Parse complexes (handles "+" inside exercise name)
+            const isComplex = exerciseRawName.includes("+");
+            
+            if (isComplex) {
+              const parts = exerciseRawName.split("+").map(p => p.trim());
+              const complexId = crypto.randomUUID();
+              
+              const complexExercises = parts.map((partName, idx) => ({
+                name: partName,
+                sets: parsed.sets,
+                reps: "1",
+                percentage_1rm: parsed.percentage,
+                weight_target: parsed.weight_target,
+                notes: parsed.notes,
+                is_complex: true,
+                complex_id: complexId,
+                complex_order: idx + 1,
+              }));
+
+              const repsOverrideParts = parsed.reps.split("+").map(r => r.trim());
+              const complexSets = Array.from({ length: parsed.sets }, (_, setIdx) => {
+                const overrides = complexExercises.map((ex, exIdx) => ({
+                  name: ex.name,
+                  reps: repsOverrideParts[exIdx] || repsOverrideParts[0] || "1",
+                }));
+
+                return {
+                  set_number: setIdx + 1,
+                  percentage_1rm: parsed.percentage || null,
+                  weight_target: parsed.weight_target || null,
+                  reps_overrides: overrides,
+                };
+              });
+
+              complexExercises.forEach(ex => {
+                block!.exercises.push({
+                  ...ex,
+                  complex_sets: complexSets,
+                });
+              });
+            } else {
+              // Single exercise
+              block.exercises.push({
+                name: exerciseRawName,
+                sets: parsed.sets,
+                reps: parsed.reps,
+                percentage_1rm: parsed.percentage,
+                weight_target: parsed.weight_target,
+                notes: parsed.notes,
+                is_complex: false,
+              });
+            }
           }
         }
       }

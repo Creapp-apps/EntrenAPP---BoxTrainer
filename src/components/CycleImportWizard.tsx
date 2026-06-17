@@ -473,13 +473,18 @@ export default function CycleImportWizard({
               throw new Error(`Error al crear bloque ${pBlock.name} en día ${pDay.name}: ${blockErr?.message}`);
             }
 
-            // Insert exercises in their exact parsed order
+            // Map to correlate parsed complex_id with database complex_id (UUID)
+            const dbComplexIdMap = new Map<string, string>();
+            const insertedExercises: any[] = [];
+            const complexSetsToInsert: { dbComplexId: string; complexSets: any[] }[] = [];
+
+            // 1. Insert all exercises sequentially (maintains strict order)
             for (let exIdx = 0; exIdx < pBlock.exercises.length; exIdx++) {
               const pEx = pBlock.exercises[exIdx];
 
               if (!pEx.complex_id) {
                 // Single exercise
-                const { error: exErr } = await supabase
+                const { data: insertedSingle, error: exErr } = await supabase
                   .from("training_exercises")
                   .insert({
                     block_id: block.id,
@@ -491,17 +496,24 @@ export default function CycleImportWizard({
                     weight_target: pEx.weight_target || null,
                     notes: pEx.notes || null,
                     order: exIdx + 1,
-                  });
+                  })
+                  .select()
+                  .single();
 
-                if (exErr) {
-                  throw new Error(`Error al insertar ejercicio '${pEx.name}': ${exErr.message}`);
+                if (exErr || !insertedSingle) {
+                  throw new Error(`Error al insertar ejercicio '${pEx.name}': ${exErr?.message}`);
                 }
+                insertedExercises.push(insertedSingle);
               } else {
-                // Complex exercise (variable sets/trepada)
-                const newComplexId = crypto.randomUUID();
+                // Complex exercise part
+                let dbComplexId = dbComplexIdMap.get(pEx.complex_id);
+                if (!dbComplexId) {
+                  dbComplexId = crypto.randomUUID();
+                  dbComplexIdMap.set(pEx.complex_id, dbComplexId);
+                }
 
                 // Insert training exercise
-                const { data: insertedExercises, error: cExsErr } = await supabase
+                const { data: insertedComplexEx, error: cExsErr } = await supabase
                   .from("training_exercises")
                   .insert({
                     block_id: block.id,
@@ -513,51 +525,62 @@ export default function CycleImportWizard({
                     weight_target: pEx.weight_target || null,
                     notes: pEx.notes || null,
                     order: exIdx + 1,
-                    complex_id: newComplexId,
+                    complex_id: dbComplexId,
                     complex_order: pEx.complex_order || 1,
                   })
-                  .select();
+                  .select()
+                  .single();
 
-                if (cExsErr || !insertedExercises || insertedExercises.length === 0) {
+                if (cExsErr || !insertedComplexEx) {
                   throw new Error(`Error al insertar ejercicio complex '${pEx.name}': ${cExsErr?.message}`);
                 }
+                insertedExercises.push(insertedComplexEx);
 
-                // Insert complex sets (with overrides mapped to the correct training exercise UUID)
+                // Queue complex sets to insert after the loop completes (once all exercises in the complex are inserted)
                 if (pEx.complex_sets && (pEx.complex_order === 1 || !pEx.complex_order)) {
-                  const setsToInsert = pEx.complex_sets.map(cSet => {
-                    const overrides = cSet.reps_overrides.map(ov => {
-                      const matchedTe = insertedExercises.find(
-                        inserted => {
-                          const originalExId = resolvedMappings[ov.name];
-                          return originalExId === inserted.exercise_id;
-                        }
-                      );
-                      return {
-                        training_exercise_id: matchedTe?.id || crypto.randomUUID(),
-                        reps: ov.reps,
-                        weight_target: cSet.weight_target || null,
-                        percentage_1rm: cSet.percentage_1rm || null,
-                      };
-                    });
-
-                    return {
-                      day_id: day.id,
-                      complex_id: newComplexId,
-                      set_number: cSet.set_number,
-                      percentage_1rm: cSet.percentage_1rm,
-                      reps_overrides: overrides,
-                      rounds: 1,
-                    };
+                  complexSetsToInsert.push({
+                    dbComplexId,
+                    complexSets: pEx.complex_sets,
                   });
-
-                  const { error: setsErr } = await supabase
-                    .from("training_complex_sets")
-                    .insert(setsToInsert);
-
-                  if (setsErr) {
-                    throw new Error(`Error al insertar series del complejo: ${setsErr.message}`);
-                  }
                 }
+              }
+            }
+
+            // 2. Insert complex sets (now we have all training exercise IDs in memory)
+            for (const item of complexSetsToInsert) {
+              const { dbComplexId, complexSets } = item;
+              const setsToInsert = complexSets.map(cSet => {
+                const overrides = cSet.reps_overrides.map(ov => {
+                  const matchedTe = insertedExercises.find(
+                    inserted => {
+                      const originalExId = resolvedMappings[ov.name];
+                      return originalExId === inserted.exercise_id && inserted.complex_id === dbComplexId;
+                    }
+                  );
+                  return {
+                    training_exercise_id: matchedTe?.id || crypto.randomUUID(),
+                    reps: ov.reps,
+                    weight_target: cSet.weight_target || null,
+                    percentage_1rm: cSet.percentage_1rm || null,
+                  };
+                });
+
+                return {
+                  day_id: day.id,
+                  complex_id: dbComplexId,
+                  set_number: cSet.set_number,
+                  percentage_1rm: cSet.percentage_1rm,
+                  reps_overrides: overrides,
+                  rounds: 1,
+                };
+              });
+
+              const { error: setsErr } = await supabase
+                .from("training_complex_sets")
+                .insert(setsToInsert);
+
+              if (setsErr) {
+                throw new Error(`Error al insertar series del complejo: ${setsErr.message}`);
               }
             }
           }
