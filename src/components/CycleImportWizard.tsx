@@ -23,8 +23,38 @@ type FormatType = "wolfpack" | "david";
 type ExerciseMapping = {
   rawName: string;
   matchedId: string | null; // UUID from exercises table, or 'create' to create new
+  matchedVariantId?: string | null; // UUID from exercise_variants table
   category: string; // "fuerza" | "preparacion_fisica"
 };
+
+type DBExercise = {
+  id: string;
+  name: string;
+  category: string;
+  exercise_variants: {
+    id: string;
+    name: string;
+    exercise_id: string;
+  }[];
+};
+
+function getDayOfWeek(dayName: string): number {
+  const clean = dayName.toLowerCase().trim();
+  if (clean.includes("lunes")) return 1;
+  if (clean.includes("martes")) return 2;
+  if (clean.includes("miercoles") || clean.includes("miér")) return 3;
+  if (clean.includes("jueves")) return 4;
+  if (clean.includes("viernes")) return 5;
+  if (clean.includes("sabado") || clean.includes("sáb")) return 6;
+  if (clean.includes("domingo")) return 7;
+  
+  const numMatch = clean.match(/\d+/);
+  if (numMatch) {
+    const num = parseInt(numMatch[0], 10);
+    if (num >= 1 && num <= 7) return num;
+  }
+  return 1;
+}
 
 export default function CycleImportWizard({
   onCancel,
@@ -38,7 +68,7 @@ export default function CycleImportWizard({
 
   // Supabase & Session data
   const [students, setStudents] = useState<{ id: string; full_name: string }[]>([]);
-  const [dbExercises, setDbExercises] = useState<{ id: string; name: string }[]>([]);
+  const [dbExercises, setDbExercises] = useState<DBExercise[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Importer state
@@ -58,9 +88,50 @@ export default function CycleImportWizard({
   const [searchFilter, setSearchFilter] = useState("");
   const [importingProgress, setImportingProgress] = useState(0);
 
+  // Week selection state
+  const [availableWeeks, setAvailableWeeks] = useState<{ week_number: number; label: string }[]>([]);
+  const [selectedWeeks, setSelectedWeeks] = useState<Record<number, boolean>>({});
+
   // Search filter for dropdowns
   const [exerciseSearchQueries, setExerciseSearchQueries] = useState<Record<string, string>>({});
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+  // Auto-detect weeks when csvContent, format, or cycleName changes
+  useEffect(() => {
+    if (!csvContent) {
+      setAvailableWeeks([]);
+      setSelectedWeeks({});
+      return;
+    }
+
+    try {
+      const rows = parseCSV(csvContent);
+      let cycle: ParsedCycle;
+      if (format === "wolfpack") {
+        cycle = parseWolfpackFormat(rows, cycleName);
+      } else {
+        cycle = parseDavidFormat(rows, cycleName);
+      }
+
+      const weeksList = cycle.weeks.map(w => ({
+        week_number: w.week_number,
+        label: `Semana ${w.week_number} (${WEEK_TYPE_LABELS[w.type] || w.type})`,
+      }));
+
+      setAvailableWeeks(weeksList);
+      
+      // Select all by default
+      setSelectedWeeks(prev => {
+        const next: Record<number, boolean> = {};
+        weeksList.forEach(w => {
+          next[w.week_number] = prev[w.week_number] !== undefined ? prev[w.week_number] : true;
+        });
+        return next;
+      });
+    } catch (err) {
+      console.warn("[WIZARD] Background parse failed:", err);
+    }
+  }, [csvContent, format, cycleName]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -71,31 +142,59 @@ export default function CycleImportWizard({
       const [{ data: studs }, { data: exs }] = await Promise.all([
         supabase.from("users").select("id, full_name")
           .eq("role", "student").eq("active", true).order("full_name"),
-        supabase.from("exercises").select("id, name").eq("archived", false).order("name"),
+        supabase.from("exercises").select("id, name, category, exercise_variants(id, name, exercise_id)").eq("archived", false).order("name"),
       ]);
 
       setStudents(studs || []);
-      setDbExercises(exs || []);
+      setDbExercises((exs as any) || []);
     };
     loadData();
   }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("[WIZARD] File selected:", file ? { name: file.name, size: file.size, type: file.type } : "none");
     if (!file) return;
     processFile(file);
   };
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
+    console.log("[WIZARD] Processing file:", file ? { name: file.name, size: file.size, type: file.type } : "null");
     setFileName(file.name);
-    // Set default cycle name from filename
     const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
     setCycleName(cleanName);
 
+    // Try modern file.text() first
+    try {
+      if (typeof file.text === "function") {
+        console.log("[WIZARD] Reading file using file.text()...");
+        const text = await file.text();
+        console.log("[WIZARD] file.text() read success, text length:", text ? text.length : 0);
+        if (!text || text.trim() === "") {
+          console.warn("[WIZARD] Warning: File content is empty!");
+        }
+        setCsvContent(text || "");
+        return;
+      }
+    } catch (err: any) {
+      console.error("[WIZARD] file.text() failed:", err);
+    }
+
+    // Fallback to FileReader if file.text() fails or is not available
+    console.log("[WIZARD] Falling back to FileReader...");
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      setCsvContent(text);
+      console.log("[WIZARD] FileReader success, text length:", text ? text.length : 0);
+      if (!text || text.trim() === "") {
+        console.warn("[WIZARD] Warning: File content is empty!");
+      }
+      setCsvContent(text || "");
+    };
+    reader.onerror = (ev) => {
+      const errorDetail = reader.error || ev;
+      console.error("[WIZARD] FileReader error detailed:", errorDetail);
+      toast.error(`Error al leer el archivo: ${reader.error?.message || 'Error de permisos o archivo bloqueado'}`);
     };
     reader.readAsText(file, "utf-8");
   };
@@ -139,10 +238,20 @@ export default function CycleImportWizard({
         cycle = parseDavidFormat(rows, cycleName);
       }
 
-      if (cycle.weeks.length === 0) {
-        toast.error("No se pudieron extraer semanas o días del archivo. Verificá el formato.");
+      // Filter weeks based on user selection
+      const filteredWeeks = cycle.weeks.filter(w => selectedWeeks[w.week_number]);
+      
+      if (filteredWeeks.length === 0) {
+        toast.error("Por favor, seleccioná al menos una semana para importar.");
         return;
       }
+
+      // Re-number weeks sequentially starting from 1
+      cycle.weeks = filteredWeeks.map((w, index) => ({
+        ...w,
+        week_number: index + 1,
+      }));
+      cycle.total_weeks = cycle.weeks.length;
 
       setParsedCycle(cycle);
 
@@ -164,16 +273,44 @@ export default function CycleImportWizard({
       // Auto-map exercises by exact name match (case-insensitive)
       const initialMappings: Record<string, ExerciseMapping> = {};
       uniqueNames.forEach(rawName => {
+        // Try exact match with exercise name
         const match = dbExercises.find(
           dbEx => dbEx.name.trim().toLowerCase() === rawName.trim().toLowerCase()
         );
-        initialMappings[rawName] = {
-          rawName,
-          matchedId: match ? match.id : null,
-          category: rawName.toLowerCase().includes("emom") || rawName.toLowerCase().includes("amrap")
-            ? "preparacion_fisica"
-            : "fuerza",
-        };
+        if (match) {
+          initialMappings[rawName] = {
+            rawName,
+            matchedId: match.id,
+            matchedVariantId: null,
+            category: rawName.toLowerCase().includes("emom") || rawName.toLowerCase().includes("amrap")
+              ? "preparacion_fisica"
+              : "fuerza",
+          };
+        } else {
+          // If no exercise matches, try to match variant name
+          let matchedExId: string | null = null;
+          let matchedVarId: string | null = null;
+
+          for (const dbEx of dbExercises) {
+            const varMatch = dbEx.exercise_variants?.find(
+              v => v.name.trim().toLowerCase() === rawName.trim().toLowerCase()
+            );
+            if (varMatch) {
+              matchedExId = dbEx.id;
+              matchedVarId = varMatch.id;
+              break;
+            }
+          }
+
+          initialMappings[rawName] = {
+            rawName,
+            matchedId: matchedExId,
+            matchedVariantId: matchedVarId,
+            category: rawName.toLowerCase().includes("emom") || rawName.toLowerCase().includes("amrap")
+              ? "preparacion_fisica"
+              : "fuerza",
+          };
+        }
       });
 
       setMappings(initialMappings);
@@ -185,12 +322,13 @@ export default function CycleImportWizard({
   };
 
   // Update mapping for an exercise
-  const updateMapping = (rawName: string, matchedId: string | null) => {
+  const updateMapping = (rawName: string, matchedId: string | null, matchedVariantId: string | null = null) => {
     setMappings(prev => ({
       ...prev,
       [rawName]: {
         ...prev[rawName],
         matchedId,
+        matchedVariantId,
       },
     }));
   };
@@ -215,6 +353,7 @@ export default function CycleImportWizard({
     try {
       // 1. Resolve and create missing exercises first
       const resolvedMappings: Record<string, string> = {}; // rawName -> exerciseId
+      const resolvedVariantMappings: Record<string, string | null> = {}; // rawName -> variantId | null
       const unmappedNames = uniqueExerciseNames.filter(
         name => !mappings[name]?.matchedId || mappings[name].matchedId === "create"
       );
@@ -225,15 +364,17 @@ export default function CycleImportWizard({
         const map = mappings[name];
         if (map.matchedId && map.matchedId !== "create") {
           resolvedMappings[name] = map.matchedId;
+          resolvedVariantMappings[name] = map.matchedVariantId || null;
         } else {
           // Create new exercise row
-          const cat = map.category === "preparacion_fisica" ? "Preparación Física" : "Fuerza";
+          const dbCat = map.category === "preparacion_fisica" ? "prep_fisica" : "fuerza";
           const { data: newEx, error: newExErr } = await supabase
             .from("exercises")
             .insert({
               name: name.trim(),
-              category: cat,
-              created_by: currentUserId,
+              category: dbCat,
+              muscle_group: "otro",
+              trainer_id: currentUserId,
               archived: false,
             })
             .select("id")
@@ -243,8 +384,9 @@ export default function CycleImportWizard({
             throw new Error(`Error al crear el ejercicio '${name}': ${newExErr?.message}`);
           }
           resolvedMappings[name] = newEx.id;
+          resolvedVariantMappings[name] = null;
           // Add to dbExercises to keep local state clean
-          setDbExercises(prev => [...prev, { id: newEx.id, name: name.trim() }]);
+          setDbExercises(prev => [...prev, { id: newEx.id, name: name.trim(), category: dbCat, exercise_variants: [] }]);
         }
       }
 
@@ -302,7 +444,8 @@ export default function CycleImportWizard({
             .from("training_days")
             .insert({
               week_id: week.id,
-              name: pDay.name,
+              day_of_week: getDayOfWeek(pDay.name),
+              label: pDay.name,
               order: dIdx + 1,
             })
             .select()
@@ -353,6 +496,7 @@ export default function CycleImportWizard({
                 .insert({
                   block_id: block.id,
                   exercise_id: resolvedMappings[pEx.name],
+                  variant_id: resolvedVariantMappings[pEx.name] || null,
                   sets: pEx.sets,
                   reps: pEx.reps,
                   percentage_1rm: pEx.percentage_1rm || null,
@@ -375,6 +519,7 @@ export default function CycleImportWizard({
               const exercisesToInsert = cExercises.map((cEx, idx) => ({
                 block_id: block.id,
                 exercise_id: resolvedMappings[cEx.name],
+                variant_id: resolvedVariantMappings[cEx.name] || null,
                 sets: cEx.sets,
                 reps: cEx.reps,
                 percentage_1rm: cEx.percentage_1rm || null,
@@ -408,6 +553,8 @@ export default function CycleImportWizard({
                     return {
                       training_exercise_id: matchedTe?.id || crypto.randomUUID(),
                       reps: ov.reps,
+                      weight_target: cSet.weight_target || null,
+                      percentage_1rm: cSet.percentage_1rm || null,
                     };
                   });
 
@@ -416,7 +563,6 @@ export default function CycleImportWizard({
                     complex_id: newComplexId,
                     set_number: cSet.set_number,
                     percentage_1rm: cSet.percentage_1rm,
-                    weight_target: cSet.weight_target || null,
                     reps_overrides: overrides,
                     rounds: 1,
                   };
@@ -562,39 +708,115 @@ export default function CycleImportWizard({
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-500 uppercase">Formato de Planilla</label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-500 uppercase block">Formato de Planilla</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setFormat("wolfpack")}
-                  className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                  className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
                     format === "wolfpack"
-                      ? "border-primary bg-primary/5 text-primary"
+                      ? "border-primary bg-primary/5 text-primary shadow-sm"
                       : "border-border hover:border-zinc-300 text-zinc-600"
                   }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  Formato Wolfpack
+                  <div>
+                    <p className="font-bold">Filas Continuas</p>
+                    <p className="text-[9px] font-medium text-zinc-400">Estilo Wolfpack</p>
+                  </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormat("david")}
-                  className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                  className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
                     format === "david"
-                      ? "border-primary bg-primary/5 text-primary"
+                      ? "border-primary bg-primary/5 text-primary shadow-sm"
                       : "border-border hover:border-zinc-300 text-zinc-600"
                   }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  Formato David
+                  <div>
+                    <p className="font-bold">Columnas Semanales</p>
+                    <p className="text-[9px] font-medium text-zinc-400">Estilo David</p>
+                  </div>
                 </button>
               </div>
-              <p className="text-[10px] text-muted-foreground leading-normal mt-1">
+              
+              <p className="text-[10px] text-muted-foreground leading-normal mt-1 bg-zinc-50 p-2.5 rounded-xl border border-zinc-100">
                 {format === "wolfpack" 
-                  ? "Semanas y días hacia abajo. Ejercicios con dos filas (porcentaje arriba, repeticiones abajo)." 
-                  : "Semanas representadas por columnas (S1, S2, S3, S4). Días separados por filas 'DIA 1'."}
+                  ? "💡 Recomendado si tu planilla lista las semanas una debajo de la otra. Cada ejercicio ocupa dos filas: una arriba con el porcentaje de carga y otra debajo con las repeticiones." 
+                  : "💡 Recomendado si tu planilla tiene una columna por cada semana (S1, S2, S3, S4) y separás los días mediante filas de encabezado (ej. 'DIA 1')."}
               </p>
+
+              {/* Visual Spreadsheet Preview */}
+              <div className="mt-3 p-3 bg-zinc-50 rounded-xl border border-zinc-200/60 space-y-2">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Vista Previa del Formato Esperado</span>
+                {format === "wolfpack" ? (
+                  <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+                    <table className="w-full text-[9px] text-left border-collapse">
+                      <thead>
+                        <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-500 font-semibold">
+                          <th className="px-2 py-1 border-r border-zinc-200">Semana</th>
+                          <th className="px-2 py-1 border-r border-zinc-200">Día</th>
+                          <th className="px-2 py-1 border-r border-zinc-200">Ejercicio</th>
+                          <th className="px-2 py-1">Carga y Repes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-zinc-100">
+                          <td className="px-2 py-1 border-r border-zinc-200 font-bold bg-zinc-50/50" rowSpan={2}>S1</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 bg-zinc-50/50" rowSpan={2}>Lunes</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 font-medium" rowSpan={2}>Back Squat</td>
+                          <td className="px-2 py-0.5 bg-amber-50/30 text-amber-700 font-bold border-b border-zinc-100">70% (Fila 1)</td>
+                        </tr>
+                        <tr className="border-b border-zinc-200">
+                          <td className="px-2 py-0.5 bg-blue-50/30 text-blue-700 font-bold">3, 3, 3 (Fila 2)</td>
+                        </tr>
+                        <tr className="border-b border-zinc-100">
+                          <td className="px-2 py-1 border-r border-zinc-200 font-bold bg-zinc-50/50" rowSpan={2}>S2</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 bg-zinc-50/50" rowSpan={2}>Lunes</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 font-medium" rowSpan={2}>Back Squat</td>
+                          <td className="px-2 py-0.5 bg-amber-50/30 text-amber-700 font-bold border-b border-zinc-100">75% (Fila 1)</td>
+                        </tr>
+                        <tr>
+                          <td className="px-2 py-0.5 bg-blue-50/30 text-blue-700 font-bold">3, 3, 3 (Fila 2)</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+                    <table className="w-full text-[9px] text-left border-collapse">
+                      <thead>
+                        <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-500 font-semibold">
+                          <th className="px-2 py-1 border-r border-zinc-200">Día / Ejercicio</th>
+                          <th className="px-2 py-1 border-r border-zinc-200 text-center bg-amber-50/30">Semana 1</th>
+                          <th className="px-2 py-1 border-r border-zinc-200 text-center bg-blue-50/30">Semana 2</th>
+                          <th className="px-2 py-1 text-center bg-zinc-100/50">Semana 3</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-zinc-200 bg-zinc-50 font-bold text-primary">
+                          <td className="px-2 py-1 border-r border-zinc-200" colSpan={4}>DIA 1</td>
+                        </tr>
+                        <tr className="border-b border-zinc-100">
+                          <td className="px-2 py-1 border-r border-zinc-200 font-medium">Back Squat</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 text-center bg-amber-50/10">70%/3-3</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 text-center bg-blue-50/10">75%/3-3</td>
+                          <td className="px-2 py-1 text-center">80%/3-3</td>
+                        </tr>
+                        <tr>
+                          <td className="px-2 py-1 border-r border-zinc-200 font-medium">Bench Press</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 text-center bg-amber-50/10">4x8</td>
+                          <td className="px-2 py-1 border-r border-zinc-200 text-center bg-blue-50/10">4x8</td>
+                          <td className="px-2 py-1 text-center">4x6</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -617,6 +839,7 @@ export default function CycleImportWizard({
                   type="file"
                   accept=".csv,.txt"
                   onChange={handleFileUpload}
+                  onClick={(e) => e.stopPropagation()}
                   className="hidden"
                 />
                 
@@ -634,8 +857,44 @@ export default function CycleImportWizard({
                     {fileName ? "Hacé clic para cambiar de archivo" : "Solo archivos con extensión .csv"}
                   </p>
                 </div>
-              </div>
+             </div>
             </div>
+
+            {availableWeeks.length > 0 && (
+              <div className="space-y-2 bg-zinc-50 rounded-2xl border border-zinc-200 p-4">
+                <span className="text-xs font-bold text-zinc-500 uppercase block select-none">
+                  Semanas a importar
+                </span>
+                <p className="text-[10px] text-muted-foreground leading-normal mb-2">
+                  Detectamos {availableWeeks.length} semanas en tu archivo. Desmarcá las que no quieras importar.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {availableWeeks.map(w => (
+                    <label 
+                      key={w.week_number}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border-2 text-xs font-bold cursor-pointer transition select-none ${
+                        selectedWeeks[w.week_number]
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border hover:border-zinc-300 text-zinc-600 bg-white"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!selectedWeeks[w.week_number]}
+                        onChange={e => {
+                          setSelectedWeeks(prev => ({
+                            ...prev,
+                            [w.week_number]: e.target.checked
+                          }));
+                        }}
+                        className="w-4 h-4 rounded text-primary focus:ring-primary border-zinc-300 cursor-pointer"
+                      />
+                      <span>{w.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Guide/Instructions alert box */}
             <div className="bg-zinc-50 rounded-2xl border border-zinc-200 p-4 space-y-2 text-xs">
@@ -693,14 +952,45 @@ export default function CycleImportWizard({
                 {uniqueExerciseNames
                   .filter(name => name.toLowerCase().includes(searchFilter.toLowerCase()))
                   .map(name => {
-                    const map = mappings[name] || { rawName: name, matchedId: null, category: "fuerza" };
+                    const map = mappings[name] || { rawName: name, matchedId: null, matchedVariantId: null, category: "fuerza" };
                     const currentSearch = exerciseSearchQueries[name] || "";
                     
-                    const filteredExercises = dbExercises.filter(dbEx =>
-                      dbEx.name.toLowerCase().includes(currentSearch.toLowerCase())
+                    // Flat list of searchable options (base exercises + variants)
+                    const searchItems: {
+                      id: string;
+                      variantId: string | null;
+                      displayName: string;
+                      searchName: string;
+                    }[] = [];
+
+                    dbExercises.forEach(dbEx => {
+                      searchItems.push({
+                        id: dbEx.id,
+                        variantId: null,
+                        displayName: dbEx.name,
+                        searchName: dbEx.name,
+                      });
+
+                      if (dbEx.exercise_variants) {
+                        dbEx.exercise_variants.forEach(v => {
+                          searchItems.push({
+                            id: dbEx.id,
+                            variantId: v.id,
+                            displayName: `${dbEx.name} (Variante: ${v.name})`,
+                            searchName: `${dbEx.name} ${v.name}`,
+                          });
+                        });
+                      }
+                    });
+
+                    const filteredSearchItems = searchItems.filter(item =>
+                      item.searchName.toLowerCase().includes(currentSearch.toLowerCase())
                     );
 
                     const selectedEx = dbExercises.find(dbEx => dbEx.id === map.matchedId);
+                    const selectedVarName = map.matchedVariantId && selectedEx
+                      ? selectedEx.exercise_variants?.find(v => v.id === map.matchedVariantId)?.name
+                      : null;
 
                     return (
                       <tr key={name} className="hover:bg-white transition-colors duration-100">
@@ -725,7 +1015,7 @@ export default function CycleImportWizard({
                         <td className="px-4 py-3.5 align-middle relative">
                           <div className="flex items-center gap-1.5">
                             {/* Searchable Select replacement */}
-                            <div className="relative flex-1 min-w-[200px]">
+                            <div className="relative flex-1 min-w-[240px] md:min-w-[280px]">
                               <button
                                 type="button"
                                 onClick={() => setOpenDropdown(openDropdown === name ? null : name)}
@@ -735,16 +1025,25 @@ export default function CycleImportWizard({
                                     : "border-border text-muted-foreground"
                                 }`}
                               >
-                                <span className="truncate">
+                                <span className="truncate flex items-center gap-1">
                                   {map.matchedId === "create" && "🆕 Crear ejercicio nuevo"}
-                                  {map.matchedId && map.matchedId !== "create" && selectedEx && `✅ ${selectedEx.name}`}
+                                  {map.matchedId && map.matchedId !== "create" && selectedEx && (
+                                    <>
+                                      <span>✅ {selectedEx.name}</span>
+                                      {selectedVarName && (
+                                        <span className="text-[10px] text-zinc-500 font-medium bg-zinc-100 px-1.5 py-0.5 rounded-md">
+                                          {selectedVarName}
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
                                   {!map.matchedId && "❓ Seleccionar ejercicio..."}
                                 </span>
                                 <span className="text-[10px] text-zinc-400">▼</span>
                               </button>
 
                               {openDropdown === name && (
-                                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-border rounded-xl shadow-xl z-50 p-2 space-y-1.5 max-h-52 overflow-y-auto">
+                                <div className="absolute top-full right-0 mt-1.5 bg-white border border-border rounded-xl shadow-xl z-50 p-2 space-y-1.5 max-h-60 overflow-y-auto min-w-[280px] sm:min-w-[380px] md:min-w-[450px]">
                                   <div className="relative">
                                     <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
                                     <input
@@ -760,27 +1059,32 @@ export default function CycleImportWizard({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        updateMapping(name, "create");
+                                        updateMapping(name, "create", null);
                                         setOpenDropdown(null);
                                       }}
                                       className="w-full text-left px-3 py-2 text-xs text-primary font-bold hover:bg-primary/5 rounded-lg flex items-center gap-1.5"
                                     >
                                       <Plus className="w-3.5 h-3.5" /> Crear ejercicio nuevo: "{name}"
                                     </button>
-                                    {filteredExercises.slice(0, 15).map(dbEx => (
+                                    {filteredSearchItems.slice(0, 30).map((item, idx) => (
                                       <button
-                                        key={dbEx.id}
+                                        key={`${item.id}-${item.variantId || 'base'}-${idx}`}
                                         type="button"
                                         onClick={() => {
-                                          updateMapping(name, dbEx.id);
+                                          updateMapping(name, item.id, item.variantId);
                                           setOpenDropdown(null);
                                         }}
-                                        className="w-full text-left px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-100 rounded-lg"
+                                        className="w-full text-left px-3 py-2.5 text-xs text-zinc-700 hover:bg-zinc-100 rounded-lg flex items-start justify-between gap-2"
                                       >
-                                        {dbEx.name}
+                                        <span className="whitespace-normal leading-tight text-left">{item.displayName}</span>
+                                        {item.variantId && (
+                                          <span className="text-[9px] text-primary bg-primary/5 px-1 py-0.2 rounded font-bold uppercase shrink-0 ml-2">
+                                            Variante
+                                          </span>
+                                        )}
                                       </button>
                                     ))}
-                                    {filteredExercises.length === 0 && (
+                                    {filteredSearchItems.length === 0 && (
                                       <p className="text-[10px] text-muted-foreground text-center py-2">No se encontraron resultados</p>
                                     )}
                                   </div>
@@ -850,12 +1154,40 @@ export default function CycleImportWizard({
                             <span className="font-bold text-[10px] text-zinc-400 uppercase tracking-widest block">{block.name}</span>
                             <div className="space-y-1.5">
                               {block.exercises.map((ex, exIdx) => {
-                                const matchedExName = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId)?.name || ex.name;
+                                const matchedEx = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId);
+                                const matchedExName = matchedEx?.name || ex.name;
+                                const matchedVarName = mappings[ex.name]?.matchedVariantId && matchedEx
+                                  ? matchedEx.exercise_variants?.find(v => v.id === mappings[ex.name]?.matchedVariantId)?.name
+                                  : null;
                                 return (
                                   <div key={exIdx} className="text-xs text-zinc-700 font-medium">
-                                    • {matchedExName} <span className="text-zinc-400">({ex.sets}s × {ex.reps})</span>
-                                    {ex.percentage_1rm && <span className="text-zinc-400 ml-1">@ {ex.percentage_1rm}%</span>}
-                                    {ex.weight_target && <span className="text-zinc-400 ml-1">({ex.weight_target} kg)</span>}
+                                    • {matchedExName}
+                                    {matchedVarName && (
+                                      <span className="text-[10px] text-zinc-500 font-normal ml-1 bg-zinc-200/50 px-1.5 py-0.5 rounded">
+                                        ({matchedVarName})
+                                      </span>
+                                    )}
+                                    {ex.complex_sets && ex.complex_sets.length > 0 ? (
+                                      <div className="text-[10px] text-zinc-400 font-normal ml-3 mt-0.5 leading-normal">
+                                        <span className="font-semibold text-zinc-400/80">Series:</span>{" "}
+                                        <span className="text-zinc-600 font-medium">
+                                          {ex.complex_sets.map((set, sIdx) => {
+                                            const override = set.reps_overrides?.find(ov => ov.name === ex.name);
+                                            const reps = override ? override.reps : ex.reps;
+                                            const pct = set.percentage_1rm ? `${set.percentage_1rm}%` : "";
+                                            const weight = set.weight_target ? `${set.weight_target} kg` : "";
+                                            const load = pct || weight || "";
+                                            return `${reps}${load ? ` @ ${load}` : ""}`;
+                                          }).join(" · ")}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <span className="text-zinc-400 font-normal ml-1">({ex.sets}s × {ex.reps})</span>
+                                        {ex.percentage_1rm && <span className="text-zinc-400 ml-1">@ {ex.percentage_1rm}%</span>}
+                                        {ex.weight_target && <span className="text-zinc-400 ml-1">({ex.weight_target} kg)</span>}
+                                      </>
+                                    )}
                                     {ex.notes && <p className="text-[10px] text-zinc-400 italic font-normal ml-3 leading-tight">* {ex.notes}</p>}
                                   </div>
                                 );

@@ -394,7 +394,7 @@ export function parseDavidFormat(rows: string[][], cycleName: string = "Ciclo Da
             let block = day.blocks.find(b => b.name === currentBlockName);
             if (!block) {
               const blockType = currentBlockName.toLowerCase().includes("emom") || currentBlockName.toLowerCase().includes("amrap")
-                ? "preparacion_fisica"
+                ? "prep_fisica"
                 : "fuerza";
               block = { name: currentBlockName, type: blockType, exercises: [] };
               day.blocks.push(block);
