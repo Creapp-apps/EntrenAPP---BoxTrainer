@@ -174,10 +174,13 @@ export function parseWolfpackFormat(rows: string[][], cycleName: string = "Ciclo
         week.days.push(day);
       }
 
-      // Ensure block exists in day (Wolfpack is all Levantamientos/Fuerza)
-      let block = day.blocks.find(b => b.name === "Fuerza / Levantamientos");
+      // Ensure block exists in day (Wolfpack defaults to Strength unless it's a Physical Prep cycle)
+      const isPrepFisicaCycle = /prep|prepara/i.test(cycleName);
+      const blockName = isPrepFisicaCycle ? "Preparación Física" : "Fuerza / Levantamientos";
+      const blockType = isPrepFisicaCycle ? "prep_fisica" : "fuerza";
+      let block = day.blocks.find(b => b.name === blockName);
       if (!block) {
-        block = { name: "Fuerza / Levantamientos", type: "fuerza", exercises: [] };
+        block = { name: blockName, type: blockType, exercises: [] };
         day.blocks.push(block);
       }
 
@@ -354,9 +357,27 @@ export function parseDavidFormat(rows: string[][], cycleName: string = "Ciclo Da
       continue;
     }
 
-    // 2. Detect Block Timer Header (e.g., "EMOM 3", "EMOM 2:30" inside column 2 or column 1)
+    // 2. Detect Block Timer Header (e.g., "EMOM 3", "EMOM 2:30" inside Column B, or in any of the week columns)
+    let isBlockHeader = false;
+    let blockName = "";
+
     if (col1.toLowerCase().includes("emom") || col1.toLowerCase().includes("amrap")) {
-      currentBlockName = col1;
+      isBlockHeader = true;
+      blockName = col1;
+    } else if (!col1) {
+      // Check if any of the week columns contains EMOM/AMRAP
+      for (let w = 0; w < weeksCount; w++) {
+        const val = row[2 + w * 2]?.trim() || "";
+        if (val.toLowerCase().includes("emom") || val.toLowerCase().includes("amrap")) {
+          isBlockHeader = true;
+          blockName = val;
+          break;
+        }
+      }
+    }
+
+    if (isBlockHeader && blockName) {
+      currentBlockName = blockName;
       continue;
     }
 
@@ -391,9 +412,10 @@ export function parseDavidFormat(rows: string[][], cycleName: string = "Ciclo Da
             }
 
             // Ensure block exists
+            const isPrepFisicaCycle = /prep|prepara/i.test(cycleName);
             let block = day.blocks.find(b => b.name === currentBlockName);
             if (!block) {
-              const blockType = currentBlockName.toLowerCase().includes("emom") || currentBlockName.toLowerCase().includes("amrap")
+              const blockType = isPrepFisicaCycle || currentBlockName.toLowerCase().includes("emom") || currentBlockName.toLowerCase().includes("amrap")
                 ? "prep_fisica"
                 : "fuerza";
               block = { name: currentBlockName, type: blockType, exercises: [] };

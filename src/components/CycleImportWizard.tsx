@@ -300,6 +300,9 @@ export default function CycleImportWizard({
 
       // Auto-map exercises by exact name match (case-insensitive)
       const initialMappings: Record<string, ExerciseMapping> = {};
+      const isPrepFisica = /prep|prepara/i.test(cycleName);
+      const defaultCat = isPrepFisica ? "preparacion_fisica" : "fuerza";
+
       uniqueNames.forEach(rawName => {
         // Try exact match with exercise name
         const match = dbExercises.find(
@@ -310,14 +313,15 @@ export default function CycleImportWizard({
             rawName,
             matchedId: match.id,
             matchedVariantId: null,
-            category: rawName.toLowerCase().includes("emom") || rawName.toLowerCase().includes("amrap")
-              ? "preparacion_fisica"
-              : "fuerza",
+            category: match.category === "prep_fisica" 
+              ? "preparacion_fisica" 
+              : (rawName.toLowerCase().includes("emom") || rawName.toLowerCase().includes("amrap") ? "preparacion_fisica" : defaultCat),
           };
         } else {
           // If no exercise matches, try to match variant name
           let matchedExId: string | null = null;
           let matchedVarId: string | null = null;
+          let matchedExCat: string | null = null;
 
           for (const dbEx of dbExercises) {
             const varMatch = dbEx.exercise_variants?.find(
@@ -326,6 +330,7 @@ export default function CycleImportWizard({
             if (varMatch) {
               matchedExId = dbEx.id;
               matchedVarId = varMatch.id;
+              matchedExCat = dbEx.category;
               break;
             }
           }
@@ -334,9 +339,9 @@ export default function CycleImportWizard({
             rawName,
             matchedId: matchedExId,
             matchedVariantId: matchedVarId,
-            category: rawName.toLowerCase().includes("emom") || rawName.toLowerCase().includes("amrap")
-              ? "preparacion_fisica"
-              : "fuerza",
+            category: matchedExCat === "prep_fisica" 
+              ? "preparacion_fisica" 
+              : (rawName.toLowerCase().includes("emom") || rawName.toLowerCase().includes("amrap") ? "preparacion_fisica" : defaultCat),
           };
         }
       });
@@ -984,7 +989,8 @@ export default function CycleImportWizard({
                 {uniqueExerciseNames
                   .filter(name => name.toLowerCase().includes(searchFilter.toLowerCase()))
                   .map(name => {
-                    const map = mappings[name] || { rawName: name, matchedId: null, matchedVariantId: null, category: "fuerza" };
+                    const defaultExCat = /prep|prepara/i.test(cycleName) ? "preparacion_fisica" : "fuerza";
+                    const map = mappings[name] || { rawName: name, matchedId: null, matchedVariantId: null, category: defaultExCat };
                     const currentSearch = exerciseSearchQueries[name] || "";
                     
                     // Flat list of searchable options (base exercises + variants)
@@ -1265,6 +1271,7 @@ export default function CycleImportWizard({
                                         </span>
                                       </div>
                                     )}
+                                    {firstEx.notes && <p className="text-[10px] text-zinc-400 italic font-normal pl-2.5 leading-tight mt-1">* {firstEx.notes}</p>}
                                   </div>
                                 );
                               }
