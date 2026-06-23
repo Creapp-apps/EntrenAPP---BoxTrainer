@@ -167,12 +167,13 @@ const CATEGORY_TABS = [
 ];
 
 function ExercisePicker({
-  exercises, onSelect, onClose, initialCategory = "all",
+  exercises, onSelect, onClose, initialCategory = "all", loading = false,
 }: {
   exercises: Exercise[];
   onSelect: (ex: Exercise, variant?: Variant) => void;
   onClose: () => void;
   initialCategory?: string;
+  loading?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(initialCategory);
@@ -249,8 +250,8 @@ function ExercisePicker({
               {filtered.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground py-8">Sin resultados</p>
               ) : filtered.map(ex => (
-                <button key={ex.id} onClick={() => ex.variants.length > 0 ? setSelected(ex) : onSelect(ex)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50 last:border-0">
+                <button key={ex.id} disabled={loading} onClick={() => ex.variants.length > 0 ? setSelected(ex) : onSelect(ex)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 disabled:opacity-50 transition-colors text-left border-b border-border/50 last:border-0">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground">{ex.name}</p>
                     {category === "all" && (
@@ -284,13 +285,13 @@ function ExercisePicker({
               <p className="text-sm text-muted-foreground">Elegí la variante:</p>
             </div>
             <div className="overflow-y-auto flex-1">
-              <button onClick={() => onSelect(selected)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left border-b border-border">
+              <button disabled={loading} onClick={() => onSelect(selected)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 disabled:opacity-50 transition-colors text-left border-b border-border">
                 <span className="text-sm font-medium text-foreground">Sin variante (base)</span>
               </button>
               {selected.variants.map(v => (
-                <button key={v.id} onClick={() => onSelect(selected, v)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50 last:border-0">
+                <button key={v.id} disabled={loading} onClick={() => onSelect(selected, v)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 disabled:opacity-50 transition-colors text-left border-b border-border/50 last:border-0">
                   <span className="text-sm font-semibold text-primary w-20 shrink-0">{v.name}</span>
                   <span className="text-sm text-foreground">{selected.name} — {v.name}</span>
                 </button>
@@ -372,12 +373,13 @@ function SetRepsOverrideModal({
 
 // ─── Complex / Trepada Picker Modal ───────────────────────────
 function ComplexPicker({
-  exercises, onConfirm, onClose, initialCategory = "all",
+  exercises, onConfirm, onClose, initialCategory = "all", loading = false,
 }: {
   exercises: Exercise[];
   onConfirm: (items: { ex: Exercise; variant?: Variant }[]) => void;
   onClose: () => void;
   initialCategory?: string;
+  loading?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(initialCategory);
@@ -549,10 +551,10 @@ function ComplexPicker({
             Cancelar
           </button>
           <button onClick={() => selectedItems.length >= 1 && onConfirm(selectedItems)}
-            disabled={selectedItems.length < 1}
+            disabled={selectedItems.length < 1 || loading}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-            <Link2 className="w-4 h-4" />
-            Crear ({selectedItems.length})
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+            {loading ? "Creando..." : `Crear (${selectedItems.length})`}
           </button>
         </div>
       </div>
@@ -695,7 +697,8 @@ function ComplexCard({
                     className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white" />
                 </div>
                 <button onClick={() => onDelete(blockId, te.id)}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 shrink-0">
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors md:opacity-0 md:group-hover:opacity-100 shrink-0"
+                  title="Eliminar ejercicio">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -1061,7 +1064,7 @@ function PrepFisicaBlock({
                       onDeleteExercise(block.id, te.id);
                       setJustSaved(false);
                     }}
-                    className="absolute top-2 right-2 p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                    className="absolute top-2 right-2 p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors md:opacity-0 md:group-hover:opacity-100"
                     title="Eliminar del circuito"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1342,7 +1345,8 @@ function ExerciseRow({
           className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
       </div>
       <button onClick={() => onDelete(blockId, ex.id)}
-        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 mt-1 shrink-0">
+        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors md:opacity-0 md:group-hover:opacity-100 mt-1 shrink-0"
+        title="Eliminar ejercicio">
         <Trash2 className="w-4 h-4" />
       </button>
     </div>
@@ -1536,6 +1540,7 @@ export default function CicloDetailPage() {
   const [studentOneRMs, setStudentOneRMs] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [copying, setCopying] = useState(false);
+  const [mutating, setMutating] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [complexSets, setComplexSets] = useState<Record<string, ComplexSet[]>>({});
@@ -1770,26 +1775,35 @@ export default function CicloDetailPage() {
 
   // ─── Agregar día ──────────────────────────────────────────
   const addDay = async (weekId: string) => {
+    if (mutating) return;
     const week = weeks.find(w => w.id === weekId);
     if (!week) return;
     const existingDays = week.days.map(d => d.day_of_week);
     const nextDay = [1, 2, 3, 4, 5, 6, 7].find(d => !existingDays.includes(d));
     if (!nextDay) return toast.error("Ya están todos los días de la semana");
 
-    const supabase = createClient();
-    const { data, error } = await supabase.from("training_days").insert({
-      week_id: weekId,
-      day_of_week: nextDay,
-      label: `Entrenamiento ${DAY_NAMES[nextDay]}`,
-      order: week.days.length,
-    }).select().single();
+    setMutating(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.from("training_days").insert({
+        week_id: weekId,
+        day_of_week: nextDay,
+        label: `Entrenamiento ${DAY_NAMES[nextDay]}`,
+        order: week.days.length,
+      }).select().single();
 
-    if (error) return toast.error("Error al agregar día");
+      if (error) {
+        toast.error("Error al agregar día");
+        return;
+      }
 
-    setWeeks(weeks.map(w => w.id === weekId ? {
-      ...w,
-      days: [...w.days, { ...data, is_rest: false, blocks: [], expanded: true }].sort((a, b) => a.day_of_week - b.day_of_week),
-    } : w));
+      setWeeks(weeks.map(w => w.id === weekId ? {
+        ...w,
+        days: [...w.days, { ...data, is_rest: false, blocks: [], expanded: true }].sort((a, b) => a.day_of_week - b.day_of_week),
+      } : w));
+    } finally {
+      setMutating(false);
+    }
   };
 
   // ─── Marcar/desmarcar día de descanso ─────────────────────
@@ -1825,22 +1839,31 @@ export default function CicloDetailPage() {
 
   // ─── Agregar bloque ───────────────────────────────────────
   const addBlock = async (dayId: string, type: "fuerza" | "prep_fisica") => {
-    const supabase = createClient();
+    if (mutating) return;
     const day = weeks.flatMap(w => w.days).find(d => d.id === dayId);
     const name = type === "fuerza" ? "Bloque de Fuerza" : "Preparación Física";
 
-    const { data, error } = await supabase.from("training_blocks").insert({
-      day_id: dayId, name, type, order: day?.blocks.length || 0,
-    }).select().single();
+    setMutating(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.from("training_blocks").insert({
+        day_id: dayId, name, type, order: day?.blocks.length || 0,
+      }).select().single();
 
-    if (error) return toast.error("Error al agregar bloque");
+      if (error) {
+        toast.error("Error al agregar bloque");
+        return;
+      }
 
-    setWeeks(weeks.map(w => ({
-      ...w,
-      days: w.days.map(d => d.id === dayId ? {
-        ...d, blocks: [...d.blocks, { ...data, training_exercises: [] }],
-      } : d),
-    })));
+      setWeeks(weeks.map(w => ({
+        ...w,
+        days: w.days.map(d => d.id === dayId ? {
+          ...d, blocks: [...d.blocks, { ...data, training_exercises: [] }],
+        } : d),
+      })));
+    } finally {
+      setMutating(false);
+    }
   };
 
   // ─── Eliminar bloque ──────────────────────────────────────
@@ -2006,91 +2029,53 @@ export default function CicloDetailPage() {
 
   // ─── Agregar ejercicio individual ─────────────────────────
   const handleExerciseSelect = async (ex: Exercise, variant?: Variant) => {
-    if (!pickerBlock) return;
+    if (!pickerBlock || mutating) return;
     const supabase = createClient();
     const block = weeks.flatMap(w => w.days).flatMap(d => d.blocks).find(b => b.id === pickerBlock);
     if (!block) return;
 
-    const isPrep = block.type === "prep_fisica";
-    const complexId = isPrep ? block.id : null;
-    const complexOrder = isPrep ? (block.training_exercises.length || 0) : null;
+    setMutating(true);
+    try {
+      const isPrep = block.type === "prep_fisica";
+      const complexId = isPrep ? block.id : null;
+      const complexOrder = isPrep ? (block.training_exercises.length || 0) : null;
 
-    let dayId = "";
-    for (const w of weeks) {
-      for (const d of w.days) {
-        if (d.blocks.some(b => b.id === pickerBlock)) {
-          dayId = d.id;
-          break;
-        }
-      }
-      if (dayId) break;
-    }
-
-    const { data, error } = await supabase.from("training_exercises").insert({
-      block_id: pickerBlock,
-      exercise_id: ex.id,
-      variant_id: variant?.id || null,
-      sets: 3,
-      reps: isPrep ? "10" : "5",
-      percentage_1rm: null,
-      order: block.training_exercises.length || 0,
-      complex_id: complexId,
-      complex_order: complexOrder,
-    }).select().single();
-
-    if (error) { toast.error("Error: " + error.message); return; }
-
-    const existingSets = complexSets[block.id] || [];
-    let newComplexSets = [...existingSets];
-    if (isPrep && existingSets.length === 0) {
-      // Check if sets already exist in the database first to prevent duplicate key violations
-      const { data: dbSets } = await supabase
-        .from("training_complex_sets")
-        .select("*")
-        .eq("complex_id", block.id);
-
-      if (dbSets && dbSets.length > 0) {
-        newComplexSets = dbSets.map(s => ({
-          id: s.id,
-          complex_id: s.complex_id,
-          day_id: s.day_id,
-          set_number: s.set_number,
-          percentage_1rm: s.percentage_1rm ?? null,
-          reps_overrides: s.reps_overrides || [],
-          rounds: s.rounds ?? 1,
-        }));
-      } else {
-        const defaultSets = [1, 2, 3].map(n => ({
-          complex_id: block.id,
-          day_id: dayId,
-          set_number: n,
-          percentage_1rm: null,
-          reps_overrides: [],
-          rounds: 1,
-        }));
-        const { data: setsData, error: setsError } = await supabase
-          .from("training_complex_sets").insert(defaultSets).select("*");
-        if (setsError) {
-          // If it fails with duplicate key (concurrency), double-check one more time
-          const { data: retrySets } = await supabase
-            .from("training_complex_sets")
-            .select("*")
-            .eq("complex_id", block.id);
-          if (retrySets && retrySets.length > 0) {
-            newComplexSets = retrySets.map(s => ({
-              id: s.id,
-              complex_id: s.complex_id,
-              day_id: s.day_id,
-              set_number: s.set_number,
-              percentage_1rm: s.percentage_1rm ?? null,
-              reps_overrides: s.reps_overrides || [],
-              rounds: s.rounds ?? 1,
-            }));
-          } else {
-            toast.error("Error al crear series: " + setsError.message);
+      let dayId = "";
+      for (const w of weeks) {
+        for (const d of w.days) {
+          if (d.blocks.some(b => b.id === pickerBlock)) {
+            dayId = d.id;
+            break;
           }
-        } else if (setsData) {
-          newComplexSets = setsData.map(s => ({
+        }
+        if (dayId) break;
+      }
+
+      const { data, error } = await supabase.from("training_exercises").insert({
+        block_id: pickerBlock,
+        exercise_id: ex.id,
+        variant_id: variant?.id || null,
+        sets: 3,
+        reps: isPrep ? "10" : "5",
+        percentage_1rm: null,
+        order: block.training_exercises.length || 0,
+        complex_id: complexId,
+        complex_order: complexOrder,
+      }).select().single();
+
+      if (error) { toast.error("Error: " + error.message); return; }
+
+      const existingSets = complexSets[block.id] || [];
+      let newComplexSets = [...existingSets];
+      if (isPrep && existingSets.length === 0) {
+        // Check if sets already exist in the database first to prevent duplicate key violations
+        const { data: dbSets } = await supabase
+          .from("training_complex_sets")
+          .select("*")
+          .eq("complex_id", block.id);
+
+        if (dbSets && dbSets.length > 0) {
+          newComplexSets = dbSets.map(s => ({
             id: s.id,
             complex_id: s.complex_id,
             day_id: s.day_id,
@@ -2099,31 +2084,74 @@ export default function CicloDetailPage() {
             reps_overrides: s.reps_overrides || [],
             rounds: s.rounds ?? 1,
           }));
+        } else {
+          const defaultSets = [1, 2, 3].map(n => ({
+            complex_id: block.id,
+            day_id: dayId,
+            set_number: n,
+            percentage_1rm: null,
+            reps_overrides: [],
+            rounds: 1,
+          }));
+          const { data: setsData, error: setsError } = await supabase
+            .from("training_complex_sets").insert(defaultSets).select("*");
+          if (setsError) {
+            // If it fails with duplicate key (concurrency), double-check one more time
+            const { data: retrySets } = await supabase
+              .from("training_complex_sets")
+              .select("*")
+              .eq("complex_id", block.id);
+            if (retrySets && retrySets.length > 0) {
+              newComplexSets = retrySets.map(s => ({
+                id: s.id,
+                complex_id: s.complex_id,
+                day_id: s.day_id,
+                set_number: s.set_number,
+                percentage_1rm: s.percentage_1rm ?? null,
+                reps_overrides: s.reps_overrides || [],
+                rounds: s.rounds ?? 1,
+              }));
+            } else {
+              toast.error("Error al crear series: " + setsError.message);
+            }
+          } else if (setsData) {
+            newComplexSets = setsData.map(s => ({
+              id: s.id,
+              complex_id: s.complex_id,
+              day_id: s.day_id,
+              set_number: s.set_number,
+              percentage_1rm: s.percentage_1rm ?? null,
+              reps_overrides: s.reps_overrides || [],
+              rounds: s.rounds ?? 1,
+            }));
+          }
         }
       }
+
+      const newEx: TrainingExercise = { ...data, exercise: ex, variant };
+      setWeeks(weeks.map(w => ({
+        ...w,
+        days: w.days.map(d => ({
+          ...d,
+          blocks: d.blocks.map(b => b.id === pickerBlock ? {
+            ...b, training_exercises: [...b.training_exercises, newEx],
+          } : b),
+        })),
+      })));
+
+      if (isPrep) {
+        setComplexSets(prev => ({ ...prev, [block.id]: newComplexSets }));
+      }
+
+      setPickerBlock(null);
+    } finally {
+      setMutating(false);
     }
-
-    const newEx: TrainingExercise = { ...data, exercise: ex, variant };
-    setWeeks(weeks.map(w => ({
-      ...w,
-      days: w.days.map(d => ({
-        ...d,
-        blocks: d.blocks.map(b => b.id === pickerBlock ? {
-          ...b, training_exercises: [...b.training_exercises, newEx],
-        } : b),
-      })),
-    })));
-
-    if (isPrep) {
-      setComplexSets(prev => ({ ...prev, [block.id]: newComplexSets }));
-    }
-
-    setPickerBlock(null);
   };
 
   // ─── Crear complex / trepada ──────────────────────────────
   const handleComplexCreate = async (items: { ex: Exercise; variant?: Variant }[]) => {
-    if (!complexPickerBlock) return;
+    if (!complexPickerBlock || mutating) return;
     const supabase = createClient();
 
     // Encontrar day_id del bloque
@@ -2151,51 +2179,56 @@ export default function CicloDetailPage() {
       complex_order: i,
     }));
 
-    const { data, error } = await supabase.from("training_exercises").insert(toInsert).select("*");
-    if (error) { toast.error("Error al crear complex: " + error.message); return; }
+    setMutating(true);
+    try {
+      const { data, error } = await supabase.from("training_exercises").insert(toInsert).select("*");
+      if (error) { toast.error("Error al crear complex: " + error.message); return; }
 
-    // Crear 3 series por defecto en training_complex_sets
-    const defaultSets = [1, 2, 3].map(n => ({
-      complex_id: complexId,
-      day_id: dayId,
-      set_number: n,
-      percentage_1rm: null,
-      reps_overrides: [],
-      rounds: 1,
-    }));
-    const { data: setsData, error: setsError } = await supabase
-      .from("training_complex_sets").insert(defaultSets).select("*");
-    if (setsError) { toast.error("Error al crear series: " + setsError.message); return; }
+      // Crear 3 series por defecto en training_complex_sets
+      const defaultSets = [1, 2, 3].map(n => ({
+        complex_id: complexId,
+        day_id: dayId,
+        set_number: n,
+        percentage_1rm: null,
+        reps_overrides: [],
+        rounds: 1,
+      }));
+      const { data: setsData, error: setsError } = await supabase
+        .from("training_complex_sets").insert(defaultSets).select("*");
+      if (setsError) { toast.error("Error al crear series: " + setsError.message); return; }
 
-    const newExs: TrainingExercise[] = (data || []).map((te, i) => ({
-      ...te,
-      exercise: items[i].ex,
-      variant: items[i].variant,
-    }));
+      const newExs: TrainingExercise[] = (data || []).map((te, i) => ({
+        ...te,
+        exercise: items[i].ex,
+        variant: items[i].variant,
+      }));
 
-    const newComplexSets: ComplexSet[] = (setsData || []).map(s => ({
-      id: s.id,
-      complex_id: s.complex_id,
-      day_id: s.day_id,
-      set_number: s.set_number,
-      percentage_1rm: s.percentage_1rm ?? null,
-      reps_overrides: s.reps_overrides || [],
-      rounds: s.rounds ?? 1,
-    }));
+      const newComplexSets: ComplexSet[] = (setsData || []).map(s => ({
+        id: s.id,
+        complex_id: s.complex_id,
+        day_id: s.day_id,
+        set_number: s.set_number,
+        percentage_1rm: s.percentage_1rm ?? null,
+        reps_overrides: s.reps_overrides || [],
+        rounds: s.rounds ?? 1,
+      }));
 
-    setWeeks(weeks.map(w => ({
-      ...w,
-      days: w.days.map(d => ({
-        ...d,
-        blocks: d.blocks.map(b => b.id === complexPickerBlock ? {
-          ...b, training_exercises: [...b.training_exercises, ...newExs],
-        } : b),
-      })),
-    })));
-    setComplexSets(prev => ({ ...prev, [complexId]: newComplexSets }));
-    setComplexPickerBlock(null);
-    const label = items.length === 1 ? "Trepada" : "Complex";
-    toast.success(`${label} creado con ${items.length} ejercicio${items.length !== 1 ? "s" : ""}`);
+      setWeeks(weeks.map(w => ({
+        ...w,
+        days: w.days.map(d => ({
+          ...d,
+          blocks: d.blocks.map(b => b.id === complexPickerBlock ? {
+            ...b, training_exercises: [...b.training_exercises, ...newExs],
+          } : b),
+        })),
+      })));
+      setComplexSets(prev => ({ ...prev, [complexId]: newComplexSets }));
+      setComplexPickerBlock(null);
+      const label = items.length === 1 ? "Trepada" : "Complex";
+      toast.success(`${label} creado con ${items.length} ejercicio${items.length !== 1 ? "s" : ""}`);
+    } finally {
+      setMutating(false);
+    }
   };
 
   // ─── Actualizar ejercicio ─────────────────────────────────
@@ -2290,23 +2323,29 @@ export default function CicloDetailPage() {
 
   // ─── Agregar serie al complex ─────────────────────────────
   const addComplexSet = async (complexId: string, dayId: string) => {
+    if (mutating) return;
     const currentSets = complexSets[complexId] || [];
     const nextNumber = currentSets.length > 0
       ? Math.max(...currentSets.map(s => s.set_number)) + 1
       : 1;
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("training_complex_sets")
-      .insert({ complex_id: complexId, day_id: dayId, set_number: nextNumber, percentage_1rm: null, reps_overrides: [], rounds: 1 })
-      .select("*").single();
-    if (error) { toast.error("Error al agregar serie"); return; }
-    const newSet: ComplexSet = {
-      id: data.id, complex_id: data.complex_id, day_id: data.day_id,
-      set_number: data.set_number, percentage_1rm: data.percentage_1rm ?? null,
-      reps_overrides: data.reps_overrides || [],
-      rounds: data.rounds ?? 1,
-    };
-    setComplexSets(prev => ({ ...prev, [complexId]: [...(prev[complexId] || []), newSet] }));
+    setMutating(true);
+    try {
+      const { data, error } = await supabase
+        .from("training_complex_sets")
+        .insert({ complex_id: complexId, day_id: dayId, set_number: nextNumber, percentage_1rm: null, reps_overrides: [], rounds: 1 })
+        .select("*").single();
+      if (error) { toast.error("Error al agregar serie"); return; }
+      const newSet: ComplexSet = {
+        id: data.id, complex_id: data.complex_id, day_id: data.day_id,
+        set_number: data.set_number, percentage_1rm: data.percentage_1rm ?? null,
+        reps_overrides: data.reps_overrides || [],
+        rounds: data.rounds ?? 1,
+      };
+      setComplexSets(prev => ({ ...prev, [complexId]: [...(prev[complexId] || []), newSet] }));
+    } finally {
+      setMutating(false);
+    }
   };
 
   // ─── Eliminar serie del complex ───────────────────────────
@@ -2809,6 +2848,7 @@ export default function CicloDetailPage() {
           exercises={exercises}
           onSelect={handleExerciseSelect}
           onClose={() => setPickerBlock(null)}
+          loading={mutating}
           initialCategory={(
             () => {
               const block = weeks.flatMap(w => w.days).flatMap(d => d.blocks).find(b => b.id === pickerBlock);
@@ -2825,6 +2865,7 @@ export default function CicloDetailPage() {
           exercises={exercises}
           onConfirm={handleComplexCreate}
           onClose={() => setComplexPickerBlock(null)}
+          loading={mutating}
           initialCategory={(
             () => {
               const block = weeks.flatMap(w => w.days).flatMap(d => d.blocks).find(b => b.id === complexPickerBlock);
