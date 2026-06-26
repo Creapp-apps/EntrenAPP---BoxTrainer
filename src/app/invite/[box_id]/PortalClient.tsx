@@ -286,7 +286,13 @@ export default function PortalClient({ boxId, boxName, products, plans, slots, l
         <div className="w-full max-w-3xl bg-zinc-950/90 rounded-3xl border border-zinc-800/80 p-1.5 shadow-2xl relative overflow-hidden flex items-center justify-center aspect-square md:aspect-video">
           
           <img 
-            src="/images/gym_isometric_render.png" 
+            src={
+              boxName.toLowerCase().includes("vuur")
+                ? "/assets/vuur-massive-render.png"
+                : boxName.toLowerCase().includes("wolfpack")
+                ? "/assets/wolfpack-massive-render.png"
+                : "/images/gym_isometric_render.png"
+            } 
             alt="Maqueta 3D Box" 
             className="w-full h-full object-cover rounded-[22px] select-none"
           />

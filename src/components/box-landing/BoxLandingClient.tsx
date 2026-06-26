@@ -104,6 +104,22 @@ export default function BoxLandingClient({ box, plans = [], products = [], activ
             <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: primaryColor }} />
           </div>
         </div>
+      ) : box.name.toLowerCase().includes("vuur") ? (
+        <div className="w-full max-w-[500px] lg:max-w-[600px] aspect-square relative rounded-[3rem] shadow-2xl border-2 overflow-hidden pointer-events-none" style={{ borderColor: primaryColor, boxShadow: `0 30px 60px -15px rgba(${primaryRgb}, 0.5)` }}>
+          <img 
+            src="/assets/vuur-massive-render.png" 
+            alt="Instalaciones Vuur" 
+            className="w-full h-full object-cover opacity-90 mix-blend-lighten"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#060608] via-transparent to-transparent opacity-80" />
+          <div className="absolute bottom-6 left-6 right-6 p-4 rounded-2xl bg-black/50 backdrop-blur-md border border-white/10 flex justify-between items-center">
+            <div>
+              <p className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Instalaciones Premium</p>
+              <p className="font-black text-white">Complejo Vuur</p>
+            </div>
+            <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: primaryColor }} />
+          </div>
+        </div>
       ) : (
         <div 
           className="w-full max-w-[450px] lg:max-w-[550px] aspect-square rounded-[3rem] relative border border-white/10 shadow-2xl overflow-hidden pointer-events-none"
