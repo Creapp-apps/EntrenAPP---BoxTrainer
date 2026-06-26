@@ -50,13 +50,13 @@ export async function POST(request: NextRequest) {
   const newUserId = authData.user.id;
 
   // 2. Create user profile FIRST (FK on boxes requires it)
-  const { error: profileError } = await adminSupabase.from("users").insert({
+  const { error: profileError } = await adminSupabase.from("users").upsert({
     id: newUserId,
     email,
     full_name: ownerName.trim(),
     role: "trainer",
     active: true,
-  });
+  }, { onConflict: "id" });
   if (profileError) {
     await adminSupabase.auth.admin.deleteUser(newUserId);
     return NextResponse.json({ error: profileError.message }, { status: 500 });
