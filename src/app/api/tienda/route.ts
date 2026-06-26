@@ -182,6 +182,46 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Nombre, precio y stock son obligatorios" }, { status: 400 });
       }
 
+      // Check limits
+      const { data: subscription } = await adminSupabase
+        .from("box_subscriptions")
+        .select("plan_name")
+        .eq("box_id", profile.box_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const planName = subscription?.plan_name || "basico";
+      
+      const limits: Record<string, number> = {
+        free: 0,
+        trial: 0,
+        basico: 10,
+        basic: 10,
+        estandar: 50,
+        standard: 50,
+        premium: 9999,
+        pro: 9999,
+        unlimited: 9999,
+      };
+
+      const maxAllowed = limits[planName.toLowerCase()] || 10;
+
+      // Count existing products
+      const { count, error: countErr } = await adminSupabase
+        .from("box_products")
+        .select("id", { count: "exact", head: true })
+        .eq("box_id", profile.box_id);
+
+      if (countErr) throw countErr;
+
+      if ((count || 0) >= maxAllowed) {
+        return NextResponse.json(
+          { error: `Límite de catálogo excedido: Tu plan actual (${planName}) permite un máximo de ${maxAllowed} productos.` },
+          { status: 400 }
+        );
+      }
+
       // Support category via description fallback JSON structure
       const formattedDescription = JSON.stringify({
         text: description?.trim() || "",

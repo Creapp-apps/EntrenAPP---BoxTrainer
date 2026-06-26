@@ -153,6 +153,76 @@ export default function StudentOneRMPage() {
         </div>
       </div>
 
+      {/* RMs Cargados Quick Section */}
+      {loadedCount > 0 && (
+        <div className="bg-primary/5 rounded-2xl border border-primary/20 p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
+            <Dumbbell className="w-4 h-4" />
+            1RMs Registrados ({loadedCount})
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {exercises
+              .filter(ex => oneRMs[ex.id])
+              .map(ex => {
+                const rm = oneRMs[ex.id];
+                const isEditing = editingId === ex.id;
+                return (
+                  <div key={ex.id} className="bg-white p-3 rounded-xl border border-border flex items-center justify-between gap-3 shadow-sm">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        {CATEGORY_LABELS[ex.muscle_group === 'olimpico' ? 'olimpico' : ex.category] || ex.category}
+                      </p>
+                      <p className="text-sm font-bold text-foreground truncate">{ex.name}</p>
+                    </div>
+                    
+                    {isEditing ? (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            autoFocus
+                            value={editValue}
+                            onChange={e => setEditValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") saveOneRM(ex.id);
+                              if (e.key === "Escape") cancelEdit();
+                            }}
+                            placeholder="kg"
+                            className="w-16 px-1.5 py-1 rounded-lg border border-primary text-xs text-center font-bold focus:outline-none"
+                          />
+                          <span className="text-xs text-muted-foreground">kg</span>
+                        </div>
+                        <button onClick={() => saveOneRM(ex.id)} disabled={saving}
+                          className="p-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors">
+                          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                        </button>
+                        <button onClick={cancelEdit}
+                          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-sm font-extrabold text-primary bg-primary/10 px-2.5 py-1 rounded-lg">
+                          {rm.weight_kg} kg
+                        </span>
+                        <button onClick={() => startEdit(ex.id)}
+                          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => removeOneRM(ex.id)}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

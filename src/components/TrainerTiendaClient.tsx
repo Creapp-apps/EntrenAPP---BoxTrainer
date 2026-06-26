@@ -49,6 +49,7 @@ interface TrainerTiendaProps {
   students: Student[];
   sales: Sale[];
   boxId: string;
+  planName?: string;
 }
 
 interface CartItem {
@@ -71,12 +72,28 @@ export default function TrainerTiendaClient({
   products: initialProducts, 
   students, 
   sales: initialSales, 
-  boxId 
+  boxId,
+  planName = "basico"
 }: TrainerTiendaProps) {
   
   // Real-time State
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [sales, setSales] = useState<Sale[]>(initialSales);
+
+  const limits: Record<string, { max: number; label: string }> = {
+    free: { max: 0, label: "Free Trial" },
+    trial: { max: 0, label: "Free Trial" },
+    basico: { max: 10, label: "Básico" },
+    basic: { max: 10, label: "Básico" },
+    estandar: { max: 50, label: "Estándar" },
+    standard: { max: 50, label: "Estándar" },
+    premium: { max: 9999, label: "Premium" },
+    pro: { max: 9999, label: "Premium" },
+    unlimited: { max: 9999, label: "Premium" },
+  };
+
+  const currentLimit = limits[planName.toLowerCase()] || { max: 10, label: "Básico" };
+  const reachesProductLimit = products.length >= currentLimit.max;
   
   // Cart & POS Terminal State
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -338,6 +355,10 @@ export default function TrainerTiendaClient({
 
   // Pre-fill fields for Product CRUD
   const openCreateProduct = () => {
+    if (reachesProductLimit) {
+      alert(`Límite de catálogo alcanzado: Tu plan actual (${currentLimit.label}) permite un máximo de ${currentLimit.max} productos.`);
+      return;
+    }
     setEditingProduct(null);
     setFormName("");
     setFormDescription("");
@@ -425,7 +446,9 @@ export default function TrainerTiendaClient({
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-primary">Terminal POS</span>
           <h1 className="text-2xl font-black tracking-tight text-foreground mt-1">Punto de Venta e Inventario</h1>
-          <p className="text-xs text-muted-foreground">Administrá tu stock en tiempo real y cobrá consumos al mostrador</p>
+          <p className="text-xs text-muted-foreground">
+            Administrá tu stock en tiempo real y cobrá consumos al mostrador · Plan <span className="font-bold capitalize">{currentLimit.label}</span> ({products.length}/{currentLimit.max === 9999 ? "ilimitado" : `${currentLimit.max} prod.`})
+          </p>
         </div>
 
         <div className="flex gap-3 shrink-0">

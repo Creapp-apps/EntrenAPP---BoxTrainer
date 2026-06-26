@@ -340,143 +340,212 @@ export function parseDavidFormat(rows: string[][], cycleName: string = "Ciclo Da
     days: [],
   }));
 
-  let currentDayName = "Día 1";
-  let currentBlockName = "Estructura";
+  const isBlockTimer = (str: string) => {
+    const s = str.toLowerCase();
+    return s.includes("emom") || 
+           s.includes("amrap") || 
+           s.includes("tabata") || 
+           s.includes("for time") || 
+           s.includes("death by") || 
+           s.includes("chipper") || 
+           s.includes("for load");
+  };
+
+  // First, group the rows by Day
+  interface DayRowGroup {
+    dayName: string;
+    rows: string[][];
+  }
+  const daysData: DayRowGroup[] = [];
+  let currentDayName: string | null = null;
+  let currentDayRows: string[][] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const col0 = row[0]?.trim() || "";
     const col1 = row[1]?.trim() || "";
 
-    // 1. Detect Day Header: e.g. "DIA 1" in column 1 or 2
     const dayMatch = (col1 || col0).match(/DIA\s+(\d+)/i) || (col1 || col0).match(/DÍA\s+(\d+)/i);
     if (dayMatch) {
-      const dayNum = dayMatch[1];
-      currentDayName = `Día ${dayNum}`;
-      currentBlockName = "Estructura"; // default first block
-      continue;
-    }
-
-    // 2. Detect Block Timer Header (e.g., "EMOM 3", "EMOM 2:30" inside Column B, or in any of the week columns)
-    let isBlockHeader = false;
-    let blockName = "";
-
-    if (col1.toLowerCase().includes("emom") || col1.toLowerCase().includes("amrap")) {
-      isBlockHeader = true;
-      blockName = col1;
-    } else if (!col1) {
-      // Check if any of the week columns contains EMOM/AMRAP
-      for (let w = 0; w < weeksCount; w++) {
-        const val = row[2 + w * 2]?.trim() || "";
-        if (val.toLowerCase().includes("emom") || val.toLowerCase().includes("amrap")) {
-          isBlockHeader = true;
-          blockName = val;
-          break;
-        }
+      if (currentDayName) {
+        daysData.push({ dayName: currentDayName, rows: currentDayRows });
       }
-    }
-
-    if (isBlockHeader && blockName) {
-      currentBlockName = blockName;
+      currentDayName = `Día ${dayMatch[1]}`;
+      currentDayRows = [];
       continue;
     }
 
-    // 3. Detect Category spelling (E, S, T, R, U, C, T, U, R, A, F, U, E, R, Z, A, P, O, T, E, N, C, I, A)
-    if (col0.length === 1 && !col1) {
-      // Just spelling, skip
-      continue;
+    if (currentDayName) {
+      currentDayRows.push(row);
     }
+  }
 
-    // 4. If col1 is present, it's an exercise!
-    if (col1 && !col1.toLowerCase().includes("observaciones") && !col1.toLowerCase().includes("emom") && !col1.toLowerCase().includes("dia ")) {
-      const exerciseRawName = col1;
+  if (currentDayName && currentDayRows.length > 0) {
+    daysData.push({ dayName: currentDayName, rows: currentDayRows });
+  }
 
-      // Extract set details for each week
-      for (let w = 0; w < weeksCount; w++) {
-        const valCol = 2 + w * 2;
-        const obsCol = 3 + w * 2;
+  // Now, process each Day's rows into segments
+  interface RawExerciseSegment {
+    rawName: string;
+    weeks: { cellVal: string; cellObs: string }[];
+  }
+  interface DaySegment {
+    exercises: RawExerciseSegment[];
+    footerLabel: string | null;
+  }
 
-        const cellVal = row[valCol]?.trim() || "";
-        const cellObs = row[obsCol]?.trim() || "";
+  for (const { dayName, rows: dayRows } of daysData) {
+    const segments: DaySegment[] = [];
+    let currentSegmentExercises: RawExerciseSegment[] = [];
 
-        if (cellVal) {
-          const parsed = parseDavidCell(cellVal, cellObs);
-          if (parsed) {
-            const week = weeks[w];
+    for (const row of dayRows) {
+      const col0 = row[0]?.trim() || "";
+      const col1 = row[1]?.trim() || "";
 
-            // Ensure day exists
-            let day = week.days.find(d => d.name === currentDayName);
-            if (!day) {
-              day = { name: currentDayName, blocks: [] };
-              week.days.push(day);
-            }
+      // Check if it's a footer row (contains block timer label)
+      let isFooter = false;
+      let footerLabel = "";
 
-            // Ensure block exists
-            const isPrepFisicaCycle = /prep|prepara/i.test(cycleName);
-            let block = day.blocks.find(b => b.name === currentBlockName);
-            if (!block) {
-              const blockType = isPrepFisicaCycle || currentBlockName.toLowerCase().includes("emom") || currentBlockName.toLowerCase().includes("amrap")
-                ? "prep_fisica"
-                : "fuerza";
-              block = { name: currentBlockName, type: blockType, exercises: [] };
-              day.blocks.push(block);
-            }
-
-            // Parse complexes (handles "+" inside exercise name)
-            const isComplex = exerciseRawName.includes("+");
-            
-            if (isComplex) {
-              const parts = exerciseRawName.split("+").map(p => p.trim());
-              const complexId = crypto.randomUUID();
-              
-              const complexExercises = parts.map((partName, idx) => ({
-                name: partName,
-                sets: parsed.sets,
-                reps: "1",
-                percentage_1rm: parsed.percentage,
-                weight_target: parsed.weight_target,
-                notes: parsed.notes,
-                is_complex: true,
-                complex_id: complexId,
-                complex_order: idx + 1,
-              }));
-
-              const repsOverrideParts = parsed.reps.split("+").map(r => r.trim());
-              const complexSets = Array.from({ length: parsed.sets }, (_, setIdx) => {
-                const overrides = complexExercises.map((ex, exIdx) => ({
-                  name: ex.name,
-                  reps: repsOverrideParts[exIdx] || repsOverrideParts[0] || "1",
-                }));
-
-                return {
-                  set_number: setIdx + 1,
-                  percentage_1rm: parsed.percentage || null,
-                  weight_target: parsed.weight_target || null,
-                  reps_overrides: overrides,
-                };
-              });
-
-              complexExercises.forEach(ex => {
-                block!.exercises.push({
-                  ...ex,
-                  complex_sets: complexSets,
-                });
-              });
-            } else {
-              // Single exercise
-              block.exercises.push({
-                name: exerciseRawName,
-                sets: parsed.sets,
-                reps: parsed.reps,
-                percentage_1rm: parsed.percentage,
-                weight_target: parsed.weight_target,
-                notes: parsed.notes,
-                is_complex: false,
-              });
-            }
+      if (isBlockTimer(col1)) {
+        isFooter = true;
+        footerLabel = col1;
+      } else {
+        for (let w = 0; w < weeksCount; w++) {
+          const val = row[2 + w * 2]?.trim() || "";
+          if (isBlockTimer(val)) {
+            isFooter = true;
+            footerLabel = val;
+            break;
           }
         }
       }
+
+      if (isFooter) {
+        segments.push({
+          exercises: currentSegmentExercises,
+          footerLabel: footerLabel
+        });
+        currentSegmentExercises = [];
+      } else {
+        // Check if it's an exercise row
+        const isExercise = col1 && 
+                            !col1.toLowerCase().includes("observaciones") && 
+                            !col1.toLowerCase().includes("dia ") && 
+                            !col1.toLowerCase().includes("día ") &&
+                            !isBlockTimer(col1) &&
+                            !(col0.length === 1 && !col1);
+
+        if (isExercise) {
+          const weeksData = [];
+          for (let w = 0; w < weeksCount; w++) {
+            const valCol = 2 + w * 2;
+            const obsCol = 3 + w * 2;
+            weeksData.push({
+              cellVal: row[valCol]?.trim() || "",
+              cellObs: row[obsCol]?.trim() || ""
+            });
+          }
+          currentSegmentExercises.push({
+            rawName: col1,
+            weeks: weeksData
+          });
+        }
+      }
+    }
+
+    if (currentSegmentExercises.length > 0) {
+      segments.push({
+        exercises: currentSegmentExercises,
+        footerLabel: null
+      });
+    }
+
+    // Now insert segments into each of the 4 weeks for this day
+    for (let w = 0; w < weeksCount; w++) {
+      const week = weeks[w];
+      let day = week.days.find(d => d.name === dayName);
+      if (!day) {
+        day = { name: dayName, blocks: [] };
+        week.days.push(day);
+      }
+
+      segments.forEach((segment) => {
+        const exercisesForWeek: ParsedExercise[] = [];
+
+        segment.exercises.forEach(rawEx => {
+          const weekData = rawEx.weeks[w];
+          if (weekData.cellVal) {
+            const parsed = parseDavidCell(weekData.cellVal, weekData.cellObs);
+            if (parsed) {
+              const exerciseRawName = rawEx.rawName;
+              const isComplex = exerciseRawName.includes("+");
+
+              if (isComplex) {
+                const parts = exerciseRawName.split("+").map(p => p.trim());
+                const complexId = crypto.randomUUID();
+                
+                const complexExercises = parts.map((partName, idx) => ({
+                  name: partName,
+                  sets: parsed.sets,
+                  reps: "1",
+                  percentage_1rm: parsed.percentage,
+                  weight_target: parsed.weight_target,
+                  notes: parsed.notes,
+                  is_complex: true,
+                  complex_id: complexId,
+                  complex_order: idx + 1,
+                }));
+
+                const repsOverrideParts = parsed.reps.split("+").map(r => r.trim());
+                const complexSets = Array.from({ length: parsed.sets }, (_, setIdx) => {
+                  const overrides = complexExercises.map((ex, exIdx) => ({
+                    name: ex.name,
+                    reps: repsOverrideParts[exIdx] || repsOverrideParts[0] || "1",
+                  }));
+
+                  return {
+                    set_number: setIdx + 1,
+                    percentage_1rm: parsed.percentage || null,
+                    weight_target: parsed.weight_target || null,
+                    reps_overrides: overrides,
+                  };
+                });
+
+                complexExercises.forEach(ex => {
+                  exercisesForWeek.push({
+                    ...ex,
+                    complex_sets: complexSets,
+                  });
+                });
+              } else {
+                exercisesForWeek.push({
+                  name: exerciseRawName,
+                  sets: parsed.sets,
+                  reps: parsed.reps,
+                  percentage_1rm: parsed.percentage,
+                  weight_target: parsed.weight_target,
+                  notes: parsed.notes,
+                  is_complex: false,
+                });
+              }
+            }
+          }
+        });
+
+        if (exercisesForWeek.length > 0) {
+          const blockName = segment.footerLabel || "Estructura";
+          const isPrepFisicaCycle = /prep|prepara/i.test(cycleName);
+          const blockType = isPrepFisicaCycle || blockName.toLowerCase().includes("emom") || blockName.toLowerCase().includes("amrap")
+            ? "prep_fisica"
+            : "fuerza";
+
+          day!.blocks.push({
+            name: blockName,
+            type: blockType,
+            exercises: exercisesForWeek
+          });
+        }
+      });
     }
   }
 

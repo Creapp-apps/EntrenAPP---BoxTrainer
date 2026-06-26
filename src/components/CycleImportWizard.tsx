@@ -87,9 +87,11 @@ function getPreviewBlockItems(exercises: ParsedExercise[]): PreviewBlockItem[] {
 export default function CycleImportWizard({
   onCancel,
   studentId: initialStudentId,
+  defaultCycleType = "strength",
 }: {
   onCancel: () => void;
   studentId?: string;
+  defaultCycleType?: "strength" | "crossfit";
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +99,7 @@ export default function CycleImportWizard({
   // Supabase & Session data
   const [students, setStudents] = useState<{ id: string; full_name: string }[]>([]);
   const [dbExercises, setDbExercises] = useState<DBExercise[]>([]);
+  const [dbCfExercises, setDbCfExercises] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Importer state
@@ -108,6 +111,7 @@ export default function CycleImportWizard({
   const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId || "");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [isTemplateOnly, setIsTemplateOnly] = useState(!initialStudentId);
+  const [cycleType, setCycleType] = useState<"strength" | "crossfit">(defaultCycleType);
 
   // Parsed data
   const [parsedCycle, setParsedCycle] = useState<ParsedCycle | null>(null);
@@ -167,14 +171,16 @@ export default function CycleImportWizard({
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setCurrentUserId(user.id);
 
-      const [{ data: studs }, { data: exs }] = await Promise.all([
+      const [{ data: studs }, { data: exs }, { data: cfExs }] = await Promise.all([
         supabase.from("users").select("id, full_name")
           .eq("role", "student").eq("active", true).order("full_name"),
         supabase.from("exercises").select("id, name, category, exercise_variants(id, name, exercise_id)").eq("archived", false).order("name"),
+        supabase.from("cf_exercises").select("id, name, category, default_unit, video_url").eq("archived", false).order("name"),
       ]);
 
       setStudents(studs || []);
       setDbExercises((exs as any) || []);
+      setDbCfExercises(cfExs || []);
     };
     loadData();
   }, []);
@@ -191,6 +197,11 @@ export default function CycleImportWizard({
     setFileName(file.name);
     const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
     setCycleName(cleanName);
+    if (/prep|prepara/i.test(cleanName)) {
+      setCycleType("crossfit");
+    } else {
+      setCycleType(defaultCycleType);
+    }
 
     // Try modern file.text() first
     try {
@@ -260,10 +271,11 @@ export default function CycleImportWizard({
       const rows = parseCSV(csvContent);
       let cycle: ParsedCycle;
 
+      const parserName = cycleType === "crossfit" ? "preparacion " + cycleName : cycleName;
       if (format === "wolfpack") {
-        cycle = parseWolfpackFormat(rows, cycleName);
+        cycle = parseWolfpackFormat(rows, parserName);
       } else {
-        cycle = parseDavidFormat(rows, cycleName);
+        cycle = parseDavidFormat(rows, parserName);
       }
 
       // Filter weeks based on user selection
@@ -300,12 +312,13 @@ export default function CycleImportWizard({
 
       // Auto-map exercises by exact name match (case-insensitive)
       const initialMappings: Record<string, ExerciseMapping> = {};
-      const isPrepFisica = /prep|prepara/i.test(cycleName);
+      const isPrepFisica = cycleType === "crossfit" || /prep|prepara/i.test(cycleName);
       const defaultCat = isPrepFisica ? "preparacion_fisica" : "fuerza";
 
       uniqueNames.forEach(rawName => {
         // Try exact match with exercise name
-        const match = dbExercises.find(
+        const currentCatalog = cycleType === "crossfit" ? dbCfExercises : dbExercises;
+        const match = currentCatalog.find(
           dbEx => dbEx.name.trim().toLowerCase() === rawName.trim().toLowerCase()
         );
         if (match) {
@@ -323,9 +336,9 @@ export default function CycleImportWizard({
           let matchedVarId: string | null = null;
           let matchedExCat: string | null = null;
 
-          for (const dbEx of dbExercises) {
-            const varMatch = dbEx.exercise_variants?.find(
-              v => v.name.trim().toLowerCase() === rawName.trim().toLowerCase()
+          for (const dbEx of currentCatalog) {
+            const varMatch = (dbEx as any).exercise_variants?.find(
+              (v: any) => v.name.trim().toLowerCase() === rawName.trim().toLowerCase()
             );
             if (varMatch) {
               matchedExId = dbEx.id;
@@ -399,27 +412,48 @@ export default function CycleImportWizard({
           resolvedMappings[name] = map.matchedId;
           resolvedVariantMappings[name] = map.matchedVariantId || null;
         } else {
-          // Create new exercise row
-          const dbCat = map.category === "preparacion_fisica" ? "prep_fisica" : "fuerza";
-          const { data: newEx, error: newExErr } = await supabase
-            .from("exercises")
-            .insert({
-              name: name.trim(),
-              category: dbCat,
-              muscle_group: "otro",
-              trainer_id: currentUserId,
-              archived: false,
-            })
-            .select("id")
-            .single();
+          if (cycleType === "crossfit") {
+            const { data: newEx, error: newExErr } = await supabase
+              .from("cf_exercises")
+              .insert({
+                trainer_id: currentUserId,
+                name: name.trim(),
+                category: "other",
+                default_unit: "reps",
+                archived: false,
+              })
+              .select("id")
+              .single();
 
-          if (newExErr || !newEx) {
-            throw new Error(`Error al crear el ejercicio '${name}': ${newExErr?.message}`);
+            if (newExErr || !newEx) {
+              throw new Error(`Error al crear el ejercicio CF '${name}': ${newExErr?.message}`);
+            }
+            resolvedMappings[name] = newEx.id;
+            resolvedVariantMappings[name] = null;
+            setDbCfExercises(prev => [...prev, { id: newEx.id, name: name.trim(), category: "other", default_unit: "reps" }]);
+          } else {
+            // Create new exercise row
+            const dbCat = map.category === "preparacion_fisica" ? "prep_fisica" : "fuerza";
+            const { data: newEx, error: newExErr } = await supabase
+              .from("exercises")
+              .insert({
+                name: name.trim(),
+                category: dbCat,
+                muscle_group: "otro",
+                trainer_id: currentUserId,
+                archived: false,
+              })
+              .select("id")
+              .single();
+
+            if (newExErr || !newEx) {
+              throw new Error(`Error al crear el ejercicio '${name}': ${newExErr?.message}`);
+            }
+            resolvedMappings[name] = newEx.id;
+            resolvedVariantMappings[name] = null;
+            // Add to dbExercises to keep local state clean
+            setDbExercises(prev => [...prev, { id: newEx.id, name: name.trim(), category: dbCat, exercise_variants: [] }]);
           }
-          resolvedMappings[name] = newEx.id;
-          resolvedVariantMappings[name] = null;
-          // Add to dbExercises to keep local state clean
-          setDbExercises(prev => [...prev, { id: newEx.id, name: name.trim(), category: dbCat, exercise_variants: [] }]);
         }
       }
 
@@ -439,6 +473,7 @@ export default function CycleImportWizard({
           })),
           active: !isTemplateOnly,
           is_template: isTemplateOnly,
+          cycle_type: cycleType,
         })
         .select()
         .single();
@@ -491,13 +526,54 @@ export default function CycleImportWizard({
           // Insert Blocks
           for (let bIdx = 0; bIdx < pDay.blocks.length; bIdx++) {
             const pBlock = pDay.blocks[bIdx];
+            
+            let blockType = pBlock.type;
+            let wodType: string | null = null;
+            let wodConfig: any = {};
+
+            if (cycleType === "crossfit") {
+              const blockNameLower = pBlock.name.toLowerCase();
+              if (blockNameLower.includes("emom")) {
+                blockType = "metcon";
+                wodType = "emom";
+                const match = pBlock.name.match(/emom\s*(\d+(?::\d+)?)/i);
+                if (match) {
+                  const timeStr = match[1];
+                  if (timeStr.includes(":")) {
+                    const [min, sec] = timeStr.split(":").map(Number);
+                    wodConfig = { every_seconds: min * 60 + sec, total_minutes: 12 };
+                  } else {
+                    const min = parseInt(timeStr, 10);
+                    if (min <= 5) {
+                      wodConfig = { every_seconds: min * 60, total_minutes: min * 4 };
+                    } else {
+                      wodConfig = { every_seconds: 60, total_minutes: min };
+                    }
+                  }
+                } else {
+                  wodConfig = { every_seconds: 60, total_minutes: 12 };
+                }
+              } else if (blockNameLower.includes("amrap")) {
+                blockType = "metcon";
+                wodType = "amrap";
+                const match = pBlock.name.match(/amrap\s*(\d+)/i);
+                wodConfig = { time_cap_minutes: match ? parseInt(match[1], 10) : 15 };
+              } else if (pBlock.name === "Estructura") {
+                blockType = "skill";
+              } else {
+                blockType = "metcon";
+              }
+            }
+
             const { data: block, error: blockErr } = await supabase
               .from("training_blocks")
               .insert({
                 day_id: day.id,
                 name: pBlock.name,
-                type: pBlock.type,
+                type: blockType,
                 order: bIdx + 1,
+                wod_type: wodType,
+                wod_config: wodConfig,
               })
               .select()
               .single();
@@ -506,114 +582,150 @@ export default function CycleImportWizard({
               throw new Error(`Error al crear bloque ${pBlock.name} en día ${pDay.name}: ${blockErr?.message}`);
             }
 
-            // Map to correlate parsed complex_id with database complex_id (UUID)
-            const dbComplexIdMap = new Map<string, string>();
-            const insertedExercises: any[] = [];
-            const complexSetsToInsert: { dbComplexId: string; complexSets: any[] }[] = [];
+            if (cycleType === "crossfit") {
+              // 1. Insert exercises into cf_block_exercises for CrossFit cycles
+              for (let exIdx = 0; exIdx < pBlock.exercises.length; exIdx++) {
+                const pEx = pBlock.exercises[exIdx];
 
-            // 1. Insert all exercises sequentially (maintains strict order)
-            for (let exIdx = 0; exIdx < pBlock.exercises.length; exIdx++) {
-              const pEx = pBlock.exercises[exIdx];
-
-              if (!pEx.complex_id) {
-                // Single exercise
-                const { data: insertedSingle, error: exErr } = await supabase
-                  .from("training_exercises")
+                const { data: insertedCfEx, error: cfExErr } = await supabase
+                  .from("cf_block_exercises")
                   .insert({
                     block_id: block.id,
                     exercise_id: resolvedMappings[pEx.name],
-                    variant_id: resolvedVariantMappings[pEx.name] || null,
-                    sets: pEx.sets,
-                    reps: pEx.reps,
-                    percentage_1rm: pEx.percentage_1rm || null,
-                    weight_target: pEx.weight_target || null,
-                    notes: pEx.notes || null,
                     order: exIdx + 1,
+                    reps: pEx.sets > 1 ? `${pEx.sets}x${pEx.reps}` : pEx.reps,
+                    notes: [
+                      pEx.weight_target ? `${pEx.weight_target} kg` : (pEx.percentage_1rm ? `${pEx.percentage_1rm}%` : ""),
+                      pEx.notes || ""
+                    ].filter(Boolean).join(" - ") || null
                   })
                   .select()
                   .single();
 
-                if (exErr || !insertedSingle) {
-                  throw new Error(`Error al insertar ejercicio '${pEx.name}': ${exErr?.message}`);
-                }
-                insertedExercises.push(insertedSingle);
-              } else {
-                // Complex exercise part
-                let dbComplexId = dbComplexIdMap.get(pEx.complex_id);
-                if (!dbComplexId) {
-                  dbComplexId = crypto.randomUUID();
-                  dbComplexIdMap.set(pEx.complex_id, dbComplexId);
+                if (cfExErr || !insertedCfEx) {
+                  throw new Error(`Error al insertar ejercicio CF '${pEx.name}': ${cfExErr?.message}`);
                 }
 
-                // Insert training exercise
-                const { data: insertedComplexEx, error: cExsErr } = await supabase
-                  .from("training_exercises")
-                  .insert({
-                    block_id: block.id,
-                    exercise_id: resolvedMappings[pEx.name],
-                    variant_id: resolvedVariantMappings[pEx.name] || null,
-                    sets: pEx.sets,
-                    reps: pEx.reps,
-                    percentage_1rm: pEx.percentage_1rm || null,
-                    weight_target: pEx.weight_target || null,
-                    notes: pEx.notes || null,
-                    order: exIdx + 1,
-                    complex_id: dbComplexId,
-                    complex_order: pEx.complex_order || 1,
-                  })
-                  .select()
-                  .single();
-
-                if (cExsErr || !insertedComplexEx) {
-                  throw new Error(`Error al insertar ejercicio complex '${pEx.name}': ${cExsErr?.message}`);
-                }
-                insertedExercises.push(insertedComplexEx);
-
-                // Queue complex sets to insert after the loop completes (once all exercises in the complex are inserted)
-                if (pEx.complex_sets && (pEx.complex_order === 1 || !pEx.complex_order)) {
-                  complexSetsToInsert.push({
-                    dbComplexId,
-                    complexSets: pEx.complex_sets,
-                  });
+                // Insert target weight/percentage to cf_wod_levels under 'rx' level
+                const weightValue = pEx.weight_target ? `${pEx.weight_target} kg` : (pEx.percentage_1rm ? `${pEx.percentage_1rm}%` : "");
+                if (weightValue) {
+                  const { error: lvlErr } = await supabase
+                    .from("cf_wod_levels")
+                    .insert({
+                      block_exercise_id: insertedCfEx.id,
+                      level: "rx",
+                      value: weightValue,
+                      notes: pEx.notes || null
+                    });
+                  if (lvlErr) {
+                    console.error("[WIZARD] Error inserting CF WOD level:", lvlErr);
+                  }
                 }
               }
-            }
+            } else {
+              // 2. Insert exercises into training_exercises for standard strength cycles
+              const dbComplexIdMap = new Map<string, string>();
+              const insertedExercises: any[] = [];
+              const complexSetsToInsert: { dbComplexId: string; complexSets: any[] }[] = [];
 
-            // 2. Insert complex sets (now we have all training exercise IDs in memory)
-            for (const item of complexSetsToInsert) {
-              const { dbComplexId, complexSets } = item;
-              const setsToInsert = complexSets.map(cSet => {
-                const overrides = cSet.reps_overrides.map(ov => {
-                  const matchedTe = insertedExercises.find(
-                    inserted => {
-                      const originalExId = resolvedMappings[ov.name];
-                      return originalExId === inserted.exercise_id && inserted.complex_id === dbComplexId;
-                    }
-                  );
+              for (let exIdx = 0; exIdx < pBlock.exercises.length; exIdx++) {
+                const pEx = pBlock.exercises[exIdx];
+
+                if (!pEx.complex_id) {
+                  const { data: insertedSingle, error: exErr } = await supabase
+                    .from("training_exercises")
+                    .insert({
+                      block_id: block.id,
+                      exercise_id: resolvedMappings[pEx.name],
+                      variant_id: resolvedVariantMappings[pEx.name] || null,
+                      sets: pEx.sets,
+                      reps: pEx.reps,
+                      percentage_1rm: pEx.percentage_1rm || null,
+                      weight_target: pEx.weight_target || null,
+                      notes: pEx.notes || null,
+                      order: exIdx + 1,
+                    })
+                    .select()
+                    .single();
+
+                  if (exErr || !insertedSingle) {
+                    throw new Error(`Error al insertar ejercicio '${pEx.name}': ${exErr?.message}`);
+                  }
+                  insertedExercises.push(insertedSingle);
+                } else {
+                  let dbComplexId = dbComplexIdMap.get(pEx.complex_id);
+                  if (!dbComplexId) {
+                    dbComplexId = crypto.randomUUID();
+                    dbComplexIdMap.set(pEx.complex_id, dbComplexId);
+                  }
+
+                  const { data: insertedComplexEx, error: cExsErr } = await supabase
+                    .from("training_exercises")
+                    .insert({
+                      block_id: block.id,
+                      exercise_id: resolvedMappings[pEx.name],
+                      variant_id: resolvedVariantMappings[pEx.name] || null,
+                      sets: pEx.sets,
+                      reps: pEx.reps,
+                      percentage_1rm: pEx.percentage_1rm || null,
+                      weight_target: pEx.weight_target || null,
+                      notes: pEx.notes || null,
+                      order: exIdx + 1,
+                      complex_id: dbComplexId,
+                      complex_order: pEx.complex_order || 1,
+                    })
+                    .select()
+                    .single();
+
+                  if (cExsErr || !insertedComplexEx) {
+                    throw new Error(`Error al insertar ejercicio complex '${pEx.name}': ${cExsErr?.message}`);
+                  }
+                  insertedExercises.push(insertedComplexEx);
+
+                  if (pEx.complex_sets && (pEx.complex_order === 1 || !pEx.complex_order)) {
+                    complexSetsToInsert.push({
+                      dbComplexId,
+                      complexSets: pEx.complex_sets,
+                    });
+                  }
+                }
+              }
+
+              for (const item of complexSetsToInsert) {
+                const { dbComplexId, complexSets } = item;
+                const setsToInsert = complexSets.map(cSet => {
+                  const overrides = cSet.reps_overrides.map(ov => {
+                    const matchedTe = insertedExercises.find(
+                      inserted => {
+                        const originalExId = resolvedMappings[ov.name];
+                        return originalExId === inserted.exercise_id && inserted.complex_id === dbComplexId;
+                      }
+                    );
+                    return {
+                      training_exercise_id: matchedTe?.id || crypto.randomUUID(),
+                      reps: ov.reps,
+                      weight_target: cSet.weight_target || null,
+                      percentage_1rm: cSet.percentage_1rm || null,
+                    };
+                  });
+
                   return {
-                    training_exercise_id: matchedTe?.id || crypto.randomUUID(),
-                    reps: ov.reps,
-                    weight_target: cSet.weight_target || null,
-                    percentage_1rm: cSet.percentage_1rm || null,
+                    day_id: day.id,
+                    complex_id: dbComplexId,
+                    set_number: cSet.set_number,
+                    percentage_1rm: cSet.percentage_1rm,
+                    reps_overrides: overrides,
+                    rounds: 1,
                   };
                 });
 
-                return {
-                  day_id: day.id,
-                  complex_id: dbComplexId,
-                  set_number: cSet.set_number,
-                  percentage_1rm: cSet.percentage_1rm,
-                  reps_overrides: overrides,
-                  rounds: 1,
-                };
-              });
+                const { error: setsErr } = await supabase
+                  .from("training_complex_sets")
+                  .insert(setsToInsert);
 
-              const { error: setsErr } = await supabase
-                .from("training_complex_sets")
-                .insert(setsToInsert);
-
-              if (setsErr) {
-                throw new Error(`Error al insertar series del complejo: ${setsErr.message}`);
+                if (setsErr) {
+                  throw new Error(`Error al insertar series del complejo: ${setsErr.message}`);
+                }
               }
             }
           }
@@ -638,7 +750,11 @@ export default function CycleImportWizard({
 
       setImportingProgress(100);
       toast.success("¡Ciclo importado con éxito!");
-      router.push(`/entrenador/ciclos/${cycle.id}`);
+      if (cycleType === "crossfit") {
+        router.push(`/entrenador/crossfit/${cycle.id}`);
+      } else {
+        router.push(`/entrenador/ciclos/${cycle.id}`);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Error al guardar el ciclo importado.");
@@ -699,6 +815,18 @@ export default function CycleImportWizard({
                 placeholder="Ej: Wolfpack Fuerza - Mes 1"
                 className="w-full px-4 py-2.5 rounded-xl border border-border text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:outline-none"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-500 uppercase">Tipo de Ciclo</label>
+              <select
+                value={cycleType}
+                onChange={e => setCycleType(e.target.value as "strength" | "crossfit")}
+                className="w-full px-4 py-2.5 rounded-xl border border-border text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:outline-none bg-white"
+              >
+                <option value="strength">Fuerza / Levantamientos</option>
+                <option value="crossfit">Cross / Funcional (EMOM/AMRAP)</option>
+              </select>
             </div>
 
             <div className="space-y-2">
@@ -989,7 +1117,7 @@ export default function CycleImportWizard({
                 {uniqueExerciseNames
                   .filter(name => name.toLowerCase().includes(searchFilter.toLowerCase()))
                   .map(name => {
-                    const defaultExCat = /prep|prepara/i.test(cycleName) ? "preparacion_fisica" : "fuerza";
+                    const defaultExCat = cycleType === "crossfit" || /prep|prepara/i.test(cycleName) ? "preparacion_fisica" : "fuerza";
                     const map = mappings[name] || { rawName: name, matchedId: null, matchedVariantId: null, category: defaultExCat };
                     const currentSearch = exerciseSearchQueries[name] || "";
                     
@@ -1001,7 +1129,9 @@ export default function CycleImportWizard({
                       searchName: string;
                     }[] = [];
 
-                    dbExercises.forEach(dbEx => {
+                    const currentCatalog = cycleType === "crossfit" ? dbCfExercises : dbExercises;
+
+                    currentCatalog.forEach(dbEx => {
                       searchItems.push({
                         id: dbEx.id,
                         variantId: null,
@@ -1009,8 +1139,8 @@ export default function CycleImportWizard({
                         searchName: dbEx.name,
                       });
 
-                      if (dbEx.exercise_variants) {
-                        dbEx.exercise_variants.forEach(v => {
+                      if ((dbEx as any).exercise_variants) {
+                        (dbEx as any).exercise_variants.forEach((v: any) => {
                           searchItems.push({
                             id: dbEx.id,
                             variantId: v.id,
@@ -1025,9 +1155,9 @@ export default function CycleImportWizard({
                       item.searchName.toLowerCase().includes(currentSearch.toLowerCase())
                     );
 
-                    const selectedEx = dbExercises.find(dbEx => dbEx.id === map.matchedId);
+                    const selectedEx = currentCatalog.find(dbEx => dbEx.id === map.matchedId);
                     const selectedVarName = map.matchedVariantId && selectedEx
-                      ? selectedEx.exercise_variants?.find(v => v.id === map.matchedVariantId)?.name
+                      ? (selectedEx as any).exercise_variants?.find((v: any) => v.id === map.matchedVariantId)?.name
                       : null;
 
                     return (
@@ -1195,7 +1325,8 @@ export default function CycleImportWizard({
 
                               if (isSingle) {
                                 const ex = item.type === "single" ? item.ex : item.exs[0];
-                                const matchedEx = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId);
+                                const currentCatalog = cycleType === "crossfit" ? dbCfExercises : dbExercises;
+                                const matchedEx = currentCatalog.find(d => d.id === mappings[ex.name]?.matchedId);
                                 const matchedExName = matchedEx?.name || ex.name;
                                 const matchedVarName = mappings[ex.name]?.matchedVariantId && matchedEx
                                   ? matchedEx.exercise_variants?.find(v => v.id === mappings[ex.name]?.matchedVariantId)?.name
@@ -1241,7 +1372,8 @@ export default function CycleImportWizard({
                                   <div key={itemIdx} className="border border-zinc-200 bg-zinc-50/50 rounded-xl p-2.5 space-y-1.5 text-xs">
                                     <div className="space-y-0.5">
                                       {sortedExs.map((ex, exIdx) => {
-                                        const matchedEx = dbExercises.find(d => d.id === mappings[ex.name]?.matchedId);
+                                        const currentCatalog = cycleType === "crossfit" ? dbCfExercises : dbExercises;
+                                        const matchedEx = currentCatalog.find(d => d.id === mappings[ex.name]?.matchedId);
                                         const matchedExName = matchedEx?.name || ex.name;
                                         return (
                                           <p key={exIdx} className="font-semibold text-zinc-700">

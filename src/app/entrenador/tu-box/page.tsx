@@ -13,6 +13,7 @@ import {
   BarChart3,
   Ticket,
   Palette,
+  Building2,
 } from "lucide-react";
 import type { BoxScheduleSlot, Plan, Booking } from "@/types";
 
@@ -25,6 +26,7 @@ export default function TuBoxPage() {
   const [slots, setSlots] = useState<BoxScheduleSlot[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [todayBookings, setTodayBookings] = useState<Booking[]>([]);
+  const [branchesCount, setBranchesCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,26 +38,27 @@ export default function TuBoxPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const [slotsRes, plansRes, bookingsRes] = await Promise.all([
+    const [slotsRes, plansRes, bookingsRes, branchesRes] = await Promise.all([
       supabase.from("box_schedule_slots")
         .select("*")
-        
         .eq("active", true)
         .order("day_of_week")
         .order("start_time"),
       supabase.from("plans")
         .select("*")
-        
         .eq("active", true),
       supabase.from("bookings")
         .select("*, users!bookings_student_id_fkey(full_name, email), box_schedule_slots(label, start_time, end_time)")
         .eq("booking_date", new Date().toISOString().split("T")[0])
         .eq("status", "confirmada"),
+      supabase.from("box_branches")
+        .select("id", { count: "exact", head: true }),
     ]);
 
     setSlots((slotsRes.data || []) as BoxScheduleSlot[]);
     setPlans((plansRes.data || []) as Plan[]);
     setTodayBookings((bookingsRes.data || []) as Booking[]);
+    setBranchesCount(branchesRes.count || 0);
     setLoading(false);
   }
 
@@ -160,6 +163,20 @@ export default function TuBoxPage() {
           </div>
           <p className="text-lg font-bold text-foreground">Actividades</p>
           <p className="text-sm text-muted-foreground mt-0.5">Tipos de clase</p>
+        </Link>
+
+        <Link
+          href="/entrenador/tu-box/sedes"
+          className="bg-white rounded-2xl p-5 shadow-sm border border-border hover:shadow-md transition-shadow cursor-pointer"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="bg-amber-50 p-2.5 rounded-xl">
+              <Building2 className="w-5 h-5 text-amber-600" />
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-bold text-foreground">{branchesCount}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Sedes / Sucursales</p>
         </Link>
       </div>
 

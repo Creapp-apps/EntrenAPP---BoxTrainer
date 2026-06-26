@@ -57,7 +57,7 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
 
   if (!student) notFound();
 
-  const [{ data: cycles }, { data: payments }, { data: records }, { data: recentSessions }] = await Promise.all([
+  const [{ data: cycles }, { data: payments }, { data: records }, { data: recentSessions }, { data: oneRMs }] = await Promise.all([
     supabase.from("training_cycles").select("*")
       .eq("student_id", params.id).order("created_at", { ascending: false }),
     supabase.from("student_payments").select("*")
@@ -69,6 +69,9 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
       .eq("student_id", params.id)
       .order("completed_at", { ascending: false })
       .limit(30),
+    supabase.from("student_one_rm").select("*, exercises(name)")
+      .eq("student_id", params.id)
+      .order("recorded_at", { ascending: false }),
   ]);
 
   // Build weekly tonnage from recent sessions
@@ -206,6 +209,26 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
 
           {/* Plan & Créditos */}
           <StudentPlanCard studentId={params.id} modality={student.modality} />
+
+          {/* 1RMs de Planificación */}
+          {oneRMs && oneRMs.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-border p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-foreground">1RM de Planificación</h2>
+                <Link href={`/entrenador/alumnos/${params.id}/1rm`} className="text-xs text-primary hover:underline font-medium">
+                  Gestionar
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {oneRMs.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-sm">
+                    <span className="text-foreground truncate">{(r.exercises as Record<string, string>)?.name}</span>
+                    <span className="font-bold text-primary ml-2 shrink-0">{r.weight_kg} kg</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* PRs */}
           {records && records.length > 0 && (

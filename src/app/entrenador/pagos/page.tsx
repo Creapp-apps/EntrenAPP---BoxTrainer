@@ -6,9 +6,12 @@ import { toast } from "sonner";
 import {
   CreditCard, Plus, AlertCircle, CheckCircle2, Clock,
   Check, X, Pencil, Trash2,
+  TrendingUp, TrendingDown, DollarSign, Building2, Layers, Lock, Sparkles,
+  Users
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency, formatDate, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS } from "@/lib/utils";
+import TrainerFinanzasClient from "@/components/TrainerFinanzasClient";
 
 type Payment = {
   id: string;
@@ -171,6 +174,11 @@ export default function PagosPage() {
   const [markingPaid, setMarkingPaid] = useState<Payment | null>(null);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [saving, setSaving] = useState(false);
+  
+  // New States for Financial Module
+  const [planName, setPlanName] = useState<string>("basico");
+  const [activeTab, setActiveTab] = useState<"cuotas" | "pyl" | "sueldos" | "proveedores" | "patrimonio">("cuotas");
+  const [boxId, setBoxId] = useState<string>("");
 
   useEffect(() => { loadPayments(); }, []);
 
@@ -179,10 +187,41 @@ export default function PagosPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Get user profile for box_id
+    const { data: profile } = await supabase
+      .from("users")
+      .select("box_id")
+      .eq("id", user.id)
+      .single();
+
+    let bId = profile?.box_id || "";
+    if (!bId) {
+      const { data: ownedBox } = await supabase
+        .from("boxes")
+        .select("id")
+        .eq("owner_id", user.id)
+        .single();
+      if (ownedBox) bId = ownedBox.id;
+    }
+    setBoxId(bId);
+
+    // Get box subscription
+    if (bId) {
+      const { data: sub } = await supabase
+        .from("box_subscriptions")
+        .select("plan_name")
+        .eq("box_id", bId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (sub) {
+        setPlanName(sub.plan_name);
+      }
+    }
+
     const { data, error } = await supabase
       .from("student_payments")
       .select("*, users!student_payments_student_id_fkey(full_name, email)")
-      
       .order("due_date", { ascending: false });
 
     if (error) toast.error("Error cargando pagos");
@@ -266,175 +305,295 @@ export default function PagosPage() {
     );
   }
 
+  const isPremium = planName === "premium" || planName === "pro" || planName === "unlimited";
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Gestión de pagos</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Control de cuotas y cobranzas</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Control de cuotas, sueldos y balance financiero</p>
         </div>
-        <Link href="/entrenador/pagos/nuevo"
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-          <Plus className="w-4 h-4" />
-          Registrar
-        </Link>
+        {activeTab === "cuotas" && (
+          <Link href="/entrenador/pagos/nuevo"
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
+            <Plus className="w-4 h-4" />
+            Registrar cuota
+          </Link>
+        )}
       </div>
 
-      {/* Resumen */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-green-50 p-2 rounded-xl"><CheckCircle2 className="w-5 h-5 text-green-600" /></div>
-            <span className="text-sm font-medium text-muted-foreground">Ingresos del mes</span>
-          </div>
-          <p className="text-2xl font-bold text-foreground">{formatCurrency(totalMonth)}</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-yellow-50 p-2 rounded-xl"><Clock className="w-5 h-5 text-yellow-600" /></div>
-            <span className="text-sm font-medium text-muted-foreground">Pendientes</span>
-          </div>
-          <p className="text-2xl font-bold text-foreground">{pending.length}</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-red-50 p-2 rounded-xl"><AlertCircle className="w-5 h-5 text-red-600" /></div>
-            <span className="text-sm font-medium text-muted-foreground">Vencidos</span>
-          </div>
-          <p className="text-2xl font-bold text-red-600">{overdue.length}</p>
-        </div>
+      {/* Tabs Menu */}
+      <div className="flex bg-white/80 p-1.5 rounded-2xl border border-border shadow-sm max-w-3xl overflow-x-auto gap-1">
+        <button
+          onClick={() => setActiveTab("cuotas")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+            activeTab === "cuotas" ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          Cuotas Alumnos
+        </button>
+        <button
+          onClick={() => setActiveTab("pyl")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+            activeTab === "pyl" ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          Flujo de Caja (PyL)
+        </button>
+        <button
+          onClick={() => setActiveTab("sueldos")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+            activeTab === "sueldos" ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Sueldos
+        </button>
+        <button
+          onClick={() => setActiveTab("proveedores")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+            activeTab === "proveedores" ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          Proveedores
+        </button>
+        <button
+          onClick={() => setActiveTab("patrimonio")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0 ${
+            activeTab === "patrimonio" ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          Patrimonio
+        </button>
       </div>
 
-      {/* Filtros */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {filterTabs.map(tab => (
-          <button key={tab.key} onClick={() => setFilter(tab.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
-              filter === tab.key
-                ? "bg-foreground text-white border-foreground shadow-sm"
-                : "bg-white border-border text-muted-foreground hover:text-foreground"
-            }`}>
-            {tab.label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-md ${filter === tab.key ? "bg-white/20 text-white" : "bg-muted"}`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
-      </div>
+      {activeTab === "cuotas" ? (
+        <>
+          {/* Resumen */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-border">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-green-50 p-2 rounded-xl"><CheckCircle2 className="w-5 h-5 text-green-600" /></div>
+                <span className="text-sm font-medium text-muted-foreground">Ingresos del mes</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(totalMonth)}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-border">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-yellow-50 p-2 rounded-xl"><Clock className="w-5 h-5 text-yellow-600" /></div>
+                <span className="text-sm font-medium text-muted-foreground">Pendientes</span>
+              </div>
+              <p className="text-2xl font-bold text-foreground">{pending.length}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-border">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-red-50 p-2 rounded-xl"><AlertCircle className="w-5 h-5 text-red-600" /></div>
+                <span className="text-sm font-medium text-muted-foreground">Vencidos</span>
+              </div>
+              <p className="text-2xl font-bold text-red-600">{overdue.length}</p>
+            </div>
+          </div>
 
-      {/* Lista */}
-      {filtered.length > 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="font-semibold text-foreground">
-              {filter === "todos" ? "Todos los pagos" : filterTabs.find(t => t.key === filter)?.label}
+          {/* Filtros */}
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {filterTabs.map(tab => (
+              <button key={tab.key} onClick={() => setFilter(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all border ${
+                  filter === tab.key
+                    ? "bg-foreground text-white border-foreground shadow-sm"
+                    : "bg-white border-border text-muted-foreground hover:text-foreground"
+                }`}>
+                {tab.label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-md ${filter === tab.key ? "bg-white/20 text-white" : "bg-muted"}`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Lista */}
+          {filtered.length > 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h2 className="font-semibold text-foreground">
+                  {filter === "todos" ? "Todos los pagos" : filterTabs.find(t => t.key === filter)?.label}
+                </h2>
+              </div>
+              <div className="divide-y divide-border">
+                {filtered.map((payment) => {
+                  const student = payment.users as any;
+                  const isPending = payment.status === "pendiente";
+                  const isOverdue = payment.status === "vencido";
+                  const isExpired = isPending && new Date(payment.due_date) < new Date();
+
+                  return (
+                    <div key={payment.id} className={`flex items-center gap-3 px-5 py-4 group transition-colors hover:bg-muted/20 ${isOverdue ? "bg-red-50/30" : ""}`}>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground text-sm truncate">{student?.full_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {payment.period_label} · {" "}
+                          {payment.status === "pagado" && payment.paid_at
+                            ? <span className="text-green-600">Cobrado el {formatDate(payment.paid_at)}</span>
+                            : <span className={isOverdue || isExpired ? "text-red-500" : ""}>Vence: {formatDate(payment.due_date)}</span>
+                          }
+                        </p>
+                        {payment.notes && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{payment.notes}</p>}
+                      </div>
+
+                      {/* Monto */}
+                      <span className="font-semibold text-sm shrink-0">{formatCurrency(payment.amount)}</span>
+
+                      {/* Badge estado */}
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${PAYMENT_STATUS_COLORS[payment.status]}`}>
+                        {PAYMENT_STATUS_LABELS[payment.status]}
+                      </span>
+
+                      {/* Acciones */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Cobrado */}
+                        {(isPending || isOverdue) && (
+                          <button onClick={() => setMarkingPaid(payment)}
+                            className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
+                            title="Marcar como cobrado">
+                            <Check className="w-3.5 h-3.5" />
+                            Cobrado
+                          </button>
+                        )}
+                        {/* Vencido */}
+                        {isPending && isExpired && (
+                          <button onClick={() => markAsOverdue(payment.id)}
+                            className="text-red-500 hover:bg-red-50 text-xs font-medium px-2 py-1.5 rounded-lg transition-colors border border-red-200"
+                            title="Marcar como vencido">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {/* Editar */}
+                        <button onClick={() => setEditingPayment(payment)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors lg:opacity-0 lg:group-hover:opacity-100"
+                          title="Editar pago">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        {/* Eliminar */}
+                        <button onClick={() => deletePayment(payment)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors lg:opacity-0 lg:group-hover:opacity-100"
+                          title="Eliminar pago">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-white rounded-2xl border border-border">
+              <CreditCard className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <h3 className="font-semibold text-foreground">
+                {filter === "todos" ? "Sin pagos registrados" : `Sin pagos ${filterTabs.find(t => t.key === filter)?.label?.toLowerCase()}`}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1 mb-4">
+                {filter === "todos" ? "Registrá los pagos de tus alumnos para llevar el control." : "No hay pagos en esta categoría."}
+              </p>
+              {filter === "todos" && (
+                <Link href="/entrenador/pagos/nuevo"
+                  className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
+                  <Plus className="w-4 h-4" />
+                  Registrar pago
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Modal: confirmar cobro */}
+          {markingPaid && (
+            <MarkPaidModal
+              payment={markingPaid}
+              onConfirm={confirmMarkPaid}
+              onClose={() => setMarkingPaid(null)}
+              saving={saving}
+            />
+          )}
+
+          {/* Modal: editar pago */}
+          {editingPayment && (
+            <EditModal
+              payment={editingPayment}
+              onSave={saveEdit}
+              onClose={() => setEditingPayment(null)}
+              saving={saving}
+            />
+          )}
+        </>
+      ) : !isPremium ? (
+        /* Lock Overlay for non-premium plans */
+        <div className="bg-white rounded-3xl border border-border p-8 py-16 text-center shadow-sm max-w-2xl mx-auto space-y-6">
+          <div className="w-16 h-16 rounded-3xl bg-amber-50 flex items-center justify-center mx-auto border border-amber-100 shadow-sm">
+            <Lock className="w-8 h-8 text-amber-600" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-foreground flex items-center justify-center gap-2">
+              Módulo de Finanzas Premium
             </h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Controlá el flujo de caja diario, liquidación de sueldos de profesores por hora/clase, proveedores y el balance de tu patrimonio.
+            </p>
           </div>
-          <div className="divide-y divide-border">
-            {filtered.map((payment) => {
-              const student = payment.users as any;
-              const isPending = payment.status === "pendiente";
-              const isOverdue = payment.status === "vencido";
-              const isExpired = isPending && new Date(payment.due_date) < new Date();
-
-              return (
-                <div key={payment.id} className={`flex items-center gap-3 px-5 py-4 group transition-colors hover:bg-muted/20 ${isOverdue ? "bg-red-50/30" : ""}`}>
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{student?.full_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {payment.period_label} · {" "}
-                      {payment.status === "pagado" && payment.paid_at
-                        ? <span className="text-green-600">Cobrado el {formatDate(payment.paid_at)}</span>
-                        : <span className={isOverdue || isExpired ? "text-red-500" : ""}>Vence: {formatDate(payment.due_date)}</span>
-                      }
-                    </p>
-                    {payment.notes && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{payment.notes}</p>}
-                  </div>
-
-                  {/* Monto */}
-                  <span className="font-semibold text-sm shrink-0">{formatCurrency(payment.amount)}</span>
-
-                  {/* Badge estado */}
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${PAYMENT_STATUS_COLORS[payment.status]}`}>
-                    {PAYMENT_STATUS_LABELS[payment.status]}
-                  </span>
-
-                  {/* Acciones */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    {/* Cobrado */}
-                    {(isPending || isOverdue) && (
-                      <button onClick={() => setMarkingPaid(payment)}
-                        className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
-                        title="Marcar como cobrado">
-                        <Check className="w-3.5 h-3.5" />
-                        Cobrado
-                      </button>
-                    )}
-                    {/* Vencido */}
-                    {isPending && isExpired && (
-                      <button onClick={() => markAsOverdue(payment.id)}
-                        className="text-red-500 hover:bg-red-50 text-xs font-medium px-2 py-1.5 rounded-lg transition-colors border border-red-200"
-                        title="Marcar como vencido">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    {/* Editar */}
-                    <button onClick={() => setEditingPayment(payment)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors lg:opacity-0 lg:group-hover:opacity-100"
-                      title="Editar pago">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    {/* Eliminar */}
-                    <button onClick={() => deletePayment(payment)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors lg:opacity-0 lg:group-hover:opacity-100"
-                      title="Eliminar pago">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto pt-4 text-left">
+            <div className="flex gap-2">
+              <Check className="w-5 h-5 text-green-600 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-foreground">Flujo de Caja PyL</p>
+                <p className="text-[11px] text-muted-foreground">Control automatizado de ingresos y egresos.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Check className="w-5 h-5 text-green-600 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-foreground">Liquidación de Sueldos</p>
+                <p className="text-[11px] text-muted-foreground">Calculadora por clase, hora o tarifa fija.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Check className="w-5 h-5 text-green-600 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-foreground">Proveedores e Inventario</p>
+                <p className="text-[11px] text-muted-foreground">Pagos recurrentes e historial de compras.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Check className="w-5 h-5 text-green-600 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-foreground">Patrimonio Neto</p>
+                <p className="text-[11px] text-muted-foreground">Balance real de tus activos y pasivos.</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 max-w-md mx-auto flex-wrap">
+            <div className="text-left">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">Disponible en Plan</span>
+              <p className="text-sm font-bold text-primary">Premium (ARS 78.000/mes)</p>
+            </div>
+            <Link
+              href="/entrenador/mi-box"
+              className="bg-primary text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md hover:bg-primary/90 transition flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Mejorar Plan
+            </Link>
           </div>
         </div>
       ) : (
-        <div className="text-center py-16 bg-white rounded-2xl border border-border">
-          <CreditCard className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="font-semibold text-foreground">
-            {filter === "todos" ? "Sin pagos registrados" : `Sin pagos ${filterTabs.find(t => t.key === filter)?.label?.toLowerCase()}`}
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1 mb-4">
-            {filter === "todos" ? "Registrá los pagos de tus alumnos para llevar el control." : "No hay pagos en esta categoría."}
-          </p>
-          {filter === "todos" && (
-            <Link href="/entrenador/pagos/nuevo"
-              className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-              <Plus className="w-4 h-4" />
-              Registrar pago
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* Modal: confirmar cobro */}
-      {markingPaid && (
-        <MarkPaidModal
-          payment={markingPaid}
-          onConfirm={confirmMarkPaid}
-          onClose={() => setMarkingPaid(null)}
-          saving={saving}
-        />
-      )}
-
-      {/* Modal: editar pago */}
-      {editingPayment && (
-        <EditModal
-          payment={editingPayment}
-          onSave={saveEdit}
-          onClose={() => setEditingPayment(null)}
-          saving={saving}
-        />
+        /* Render Premium Finance Components */
+        <TrainerFinanzasClient boxId={boxId} activeTab={activeTab} />
       )}
     </div>
   );

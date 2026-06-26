@@ -3,6 +3,13 @@ import { ArrowLeft, Dumbbell, Calendar, Target, Activity, CheckCircle2 } from "l
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+const CATEGORY_LABELS: Record<string, string> = {
+  fuerza: "Fuerza",
+  olimpico: "Levantamientos Olímpicos",
+  prep_fisica: "Preparación Física",
+  accesorio: "Accesorio",
+};
+
 export default async function DetalleHistorialPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -140,7 +147,8 @@ export default async function DetalleHistorialPage({ params }: { params: { id: s
                 const exName = log.exercises?.name || "Ejercicio desconocido";
                 const variantName = log.exercise_variants?.name;
                 const displayName = variantName ? `${exName} — ${variantName}` : exName;
-                const category = log.exercises?.category || "General";
+                const categoryRaw = log.exercises?.category || "General";
+                const category = CATEGORY_LABELS[categoryRaw] || categoryRaw;
                 
                 return (
                   <div key={log.id} className="bg-white rounded-2xl p-4 border border-border shadow-sm">

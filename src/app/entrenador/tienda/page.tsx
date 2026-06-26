@@ -59,12 +59,24 @@ export default async function TiendaEntrenadorPage() {
     .eq("box_id", profile.box_id)
     .order("created_at", { ascending: false });
 
+  // 6. Fetch box subscription to enforce limits
+  const { data: subscription } = await supabase
+    .from("box_subscriptions")
+    .select("plan_name")
+    .eq("box_id", profile.box_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const planName = subscription?.plan_name || "basico";
+
   return (
     <TrainerTiendaClient 
       products={products || []} 
       students={students || []} 
       sales={sales || []} 
       boxId={profile.box_id}
+      planName={planName}
     />
   );
 }
