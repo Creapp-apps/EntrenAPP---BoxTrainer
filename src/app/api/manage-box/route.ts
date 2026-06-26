@@ -3,9 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
 const PLAN_LIMITS: Record<string, { max_students: number; max_professors: number }> = {
-  starter: { max_students: 30, max_professors: 1 },
-  pro: { max_students: 80, max_professors: 3 },
-  elite: { max_students: 9999, max_professors: 9999 },
+  plan_50: { max_students: 50, max_professors: 2 },
+  plan_100: { max_students: 100, max_professors: 4 },
+  plan_150: { max_students: 150, max_professors: 6 },
+  premium: { max_students: 9999, max_professors: 9999 },
 };
 
 function getAdminClient() {
@@ -84,7 +85,7 @@ export async function PUT(request: NextRequest) {
     }
 
     case "changePlan": {
-      const limits = PLAN_LIMITS[payload.plan] || PLAN_LIMITS.starter;
+      const limits = PLAN_LIMITS[payload.plan] || PLAN_LIMITS.plan_50;
       await admin.from("boxes").update({
         max_students: limits.max_students,
         max_professors: limits.max_professors,

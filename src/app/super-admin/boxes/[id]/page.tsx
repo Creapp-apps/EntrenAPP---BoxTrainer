@@ -159,14 +159,19 @@ export default function BoxDetailPage() {
         <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
           <h3 className="text-sm font-medium text-white/60 mb-3">Suscripción</h3>
           <div className="flex items-center gap-4 flex-wrap">
-            {["starter", "pro", "enterprise"].map(plan => (
-              <button key={plan} onClick={() => updateSubPlan(plan, plan === "starter" ? 0 : plan === "pro" ? 15000 : 30000)}
+            {[
+              { id: "plan_50", label: "Plan 50", price: 45000 },
+              { id: "plan_100", label: "Plan 100", price: 75000 },
+              { id: "plan_150", label: "Plan 150", price: 95000 },
+              { id: "premium", label: "Premium", price: 150000 },
+            ].map(p => (
+              <button key={p.id} onClick={() => updateSubPlan(p.id, p.price)}
                 className={`px-4 py-2 rounded-xl text-sm font-medium border transition ${
-                  sub.plan_name === plan
+                  sub.plan_name === p.id
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "border-white/10 text-white/40 hover:text-white hover:border-white/20"
                 }`}>
-                {plan.charAt(0).toUpperCase() + plan.slice(1)}
+                {p.label}
               </button>
             ))}
             <span className="text-sm text-white/40 ml-auto">
