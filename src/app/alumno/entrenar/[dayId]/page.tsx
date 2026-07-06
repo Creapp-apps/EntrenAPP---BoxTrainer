@@ -1392,6 +1392,11 @@ export default function EntrenarPage() {
                     : renderComplex(item.complexId, item.items)
                 )}
               </div>
+              {block.wod_config?.notes && (
+                <div className="px-4 py-3 bg-zinc-50 border-t border-border text-xs text-zinc-500 italic">
+                  * Notas: {block.wod_config.notes}
+                </div>
+              )}
             </div>
           );
         })}
@@ -2057,6 +2062,11 @@ export default function EntrenarPage() {
                         }
                       })}
                     </div>
+                    {block.wod_config?.notes && (
+                      <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs text-zinc-500 italic mt-4">
+                        * Notas: {block.wod_config.notes}
+                      </div>
+                    )}
                   </div>
                 );
               })}
