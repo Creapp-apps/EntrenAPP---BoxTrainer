@@ -2091,123 +2091,144 @@ export default function CrossfitCycleEditorPage() {
 
                                       return (
                                         <div key={cfEx.id} className="px-4 py-3 space-y-2.5">
-                                          <div className="flex items-center gap-2">
-                                            <div className="text-sm font-medium text-foreground flex-1 flex items-center gap-1.5">
-                                              {cfEx.exercise?.name || "Ejercicio"}
-                                              <select
-                                                value={cfEx.unit_override || ""}
-                                                onChange={e => updateExProps(cfEx.id, { unit_override: e.target.value })}
-                                                className="text-xs font-normal text-muted-foreground bg-transparent hover:bg-muted rounded px-1 py-0.5 border-none cursor-pointer outline-none"
-                                              >
-                                                <option value="">({cfEx.exercise?.default_unit || "reps"})</option>
-                                                <option value="kg">(kg)</option>
-                                                <option value="lb">(lb)</option>
-                                                <option value="%">(%)</option>
-                                                <option value="reps">(reps)</option>
-                                                <option value="cal">(cal)</option>
-                                                <option value="m">(m)</option>
-                                              </select>
-                                            </div>
-
-                                            {/* Levels Switch Toggle */}
-                                            <div className="flex items-center gap-1.5 mr-1 shrink-0">
-                                              <span className="text-[9px] font-bold text-muted-foreground uppercase">Niveles</span>
-                                              <button
-                                                type="button"
-                                                onClick={() => toggleLevelsSwitch(cfEx.id, cfEx.levels)}
-                                                className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                                  isLevelsEnabled ? "bg-orange-600" : "bg-gray-200"
-                                                }`}
-                                              >
-                                                <span
-                                                  className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                                    isLevelsEnabled ? "translate-x-3" : "translate-x-0"
-                                                  }`}
-                                                />
+                                          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between border-b border-zinc-100/50 pb-2 md:pb-0 md:border-b-0">
+                                            {/* Row 1: Name, Unit Select, Delete (on mobile) */}
+                                            <div className="flex items-center justify-between w-full md:w-auto gap-2 min-w-0">
+                                              <div className="text-sm font-bold text-foreground flex items-center gap-1.5 flex-wrap min-w-0">
+                                                <span className="truncate max-w-[180px] sm:max-w-none">
+                                                  {cfEx.exercise?.name || "Ejercicio"}
+                                                </span>
+                                                <select
+                                                  value={cfEx.unit_override || ""}
+                                                  onChange={e => updateExProps(cfEx.id, { unit_override: e.target.value })}
+                                                  className="text-xs font-normal text-muted-foreground bg-zinc-50 border border-zinc-200 rounded px-1.5 py-0.5 cursor-pointer outline-none focus:ring-1 focus:ring-orange-500"
+                                                >
+                                                  <option value="">({cfEx.exercise?.default_unit || "reps"})</option>
+                                                  <option value="kg">(kg)</option>
+                                                  <option value="lb">(lb)</option>
+                                                  <option value="%">(%)</option>
+                                                  <option value="reps">(reps)</option>
+                                                  <option value="cal">(cal)</option>
+                                                  <option value="m">(m)</option>
+                                                </select>
+                                              </div>
+                                              
+                                              {/* Mobile Delete Button */}
+                                              <button onClick={() => deleteBlockExercise(week.id, day.id, block.id, cfEx.id)}
+                                                className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0 md:hidden">
+                                                <X className="w-4 h-4" />
                                               </button>
                                             </div>
 
-                                            {/* Gender Switch Toggle */}
-                                            {!isLevelsEnabled && (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  if (isGenderEnabled) {
-                                                    setEnabledGenderExIds(prev => {
-                                                      const next = new Set(prev);
-                                                      next.delete(cfEx.id);
-                                                      return next;
-                                                    });
-                                                    const [male] = (cfEx.reps || "").split("/");
-                                                    updateExReps(cfEx.id, male || "");
-                                                  } else {
-                                                    setEnabledGenderExIds(prev => {
-                                                      const next = new Set(prev);
-                                                      next.add(cfEx.id);
-                                                      return next;
-                                                    });
-                                                    const currentReps = cfEx.reps || "";
-                                                    if (!currentReps.includes("/")) {
-                                                      updateExReps(cfEx.id, `${currentReps}/${currentReps}`);
-                                                    }
-                                                  }
-                                                }}
-                                                className={`p-1 rounded-lg border transition-all shrink-0 ${
-                                                  isGenderEnabled 
-                                                    ? "bg-orange-50 border-orange-200 text-orange-600 font-bold" 
-                                                    : "border-border text-muted-foreground hover:bg-muted"
-                                                }`}
-                                                title="Dividir peso/reps por género (M/F)"
-                                              >
-                                                <div className="flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5">
-                                                  <Mars className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                                  <span className="text-muted-foreground/60">/</span>
-                                                  <Venus className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                            {/* Row 2: Controls toolbar */}
+                                            <div className="flex items-center justify-between md:justify-end gap-3 flex-wrap md:flex-nowrap w-full md:w-auto">
+                                              <div className="flex items-center gap-3">
+                                                {/* Levels Switch Toggle */}
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                  <span className="text-[9px] font-black text-muted-foreground/75 uppercase tracking-wide">Niveles</span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleLevelsSwitch(cfEx.id, cfEx.levels)}
+                                                    className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                      isLevelsEnabled ? "bg-orange-600" : "bg-gray-200"
+                                                    }`}
+                                                  >
+                                                    <span
+                                                      className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                        isLevelsEnabled ? "translate-x-3.5" : "translate-x-0"
+                                                      }`}
+                                                    />
+                                                  </button>
                                                 </div>
-                                              </button>
-                                            )}
 
-                                            {/* Reps / Gender Inputs */}
-                                            {!isLevelsEnabled && (
-                                              isGenderEnabled ? (
-                                                <CfGenderRepsInput
-                                                  initialReps={cfEx.reps || ""}
-                                                  onSave={(newReps) => updateExReps(cfEx.id, newReps)}
-                                                />
-                                              ) : (
-                                                <CfRepsInput
-                                                  initialValue={cfEx.reps || ""}
-                                                  onSave={(newReps) => updateExReps(cfEx.id, newReps)}
-                                                />
-                                              )
-                                            )}
+                                                {/* Gender Switch Toggle */}
+                                                {!isLevelsEnabled && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      if (isGenderEnabled) {
+                                                        setEnabledGenderExIds(prev => {
+                                                          const next = new Set(prev);
+                                                          next.delete(cfEx.id);
+                                                          return next;
+                                                        });
+                                                        const [male] = (cfEx.reps || "").split("/");
+                                                        updateExReps(cfEx.id, male || "");
+                                                      } else {
+                                                        setEnabledGenderExIds(prev => {
+                                                          const next = new Set(prev);
+                                                          next.add(cfEx.id);
+                                                          return next;
+                                                        });
+                                                        const currentReps = cfEx.reps || "";
+                                                        if (!currentReps.includes("/")) {
+                                                          updateExReps(cfEx.id, `${currentReps}/${currentReps}`);
+                                                        }
+                                                      }
+                                                    }}
+                                                    className={`p-1 rounded-lg border transition-all shrink-0 ${
+                                                      isGenderEnabled 
+                                                        ? "bg-orange-50 border-orange-200 text-orange-600 font-bold" 
+                                                        : "border-border text-muted-foreground hover:bg-muted"
+                                                    }`}
+                                                    title="Dividir peso/reps por género (M/F)"
+                                                  >
+                                                    <div className="flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5">
+                                                      <Mars className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                                      <span className="text-muted-foreground/60">/</span>
+                                                      <Venus className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                                    </div>
+                                                  </button>
+                                                )}
+                                              </div>
 
-                                            {/* Reorder Buttons */}
-                                            <div className="flex flex-col -space-y-0.5 mr-1 shrink-0">
-                                              <button
-                                                type="button"
-                                                disabled={exIdx === 0}
-                                                onClick={() => moveExercise(week.id, day.id, block.id, cfEx.id, "up")}
-                                                className="p-0.5 rounded hover:bg-muted text-muted-foreground disabled:opacity-20 transition-colors"
-                                                title="Subir"
-                                              >
-                                                <ChevronDown className="w-3.5 h-3.5 rotate-180" />
-                                              </button>
-                                              <button
-                                                type="button"
-                                                disabled={exIdx === exArr.length - 1}
-                                                onClick={() => moveExercise(week.id, day.id, block.id, cfEx.id, "down")}
-                                                className="p-0.5 rounded hover:bg-muted text-muted-foreground disabled:opacity-20 transition-colors"
-                                                title="Bajar"
-                                              >
-                                                <ChevronDown className="w-3.5 h-3.5" />
-                                              </button>
+                                              <div className="flex items-center gap-3">
+                                                {/* Reps / Gender Inputs */}
+                                                {!isLevelsEnabled && (
+                                                  isGenderEnabled ? (
+                                                    <CfGenderRepsInput
+                                                      initialReps={cfEx.reps || ""}
+                                                      onSave={(newReps) => updateExReps(cfEx.id, newReps)}
+                                                    />
+                                                  ) : (
+                                                    <CfRepsInput
+                                                      initialValue={cfEx.reps || ""}
+                                                      onSave={(newReps) => updateExReps(cfEx.id, newReps)}
+                                                    />
+                                                  )
+                                                )}
+
+                                                {/* Reorder Buttons */}
+                                                <div className="flex items-center bg-zinc-50 border border-zinc-200 rounded-lg p-0.5 shrink-0">
+                                                  <button
+                                                    type="button"
+                                                    disabled={exIdx === 0}
+                                                    onClick={() => moveExercise(week.id, day.id, block.id, cfEx.id, "up")}
+                                                    className="p-1 rounded hover:bg-muted text-muted-foreground disabled:opacity-20 transition-colors"
+                                                    title="Subir"
+                                                  >
+                                                    <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+                                                  </button>
+                                                  <div className="w-px h-3 bg-zinc-200 self-center" />
+                                                  <button
+                                                    type="button"
+                                                    disabled={exIdx === exArr.length - 1}
+                                                    onClick={() => moveExercise(week.id, day.id, block.id, cfEx.id, "down")}
+                                                    className="p-1 rounded hover:bg-muted text-muted-foreground disabled:opacity-20 transition-colors"
+                                                    title="Bajar"
+                                                  >
+                                                    <ChevronDown className="w-3.5 h-3.5" />
+                                                  </button>
+                                                </div>
+
+                                                {/* Desktop Delete Button */}
+                                                <button onClick={() => deleteBlockExercise(week.id, day.id, block.id, cfEx.id)}
+                                                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0 hidden md:block"
+                                                  title="Eliminar ejercicio">
+                                                  <X className="w-4 h-4" />
+                                                </button>
+                                              </div>
                                             </div>
-
-                                            <button onClick={() => deleteBlockExercise(week.id, day.id, block.id, cfEx.id)}
-                                              className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive shrink-0">
-                                              <X className="w-3.5 h-3.5" />
-                                            </button>
                                           </div>
 
                                           {/* Levels grid (only shown if levels are enabled!) */}

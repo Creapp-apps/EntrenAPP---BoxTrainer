@@ -1564,7 +1564,10 @@ export default function EntrenarPage() {
                                             ) : (
                                               repsStr
                                             )}
-                                            {" "}{cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps"}
+                                            {" "}{(() => {
+                                              const unit = cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps";
+                                              return unit === "reps" ? "repes" : unit;
+                                            })()}
                                           </span>
                                         </div>
                                       );
