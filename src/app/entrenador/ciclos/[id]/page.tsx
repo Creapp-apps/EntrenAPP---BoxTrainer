@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Loader2, ChevronDown, ChevronRight,
   Dumbbell, Trash2, GripVertical, Search, X, Check, Copy,
   MoreVertical, BookMarked, Link2, UserPlus, Users, Moon,
-  ArrowRightLeft, UserMinus, Eye
+  ArrowRightLeft, UserMinus, Eye, Flame, Activity
 } from "lucide-react";
 import Link from "next/link";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, getInitials } from "@/lib/utils";
@@ -1257,6 +1257,124 @@ function PrepFisicaBlock({
   );
 }
 
+
+// ─── Warm Up Block Component ───────────────────────────────────
+function WarmUpBlock({
+  block,
+  onAddExercise,
+  onDeleteExercise,
+  onUpdateExerciseField,
+}: {
+  block: Block;
+  onAddExercise: () => void;
+  onDeleteExercise: (blockId: string, exId: string) => void;
+  onUpdateExerciseField: (blockId: string, exId: string, fieldOrFields: string | Record<string, any>, value?: unknown) => void;
+}) {
+  const sortedExs = [...block.training_exercises].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const isMobility = block.type === "mobility";
+
+  return (
+    <div className={`border-2 rounded-2xl overflow-hidden ${isMobility ? "border-emerald-500/35 bg-emerald-50/5" : "border-orange-500/35 bg-orange-50/5"}`}>
+      {/* Header */}
+      <div className={`flex items-center gap-2 px-4 py-3 border-b ${isMobility ? "bg-emerald-500/10 border-emerald-500/20" : "bg-orange-500/10 border-orange-500/20"}`}>
+        {isMobility ? (
+          <Activity className="w-4 h-4 text-emerald-600 shrink-0" />
+        ) : (
+          <Flame className="w-4 h-4 text-orange-600 shrink-0" />
+        )}
+        <span className={`text-xs font-bold uppercase tracking-wide flex-1 ${isMobility ? "text-emerald-700" : "text-orange-700"}`}>
+          {isMobility ? "Movilidad" : "Entrada en Calor / Movilidad"}
+        </span>
+        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${isMobility ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
+          {sortedExs.length} Ejercicios
+        </span>
+      </div>
+
+      <div className="p-4 space-y-4">
+        <div className={`divide-y ${isMobility ? "divide-emerald-500/10" : "divide-orange-500/10"}`}>
+          {sortedExs.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-4 text-center">
+              {isMobility ? "No hay ejercicios en movilidad. Agrega uno abajo." : "No hay ejercicios en la entrada en calor. Agrega uno abajo."}
+            </p>
+          ) : (
+            sortedExs.map((te, index) => {
+              const name = te.exercise?.name ?? "";
+              const variantName = te.variant?.name ?? "";
+              const displayName = variantName ? `${name} — ${variantName}` : name;
+              return (
+                <div key={te.id} className="py-3 flex flex-col md:flex-row md:items-center gap-3 first:pt-0 last:pb-0">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isMobility ? "text-emerald-600/60 bg-emerald-50" : "text-orange-600/60 bg-orange-50"}`}>
+                      {index + 1}
+                    </span>
+                    <p className="text-sm font-semibold text-foreground truncate" title={displayName}>
+                      {displayName}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
+                    {/* Series */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase">Series</span>
+                      <SetsInput
+                        initialValue={te.sets ?? 3}
+                        onChange={val => onUpdateExerciseField(block.id, te.id, "sets", val)}
+                        className="w-12 text-xs px-2 py-1.5"
+                        focusRingColor={isMobility ? "focus:ring-2 focus:ring-emerald-500" : "focus:ring-2 focus:ring-orange-500"}
+                      />
+                    </div>
+
+                    {/* Reps */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase">Reps</span>
+                      <input
+                        type="text"
+                        value={te.reps || ""}
+                        onChange={e => onUpdateExerciseField(block.id, te.id, "reps", e.target.value)}
+                        placeholder={"10, 30\", 1'"}
+                        className={`w-20 text-xs px-2.5 py-1.5 rounded-lg border border-border text-center focus:outline-none bg-white font-semibold ${isMobility ? "focus:ring-2 focus:ring-emerald-500" : "focus:ring-2 focus:ring-orange-500"}`}
+                      />
+                    </div>
+
+                    {/* Notes */}
+                    <div className="flex items-center gap-1.5 min-w-[200px] flex-1">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase">Notas</span>
+                      <input
+                        type="text"
+                        defaultValue={te.notes || ""}
+                        onBlur={e => onUpdateExerciseField(block.id, te.id, "notes", e.target.value)}
+                        placeholder={isMobility ? "Ej. estiramiento, rotación..." : "Ej. ritmo lento, movilidad..."}
+                        className={`w-full text-xs px-3 py-1.5 rounded-lg border border-border focus:outline-none bg-white ${isMobility ? "focus:ring-2 focus:ring-emerald-500" : "focus:ring-2 focus:ring-orange-500"}`}
+                      />
+                    </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={() => onDeleteExercise(block.id, te.id)}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Add Exercise button */}
+        <button
+          onClick={onAddExercise}
+          className={`w-full py-2 border border-dashed rounded-xl flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${isMobility ? "border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-50/10 text-emerald-700" : "border-orange-500/20 hover:border-orange-500/40 hover:bg-orange-50/10 text-orange-700"}`}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Agregar Ejercicio</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Exercise Row ─────────────────────────────────────────────
 function ExerciseRow({
   ex, blockId, onUpdate, onDelete, oneRM
@@ -1287,9 +1405,12 @@ function ExerciseRow({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div>
             <label className="text-xs text-muted-foreground">Series</label>
-            <input type="number" min="1" value={ex.sets}
-              onChange={e => onUpdate(blockId, ex.id, "sets", parseInt(e.target.value) || 1)}
-              className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
+            <SetsInput
+              initialValue={ex.sets}
+              onChange={val => onUpdate(blockId, ex.id, "sets", val)}
+              className="w-full px-2 py-1.5 text-sm"
+              focusRingColor="focus:ring-1 focus:ring-primary"
+            />
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Reps</label>
@@ -1532,6 +1653,7 @@ function AssignStudentsModal({
 export default function CicloDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const router = useRouter();
 
   const [cycle, setCycle] = useState<Cycle | null>(null);
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -1593,6 +1715,11 @@ export default function CicloDetailPage() {
         
         .order("full_name"),
     ]);
+
+    if (cycleData?.cycle_type === "crossfit") {
+      router.replace(`/entrenador/crossfit/${id}`);
+      return;
+    }
 
     // Fetch the 1RMs scoped individually to the cycle student (use first active enrollment)
     const activeEnrollments = (cycleData?.training_cycle_enrollments || []) as any[];
@@ -1838,10 +1965,16 @@ export default function CicloDetailPage() {
   };
 
   // ─── Agregar bloque ───────────────────────────────────────
-  const addBlock = async (dayId: string, type: "fuerza" | "prep_fisica") => {
+  const addBlock = async (dayId: string, type: "fuerza" | "prep_fisica" | "warm_up" | "mobility") => {
     if (mutating) return;
     const day = weeks.flatMap(w => w.days).find(d => d.id === dayId);
-    const name = type === "fuerza" ? "Bloque de Fuerza" : "Preparación Física";
+    const name = type === "fuerza"
+      ? "Bloque de Fuerza"
+      : type === "warm_up"
+        ? "Entrada en Calor"
+        : type === "mobility"
+          ? "Movilidad"
+          : "Preparación Física";
 
     setMutating(true);
     try {
@@ -1861,6 +1994,11 @@ export default function CicloDetailPage() {
           ...d, blocks: [...d.blocks, { ...data, training_exercises: [] }],
         } : d),
       })));
+      setExpandedBlocks(prev => {
+        const next = new Set(prev);
+        next.add(data.id);
+        return next;
+      });
     } finally {
       setMutating(false);
     }
@@ -2143,6 +2281,11 @@ export default function CicloDetailPage() {
         setComplexSets(prev => ({ ...prev, [block.id]: newComplexSets }));
       }
 
+      setExpandedBlocks(prev => {
+        const next = new Set(prev);
+        next.add(pickerBlock);
+        return next;
+      });
       setPickerBlock(null);
     } finally {
       setMutating(false);
@@ -2722,7 +2865,9 @@ export default function CicloDetailPage() {
                             <h4 className={`text-sm font-semibold flex-1 ${
                               isCollapsed ? "text-foreground" : "text-foreground"
                             }`}>{block.name}</h4>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize shrink-0">{block.type === "fuerza" ? "Fuerza" : "Prep. Física"}</span>
+                            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full capitalize shrink-0">
+                              {block.type === "fuerza" ? "Fuerza" : block.type === "warm_up" ? "Entrada en Calor" : block.type === "mobility" ? "Movilidad" : "Prep. Física"}
+                            </span>
                             {isCollapsed && exerciseCount > 0 && (
                               <span className="flex items-center gap-1 text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium shrink-0">
                                 <Check className="w-3 h-3" />
@@ -2740,7 +2885,14 @@ export default function CicloDetailPage() {
                           {/* Block content — collapsible */}
                           {!isCollapsed && (
                             <div className="space-y-3 mt-1">
-                              {block.type === "prep_fisica" ? (
+                              {block.type === "warm_up" || block.type === "mobility" ? (
+                                <WarmUpBlock
+                                  block={block}
+                                  onAddExercise={() => setPickerBlock(block.id)}
+                                  onDeleteExercise={deleteExercise}
+                                  onUpdateExerciseField={updateExercise}
+                                />
+                              ) : block.type === "prep_fisica" ? (
                                 <PrepFisicaBlock
                                   block={block}
                                   dayId={day.id}
@@ -2813,6 +2965,14 @@ export default function CicloDetailPage() {
                         <p className="text-sm text-muted-foreground italic">Sin bloques. Agregá uno:</p>
                       )}
                       <div className="flex gap-2 flex-wrap pt-1">
+                        <button onClick={() => addBlock(day.id, "warm_up")}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                          <Plus className="w-3.5 h-3.5" /> Entrada en Calor
+                        </button>
+                        <button onClick={() => addBlock(day.id, "mobility")}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:border-emerald-500 hover:text-emerald-700 transition-colors">
+                          <Plus className="w-3.5 h-3.5" /> Movilidad
+                        </button>
                         <button onClick={() => addBlock(day.id, "fuerza")}
                           className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors">
                           <Plus className="w-3.5 h-3.5" /> Bloque de Fuerza
@@ -3169,5 +3329,50 @@ function DayPreviewModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function SetsInput({
+  initialValue,
+  onChange,
+  className = "w-12 text-xs px-2 py-1.5",
+  focusRingColor = "focus:ring-orange-500 focus:ring-2"
+}: {
+  initialValue: number;
+  onChange: (val: number) => void;
+  className?: string;
+  focusRingColor?: string;
+}) {
+  const [val, setVal] = useState<string>(String(initialValue));
+
+  useEffect(() => {
+    setVal(String(initialValue));
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setVal(raw);
+    const parsed = parseInt(raw, 10);
+    if (!isNaN(parsed) && parsed >= 1) {
+      onChange(parsed);
+    }
+  };
+
+  const handleBlur = () => {
+    const parsed = parseInt(val, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      setVal(String(initialValue));
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min="1"
+      value={val}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={`${className} rounded-lg border border-border text-center focus:outline-none bg-white font-semibold ${focusRingColor}`}
+    />
   );
 }

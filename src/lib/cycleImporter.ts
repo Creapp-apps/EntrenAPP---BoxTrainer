@@ -534,10 +534,22 @@ export function parseDavidFormat(rows: string[][], cycleName: string = "Ciclo Da
 
         if (exercisesForWeek.length > 0) {
           const blockName = segment.footerLabel || "Estructura";
+          const blockNameLower = blockName.toLowerCase();
+          const isWarmUp = blockNameLower.includes("warm up") || 
+                           blockNameLower.includes("warmup") || 
+                           blockNameLower.includes("entrada en calor") || 
+                           blockNameLower.includes("mobilidad") || 
+                           blockNameLower.includes("movilidad") || 
+                           blockNameLower.includes("mobility") || 
+                           blockNameLower.includes("zona media") || 
+                           blockNameLower.includes("midline") ||
+                           blockNameLower.includes("estructura");
           const isPrepFisicaCycle = /prep|prepara/i.test(cycleName);
-          const blockType = isPrepFisicaCycle || blockName.toLowerCase().includes("emom") || blockName.toLowerCase().includes("amrap")
-            ? "prep_fisica"
-            : "fuerza";
+          const blockType = isWarmUp 
+            ? "warm_up"
+            : (isPrepFisicaCycle || blockNameLower.includes("emom") || blockNameLower.includes("amrap")
+                ? "prep_fisica"
+                : "fuerza");
 
           day!.blocks.push({
             name: blockName,
@@ -561,3 +573,282 @@ export function parseDavidFormat(rows: string[][], cycleName: string = "Ciclo Da
     weeks: cleanWeeks,
   };
 }
+
+export function parseVuurFormat(rows: string[][], cycleName: string = "Ciclo Vuur"): ParsedCycle {
+  const daysHeader = rows[2];
+  const weeks: ParsedWeek[] = [{
+    week_number: 1,
+    type: "carga",
+    days: []
+  }];
+
+  const isBlockHeader = (val: string) => {
+    const clean = val.toLowerCase().trim();
+    if (!clean) return false;
+    if (clean.startsWith("(")) return false;
+    
+    const knownHeaders = [
+      "mobility", "mobilidad", "estructura", "midline", "midline conditioning", "zona media",
+      "fuerza", "strength", "skill", "weightlifting", "tecnica", "técnica",
+      "conditioning", "intervalos", "chipper", "rest"
+    ];
+    if (knownHeaders.includes(clean)) return true;
+    if (/^(work\s*out\s*\d*|workout\s*\d*|wod\s*\d*|metcon\s*\d*)/i.test(clean)) return true;
+    if (/^(\d+\s+)?(emom|amrap|tabata|for\s*time|chipper|death\s*by|every|rounds)/i.test(clean)) return true;
+    if (clean.endsWith(":") && !clean.startsWith("-")) return true;
+    return false;
+  };
+
+  const isSetsDescriptor = (val: string) => {
+    return /^(\d+)\s*(sets|rondas)\s*:?$/i.test(val.trim());
+  };
+
+  for (let col = 1; col < 8; col++) {
+    const dayNameRaw = daysHeader[col] || "";
+    if (!dayNameRaw) continue;
+
+    let dayName = dayNameRaw.trim();
+    const dayClean = dayName.toUpperCase().replace(/[^A-ZÁÉÍÓÚ]/g, "");
+    if (dayClean === "MIERCOLES" || dayClean === "MIÉRCOLES") dayName = "Miércoles";
+    else if (dayClean === "SABADO" || dayClean === "SÁBADO") dayName = "Sábado";
+    else dayName = dayName.charAt(0).toUpperCase() + dayName.slice(1).toLowerCase();
+
+    const dayBlocks: ParsedBlock[] = [];
+    let currentBlock: ParsedBlock | null = null;
+    let currentSets = 1;
+    let activeExercise: ParsedExercise | null = null;
+
+    const ensureBlock = (name: string) => {
+      const cleanName = name.trim();
+      const cleanNameLower = cleanName.toLowerCase();
+      const isWarmUp = cleanNameLower.includes("warm up") || 
+                       cleanNameLower.includes("warmup") || 
+                       cleanNameLower.includes("entrada en calor") || 
+                       cleanNameLower.includes("mobilidad") || 
+                       cleanNameLower.includes("movilidad") || 
+                       cleanNameLower.includes("mobility") || 
+                       cleanNameLower.includes("zona media") || 
+                       cleanNameLower.includes("midline") ||
+                       cleanNameLower.includes("estructura");
+      const isCF = cleanNameLower.includes("emom") || 
+                   cleanNameLower.includes("amrap") || 
+                   cleanNameLower.includes("rounds") || 
+                   cleanNameLower.includes("time") ||
+                   cleanNameLower.includes("intervalos") ||
+                   cleanNameLower.includes("track") ||
+                   cleanNameLower.includes("work out");
+      const blockType = isWarmUp ? "warm_up" : (isCF ? "prep_fisica" : "fuerza");
+
+      if (!currentBlock || currentBlock.name !== cleanName) {
+        currentBlock = {
+          name: cleanName,
+          type: blockType,
+          exercises: []
+        };
+        dayBlocks.push(currentBlock);
+      }
+    };
+
+    ensureBlock("Estructura");
+
+    for (let r = 3; r < rows.length; r++) {
+      const val = rows[r][col]?.trim() || "";
+      if (!val) continue;
+
+      if (isBlockHeader(val)) {
+        if (activeExercise) {
+          currentBlock!.exercises.push(activeExercise);
+          activeExercise = null;
+        }
+        ensureBlock(val);
+        currentSets = 1;
+      }
+      else if (isSetsDescriptor(val)) {
+        if (activeExercise) {
+          currentBlock!.exercises.push(activeExercise);
+          activeExercise = null;
+        }
+        const match = val.match(/^(\d+)/);
+        currentSets = match ? parseInt(match[1], 10) : 1;
+      }
+      else {
+        const cleanVal = val.toLowerCase();
+
+        // Check if it is a block-level comment/timing protocol when there are no exercises yet
+        const isProtocolOrComment = !activeExercise && currentBlock && currentBlock.exercises.length === 0 && (
+          cleanVal.includes("' on") || 
+          cleanVal.includes("' off") || 
+          cleanVal.includes("time cap") || 
+          cleanVal.includes("timecap") || 
+          cleanVal.includes("objetivo") || 
+          cleanVal.includes("avanzados") ||
+          /^\d+-\d+-\d+/.test(val) ||
+          /^\d+\s*x\s*\d+\s*x/i.test(val)
+        );
+
+        if (isProtocolOrComment) {
+          currentBlock!.name = currentBlock!.name + " (" + val + ")";
+          continue;
+        }
+
+        const isDetails = activeExercise && !val.startsWith("-") && (
+          val.startsWith("(") || 
+          cleanVal.includes("carga") || 
+          cleanVal.includes("pausa") ||
+          /\brm\b/i.test(cleanVal) ||
+          cleanVal.includes("reps") ||
+          cleanVal.includes("rondas") ||
+          cleanVal.includes("rounds") ||
+          cleanVal.includes("time cap") ||
+          cleanVal.includes("timecap") ||
+          cleanVal.includes("objetivo") ||
+          cleanVal.includes("avanzado") ||
+          cleanVal.includes("avanzados") ||
+          cleanVal.includes("principiante") ||
+          cleanVal.includes("escalado") ||
+          cleanVal.includes("scaled") ||
+          /\brx\b/i.test(cleanVal) ||
+          cleanVal.includes("opción") ||
+          cleanVal.includes("opcion") ||
+          cleanVal.includes("pace") ||
+          cleanVal.includes("estimado") ||
+          cleanVal.includes("calentar") ||
+          cleanVal.includes("warm up") ||
+          cleanVal.includes("warmup") ||
+          cleanVal.includes("hasta completar") ||
+          val.includes("@") ||
+          val.includes("%") ||
+          /^\d+\s*[xX]\s*\d+/.test(val) ||
+          /^\d+\s*rondas/i.test(val) ||
+          /^\d+\s*rounds/i.test(val)
+        );
+
+        if (isDetails) {
+          const xrMatch = val.match(/^(\d+)\s*[xX]\s*([\d\w\+\-\s\(\)]+)/);
+          if (xrMatch) {
+            activeExercise!.sets = parseInt(xrMatch[1], 10);
+            activeExercise!.reps = xrMatch[2].trim();
+          }
+
+          const pctMatch = val.match(/@\s*(\d+)%/) || val.match(/hasta\s*(\d+)%/);
+          if (pctMatch) {
+            activeExercise!.percentage_1rm = parseInt(pctMatch[1], 10);
+          }
+
+          const wtMatch = val.match(/(\d+)\/(\d+)kg/) || val.match(/(\d+)\/(\d+)/);
+          if (wtMatch) {
+            activeExercise!.notes = (activeExercise!.notes ? activeExercise!.notes + " " : "") + val;
+          } else {
+            activeExercise!.notes = (activeExercise!.notes ? activeExercise!.notes + " · " : "") + val;
+          }
+        }
+        else {
+          if (activeExercise) {
+            currentBlock!.exercises.push(activeExercise);
+          }
+
+          let name = val;
+          let reps = "1";
+          let percentage_1rm: number | undefined = undefined;
+          let notes: string | undefined = undefined;
+          let sets = currentSets;
+
+          if (name.startsWith("-")) {
+            name = name.substring(1).trim();
+          }
+
+          // Clean EMOM minute prefixes like "M1:", "M2:", "Min 1:", "Minuto 2:"
+          name = name.replace(/^M\d+\s*:\s*/i, "");
+          name = name.replace(/^(min|minuto|minute)\s*\d+\s*:\s*/i, "");
+
+          // Check for "4 x 1000 m Run" or "3 x 10 Squat" pattern
+          const setsXrepsMatch = name.match(/^(\d+)\s*[xX]\s*(\d+(?:\s*[\/:\-]\s*\d+)?(?:\s*(?:m|meters|mts|km|reps?|rep|repes?|s|min|mins|'|"))?)\s+(.+)$/i);
+          let parsedSetsXreps = false;
+          if (setsXrepsMatch) {
+            const possibleSets = parseInt(setsXrepsMatch[1], 10);
+            const possibleReps = setsXrepsMatch[2].trim();
+            const possibleName = setsXrepsMatch[3].trim();
+
+            const isFalsePositive = 
+              possibleName.startsWith("-") || 
+              possibleName.startsWith("/") || 
+              possibleName.startsWith(":") || 
+              possibleName.toLowerCase().startsWith("x ") || 
+              possibleName.toLowerCase().includes("sets") || 
+              possibleName.toLowerCase().includes("rondas");
+
+            if (!isFalsePositive) {
+              sets = possibleSets;
+              reps = possibleReps;
+              name = possibleName;
+              parsedSetsXreps = true;
+            }
+          }
+
+          if (!parsedSetsXreps) {
+            // Smart reps/duration prefix match (handles single numbers, fractions 10/10, ranges 10-7, ratios 20:20, time durations 1', 30", 2min)
+            const match = name.match(/^(\d+(?:\.\d+)?(?:'|")|\d+\s*(?:min|mins|seg|segs)\b|\d+:\d+'?|\d+(?:\s*[\/:\-]\s*\d+)?(?:\s*(?:m|meters|mts|km|reps?|rep|repes?|s|min|mins|'|"))?)\s+(.+)$/i);
+            if (match) {
+              const possibleReps = match[1];
+              const possibleName = match[2].trim();
+              
+              const isFalsePositive = 
+                possibleName.startsWith("-") || 
+                possibleName.startsWith("/") || 
+                possibleName.startsWith(":") || 
+                /^\d/.test(possibleName) || 
+                possibleName.toLowerCase().startsWith("x ") || 
+                name.toLowerCase().includes("sets") || 
+                name.toLowerCase().includes("rondas");
+
+              if (!isFalsePositive) {
+                reps = possibleReps.replace(/\s+/g, "");
+                name = possibleName;
+              }
+            }
+          }
+
+          // Smart percentage extraction (without discarding the rest of the name)
+          const pctMatch = name.match(/@\s*(\d+)%/);
+          if (pctMatch) {
+            percentage_1rm = parseInt(pctMatch[1], 10);
+            name = name.replace(/@\s*\d+%\s*/, "").trim();
+          }
+
+          // Clean leading Reps/Reps/Rep/Repes word from exercise name (common when writing "10 reps Back Squat")
+          const cleanNameLower = name.toLowerCase();
+          if (cleanNameLower.startsWith("reps ") || cleanNameLower.startsWith("repes ") || cleanNameLower.startsWith("rep ")) {
+            name = name.replace(/^reps?\s+/i, "").replace(/^repes?\s+/i, "").trim();
+          }
+
+          activeExercise = {
+            name,
+            sets,
+            reps,
+            percentage_1rm,
+            notes
+          };
+        }
+      }
+    }
+
+    if (activeExercise) {
+      currentBlock!.exercises.push(activeExercise);
+    }
+
+    const cleanBlocks = dayBlocks.filter(b => b.exercises.length > 0);
+    if (cleanBlocks.length > 0) {
+      weeks[0].days.push({
+        name: dayName,
+        blocks: cleanBlocks
+      });
+    }
+  }
+
+  return {
+    name: cycleName,
+    total_weeks: 1,
+    weeks: weeks.filter(w => w.days.length > 0)
+  };
+}
+

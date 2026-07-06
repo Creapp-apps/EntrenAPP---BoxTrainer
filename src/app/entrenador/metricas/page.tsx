@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
   Users, TrendingUp, TrendingDown, CreditCard, BarChart3, Flame,
-  Dumbbell, AlertTriangle, ChevronRight, Target, Loader2,
+  Dumbbell, AlertTriangle, ChevronRight, Target, Loader2, Calendar, Clock,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -45,6 +45,8 @@ export default function MetricasPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [students, setStudents] = useState<StudentAdherence[]>([]);
   const [byType, setByType] = useState<AdherenceByType[]>([]);
+  const [inactivityAlerts, setInactivityAlerts] = useState<any[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState<any[]>([]);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -81,6 +83,21 @@ export default function MetricasPage() {
       .eq("trainer_id", actualOwner);
     if (typeErr) console.error("❌ Error cargando adherence_by_cycle_type:", typeErr);
     if (typeData) setByType(typeData as unknown as AdherenceByType[]);
+
+    // Student inactivity alerts
+    const { data: inactiveData, error: inactiveErr } = await supabase.rpc("student_inactivity_list", {
+      p_trainer_id: user.id,
+    });
+    if (inactiveErr) console.error("❌ Error en student_inactivity_list:", inactiveErr);
+    if (inactiveData) setInactivityAlerts(inactiveData);
+
+    // Box attendance stats
+    const { data: attData, error: attErr } = await supabase.rpc("box_attendance_stats", {
+      p_trainer_id: user.id,
+      p_days: 30,
+    });
+    if (attErr) console.error("❌ Error en box_attendance_stats:", attErr);
+    if (attData) setAttendanceStats(attData);
 
     setLoading(false);
   }
@@ -297,42 +314,86 @@ export default function MetricasPage() {
           )}
         </div>
 
-        {/* Alertas — baja adherencia */}
+        {/* Alertas — inactividad */}
         <div className="bg-white rounded-2xl shadow-sm border border-border p-6">
           <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-            Alumnos con baja adherencia
+            <Clock className="w-4 h-4 text-amber-500" />
+            Alertas de Inactividad (≥ 7 días sin registrar)
           </h2>
-          {lowStudents.length > 0 ? (
+          {inactivityAlerts.filter(a => a.days_inactive >= 7).length > 0 ? (
             <div className="space-y-3">
-              {lowStudents.map(s => (
-                <Link key={s.student_id} href={`/entrenador/metricas/alumno/${s.student_id}`}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-red-50/50 border border-red-100 hover:bg-red-50 transition-colors group">
-                  <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                    <TrendingDown className="w-4 h-4 text-red-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{s.student_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {s.completed_days}/{s.planned_days} días completados
-                    </p>
-                  </div>
-                  <span className="text-sm font-bold text-red-500">{s.adherence_pct}%</span>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                </Link>
-              ))}
+              {inactivityAlerts.filter(a => a.days_inactive >= 7).map(s => {
+                const isCritical = s.days_inactive > 14;
+                return (
+                  <Link key={s.student_id} href={`/entrenador/metricas/alumno/${s.student_id}`}
+                    className={`flex items-center gap-3 p-3 rounded-xl border hover:shadow-sm transition-all group ${
+                      isCritical ? "bg-red-50/40 border-red-100 hover:bg-red-50" : "bg-amber-50/40 border-amber-100 hover:bg-amber-50"
+                    }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      isCritical ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                    }`}>
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{s.student_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Último registro: {s.last_training_date ? new Date(s.last_training_date).toLocaleDateString("es-AR") : "Nunca"}
+                      </p>
+                    </div>
+                    <span className={`text-sm font-bold ${isCritical ? "text-red-600" : "text-amber-600"}`}>
+                      Hace {s.days_inactive} días
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8">
               <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
                 <TrendingUp className="w-5 h-5 text-green-600" />
               </div>
-              <p className="text-sm font-medium text-foreground">Todos al día 🎉</p>
-              <p className="text-xs text-muted-foreground mt-1">Ningún alumno con adherencia menor al 50%</p>
+              <p className="text-sm font-medium text-foreground">Alumnos al día 🎉</p>
+              <p className="text-xs text-muted-foreground mt-1">Ningún alumno lleva más de 7 días sin entrenar</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* ─── Presentismo General del Box ──────────────────────── */}
+      {attendanceStats.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-border p-6">
+          <div className="mb-4">
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary" />
+              Presentismo General del Box — últimos 30 días
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Historial diario de asistencias completadas, ausencias (No-Show) y cancelaciones
+            </p>
+          </div>
+          <div className="h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={attendanceStats.map(stat => ({
+                  date: new Date(stat.booking_date).toLocaleDateString("es-AR", { day: "2-digit", month: "short" }),
+                  "Asistieron": Number(stat.present_count),
+                  "No-Shows (Ausente)": Number(stat.no_show_count),
+                  "Cancelaron": Number(stat.cancelled_count),
+                }))}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="Asistieron" stackId="a" fill="#22c55e" />
+                <Bar dataKey="No-Shows (Ausente)" stackId="a" fill="#ef4444" />
+                <Bar dataKey="Cancelaron" stackId="a" fill="#9ca3af" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* ─── Lista completa ───────────────────────────────────── */}
       {students.length > 5 && (

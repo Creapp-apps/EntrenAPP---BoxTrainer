@@ -15,6 +15,7 @@ type Cycle = {
   start_date: string;
   active: boolean;
   is_template: boolean;
+  cycle_type?: string;
   phase_structure: { week_number: number; type: string }[];
   training_cycle_enrollments?: {
     active: boolean;
@@ -139,7 +140,7 @@ export default function CiclosPage() {
               <div key={cycle.id}
                 className="relative bg-white rounded-2xl shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all group">
                 {/* Main link area */}
-                <Link href={`/entrenador/ciclos/${cycle.id}`} className="block p-5">
+                <Link href={cycle.cycle_type === "crossfit" ? `/entrenador/crossfit/${cycle.id}` : `/entrenador/ciclos/${cycle.id}`} className="block p-5">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div className="flex items-start gap-3">
                       {cycle.is_template && (
@@ -155,6 +156,15 @@ export default function CiclosPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {cycle.cycle_type === "crossfit" ? (
+                        <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-orange-100 text-orange-700">
+                          CF
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-700">
+                          Fuerza
+                        </span>
+                      )}
                       {cycle.is_template ? (
                         <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-purple-100 text-purple-700">
                           Plantilla

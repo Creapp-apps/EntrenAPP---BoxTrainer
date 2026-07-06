@@ -19,49 +19,56 @@ export async function POST() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Check how many exercises already exist
-  const { count: existingCount } = await admin
+  // Check existing exercises names
+  const { data: existingExData } = await admin
     .from("exercises")
-    .select("id", { count: "exact", head: true })
+    .select("name")
     .eq("trainer_id", user.id)
     .eq("archived", false);
 
-  const { count: existingCfCount } = await admin
+  const { data: existingCfData } = await admin
     .from("cf_exercises")
-    .select("id", { count: "exact", head: true })
+    .select("name")
     .eq("trainer_id", user.id)
     .eq("archived", false);
+
+  const existingNames = new Set((existingExData || []).map(e => e.name.toLowerCase().trim()));
+  const existingCfNames = new Set((existingCfData || []).map(e => e.name.toLowerCase().trim()));
 
   // Insert Fuerza + Prep Física exercises
   const allExercises = [...DEFAULT_FUERZA, ...DEFAULT_PREP_FISICA];
-  const exerciseRows = allExercises.map(e => ({
-    trainer_id: user.id,
-    name: e.name,
-    category: e.category,
-    muscle_group: e.muscle_group,
-    archived: false,
-  }));
+  const exerciseRows = allExercises
+    .filter(e => !existingNames.has(e.name.toLowerCase().trim()))
+    .map(e => ({
+      trainer_id: user.id,
+      name: e.name,
+      category: e.category,
+      muscle_group: e.muscle_group,
+      archived: false,
+    }));
 
   let insertedExercises = 0;
   let insertedCf = 0;
 
   if (exerciseRows.length > 0) {
-    const { data, error } = await admin.from("exercises").insert(exerciseRows).select("id");
+    const { data, error } = await supabase.from("exercises").insert(exerciseRows).select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     insertedExercises = data?.length || 0;
   }
 
   // Insert CrossFit exercises
-  const cfRows = DEFAULT_CROSSFIT.map(e => ({
-    trainer_id: user.id,
-    name: e.name,
-    category: e.category,
-    default_unit: e.default_unit,
-    archived: false,
-  }));
+  const cfRows = DEFAULT_CROSSFIT
+    .filter(e => !existingCfNames.has(e.name.toLowerCase().trim()))
+    .map(e => ({
+      trainer_id: user.id,
+      name: e.name,
+      category: e.category,
+      default_unit: e.default_unit,
+      archived: false,
+    }));
 
   if (cfRows.length > 0) {
-    const { data, error } = await admin.from("cf_exercises").insert(cfRows).select("id");
+    const { data, error } = await supabase.from("cf_exercises").insert(cfRows).select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     insertedCf = data?.length || 0;
   }
@@ -73,8 +80,8 @@ export async function POST() {
       cf_exercises: insertedCf,
     },
     previousCount: {
-      exercises: existingCount || 0,
-      cf_exercises: existingCfCount || 0,
+      exercises: existingExData?.length || 0,
+      cf_exercises: existingCfData?.length || 0,
     },
   });
 }

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Calendar, Copy, Plus, Check, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Copy, Plus, Check, FileSpreadsheet, Flame, Dumbbell } from "lucide-react";
 import Link from "next/link";
 import { WEEK_TYPE_LABELS, WEEK_TYPE_COLORS } from "@/lib/utils";
 import CycleImportWizard from "@/components/CycleImportWizard";
@@ -25,14 +25,15 @@ type Template = {
   phase_structure: { week_number: number; type: string }[];
 };
 
-type Mode = "pick" | "scratch" | "template" | "import";
+type Mode = "choose_type" | "pick" | "scratch" | "template" | "import";
 
 export default function NuevoCicloPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedStudent = searchParams.get("alumno");
+  const isTemplateQuery = searchParams.get("template") === "true";
 
-  const [mode, setMode] = useState<Mode>(preselectedStudent ? "scratch" : "pick");
+  const [mode, setMode] = useState<Mode>("choose_type");
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<{ id: string; full_name: string }[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -181,6 +182,73 @@ export default function NuevoCicloPage() {
     toast.success("Ciclo creado desde plantilla. Podés ajustar los ejercicios.");
     router.push(`/entrenador/ciclos/${newCycleId}`);
   };
+  // ─── Pantalla de selección de tipo de planificación ──────────
+  if (mode === "choose_type") {
+    return (
+      <div className="max-w-2xl mx-auto space-y-8 py-4 sm:py-8">
+        <div className="flex items-center gap-4">
+          <Link href="/entrenador/ciclos" className="p-2 rounded-xl hover:bg-muted transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              {isTemplateQuery ? "Nueva plantilla" : "Nuevo ciclo"}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Elegí qué tipo de planificación querés crear</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Card Fuerza */}
+          <button
+            type="button"
+            onClick={() => setMode(preselectedStudent ? "scratch" : "pick")}
+            className="flex flex-col bg-white rounded-3xl p-6 border-2 border-border hover:border-primary hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
+              <Dumbbell className="w-7 h-7 text-primary" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">
+              Fuerza / Olímpico
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+              Diseñá bloques clásicos de fuerza, series tradicionales, porcentajes de 1RM y trepadas. Ideal para Powerlifting, Halterofilia o musculación general.
+            </p>
+            <span className="mt-6 text-xs font-semibold px-3 py-1.5 rounded-full bg-primary/5 text-primary">
+              Ir a Fuerza →
+            </span>
+          </button>
+
+          {/* Card CrossFit */}
+          <button
+            type="button"
+            onClick={() => {
+              const url = preselectedStudent 
+                ? `/entrenador/crossfit/nuevo?alumno=${preselectedStudent}`
+                : isTemplateQuery 
+                  ? `/entrenador/crossfit/nuevo?template=true`
+                  : "/entrenador/crossfit/nuevo";
+              router.push(url);
+            }}
+            className="flex flex-col bg-white rounded-3xl p-6 border-2 border-border hover:border-orange-500 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-orange-100 flex items-center justify-center mb-6 group-hover:bg-orange-200 transition-colors">
+              <Flame className="w-7 h-7 text-orange-600" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-orange-600 transition-colors">
+              CrossFit / WOD / Funcional
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+              Estructurá entrenamientos con Entrada en calor, Movilidad, Skills y bloques de acondicionamiento (AMRAP, EMOM, Tabata, For Time, etc.).
+            </p>
+            <span className="mt-6 text-xs font-semibold px-3 py-1.5 rounded-full bg-orange-50 text-orange-600">
+              Ir a CrossFit →
+            </span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ─── Pantalla de selección de modo ─────────────────────────
   if (mode === "pick") {
@@ -447,8 +515,8 @@ export default function NuevoCicloPage() {
             <label className="block text-sm font-medium text-foreground mb-1.5">
               Total de semanas: <span className="text-primary font-bold">{form.total_weeks}</span>
             </label>
-            <div className="flex gap-2 flex-wrap">
-              {[3, 4, 5, 6, 8, 10, 12].map(n => (
+            <div className="flex gap-2 flex-wrap items-center">
+              {[1, 2, 3, 4, 5, 6, 8, 10, 12].map(n => (
                 <button key={n} type="button" onClick={() => updateWeeks(n)}
                   className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
                     form.total_weeks === n ? "bg-primary text-white border-primary" : "border-border hover:border-primary/50"
@@ -456,6 +524,19 @@ export default function NuevoCicloPage() {
                   {n}
                 </button>
               ))}
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={1}
+                  max={52}
+                  value={![1, 2, 3, 4, 5, 6, 8, 10, 12].includes(form.total_weeks) ? form.total_weeks : ""}
+                  onChange={e => { const v = parseInt(e.target.value); if (v > 0 && v <= 52) updateWeeks(v); }}
+                  placeholder="+"
+                  className={`w-14 px-2 py-2 rounded-xl border text-sm font-medium text-center transition-all focus:outline-none focus:ring-2 focus:ring-primary ${
+                    ![1, 2, 3, 4, 5, 6, 8, 10, 12].includes(form.total_weeks) ? "bg-primary text-white border-primary" : "border-border"
+                  }`}
+                />
+              </div>
             </div>
           </div>
         </div>

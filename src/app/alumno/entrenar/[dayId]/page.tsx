@@ -31,7 +31,29 @@ type TrainingExercise = {
   exercises: ExerciseData;
   exercise_variants?: { id: string; name: string; video_url?: string | null };
 };
-type Block = { id: string; name: string; type: string; order: number; training_exercises: TrainingExercise[] };
+type CfBlockExercise = {
+  id: string;
+  exercise_id: string;
+  variant_id?: string;
+  order: number;
+  reps?: string;
+  unit_override?: string;
+  notes?: string;
+  sets?: number;
+  cf_exercises?: { id: string; name: string; category: string; default_unit: string; video_url?: string };
+  cf_exercise_variants?: { id: string; name: string; video_url?: string };
+  cf_wod_levels?: { id: string; level: string; value: string; notes?: string }[];
+};
+type Block = {
+  id: string;
+  name: string;
+  type: string;
+  order: number;
+  wod_type?: string;
+  wod_config?: Record<string, unknown>;
+  training_exercises: TrainingExercise[];
+  cf_block_exercises?: CfBlockExercise[];
+};
 type DayInfo = { cycle_id: string; cycle_name: string; week_number: number };
 
 type ExerciseLog = {
@@ -419,8 +441,14 @@ export default function EntrenarPage() {
         const sorted = (blocksData as unknown as Block[]).map(b => ({
           ...b,
           training_exercises: (b.training_exercises || []).sort((a, b) => a.order - b.order),
+          cf_block_exercises: (b.cf_block_exercises || []).sort((a, b) => a.order - b.order),
         }));
         setBlocks(sorted);
+
+        const hasCf = sorted.some(b => b.type !== "fuerza");
+        if (hasCf) {
+          setViewMode("pizarra");
+        }
 
         if (setsData) {
           const grouped: Record<string, ComplexSet[]> = {};
@@ -812,6 +840,7 @@ export default function EntrenarPage() {
           cycle_id: dayInfo?.cycle_id,
           started_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
+          completed: true,
           rpe_overall: rpeOverall || null,
           comments: comments.trim() || null,
         }).select().single();
@@ -1013,26 +1042,28 @@ export default function EntrenarPage() {
         </div>
 
         {/* View Switcher */}
-        <div className="mt-4 flex gap-1 bg-white/10 p-1 rounded-xl text-xs">
-          <button
-            onClick={() => handleViewModeChange("interactive")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold transition-all ${
-              viewMode === "interactive" ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Interactiva
-          </button>
-          <button
-            onClick={() => handleViewModeChange("pizarra")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold transition-all ${
-              viewMode === "pizarra" ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"
-            }`}
-          >
-            <Tv className="w-3.5 h-3.5" />
-            Pizarra
-          </button>
-        </div>
+        {!blocks.some(b => b.type !== "fuerza") && (
+          <div className="mt-4 flex gap-1 bg-white/10 p-1 rounded-xl text-xs">
+            <button
+              onClick={() => handleViewModeChange("interactive")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold transition-all ${
+                viewMode === "interactive" ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Interactiva
+            </button>
+            <button
+              onClick={() => handleViewModeChange("pizarra")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold transition-all ${
+                viewMode === "pizarra" ? "bg-white text-slate-900 shadow" : "text-white/80 hover:text-white"
+              }`}
+            >
+              <Tv className="w-3.5 h-3.5" />
+              Pizarra
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-4 max-w-4xl mx-auto pb-32">
@@ -1383,6 +1414,203 @@ export default function EntrenarPage() {
 
             <div className="space-y-10">
               {blocks.map(block => {
+                const isCf = dayInfo?.cycle_type === "crossfit";
+
+                if (isCf) {
+                  const exercises = block.cf_block_exercises || [];
+                  const isWarmUp = block.type === "warm_up";
+                  const isMobility = block.type === "mobility";
+                  const isSkill = block.type === "skill";
+
+                  const typeColor = isWarmUp 
+                    ? "text-rose-500" 
+                    : isMobility 
+                    ? "text-emerald-500" 
+                    : isSkill 
+                    ? "text-blue-500" 
+                    : "text-orange-500";
+
+                  const showWodConfig = block.type === "metcon" || block.type === "skill";
+                  const wodTypeLabel = block.wod_type ? block.wod_type.toUpperCase() : "SERIES";
+
+                  return (
+                    <div key={block.id} className="space-y-4 animate-in fade-in duration-300">
+                      <div className="border-b border-zinc-200 pb-1 flex items-center justify-between">
+                        <h3 className={`text-2xl font-black ${typeColor} uppercase tracking-widest pt-2`}>
+                          {block.name}
+                        </h3>
+                        {showWodConfig && (
+                          <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-md tracking-wider ${
+                            block.wod_type === "amrap" 
+                              ? "bg-rose-600 text-white animate-pulse" 
+                              : block.wod_type === "emom" 
+                              ? "bg-blue-600 text-white" 
+                              : block.wod_type === "for_time" 
+                              ? "bg-amber-600 text-white" 
+                              : "bg-zinc-800 text-zinc-300"
+                          }`}>
+                            {wodTypeLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      {showWodConfig && (
+                        <div className="text-xs text-zinc-500 font-medium bg-zinc-50 border border-zinc-100 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-1">
+                          {block.wod_type === "amrap" && block.wod_config?.time_cap_minutes && (
+                            <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
+                          )}
+                          {block.wod_type === "emom" && (
+                            <>
+                              {block.wod_config?.every_seconds && (
+                                <span>
+                                  Cada: {block.wod_config.every_seconds % 60 === 0 
+                                    ? `${block.wod_config.every_seconds / 60} min` 
+                                    : `${block.wod_config.every_seconds} seg`}
+                                </span>
+                              )}
+                              {block.wod_config?.every_seconds && block.wod_config?.total_minutes && (
+                                <span>
+                                  Rondas: {Math.round((block.wod_config.total_minutes as number) / ((block.wod_config.every_seconds as number) / 60))}
+                                </span>
+                              )}
+                              {block.wod_config?.total_minutes && <span>Duración: {block.wod_config.total_minutes} min</span>}
+                            </>
+                          )}
+                          {block.wod_type === "for_time" && (
+                            <>
+                              {block.wod_config?.time_cap_minutes && <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>}
+                              {block.wod_config?.rep_scheme && <span>Esquema: {block.wod_config.rep_scheme}</span>}
+                            </>
+                          )}
+                          {block.wod_type === "tabata" && (
+                            <>
+                              {block.wod_config?.work_seconds && <span>Trabajo: {block.wod_config.work_seconds}s</span>}
+                              {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
+                              {block.wod_config?.rounds && <span>Rondas: {block.wod_config.rounds}</span>}
+                            </>
+                          )}
+                          {block.wod_type === "death_by" && (
+                            <>
+                              {block.wod_config?.starting_reps && <span>Inicio: {block.wod_config.starting_reps} reps</span>}
+                              {block.wod_config?.add_per_round && <span>Sumar: +{block.wod_config.add_per_round} reps/rd</span>}
+                            </>
+                          )}
+                          {block.wod_type === "for_load" && (
+                            <>
+                              {block.wod_config?.sets && <span>Series: {block.wod_config.sets}</span>}
+                              {block.wod_config?.reps_per_set && <span>Reps/serie: {block.wod_config.reps_per_set}</span>}
+                            </>
+                          )}
+                          {block.wod_type === "chipper" && block.wod_config?.time_cap_minutes && (
+                            <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
+                          )}
+                          {(!block.wod_type || block.wod_type === "series") && block.wod_config?.sets && (
+                            <>
+                              <span>Series: {block.wod_config.sets}</span>
+                              {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="space-y-4">
+                        {exercises.map((cfEx) => {
+                          const hasLevels = cfEx.cf_wod_levels && cfEx.cf_wod_levels.some(l => l.value.trim() !== "");
+                          const videoUrl = cfEx.cf_exercise_variants?.video_url || cfEx.cf_exercises?.video_url;
+
+                          return (
+                            <div
+                              key={cfEx.id}
+                              className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1">
+                                  <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                    {cfEx.cf_exercises?.name || "Ejercicio"}
+                                    {cfEx.cf_exercise_variants?.name && (
+                                      <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.cf_exercise_variants.name}</span>
+                                    )}
+                                  </h4>
+
+                                  {!hasLevels ? (
+                                    (cfEx.reps || cfEx.sets) && (() => {
+                                      const repsStr = cfEx.reps || "—";
+                                      const isGenderSplit = repsStr.includes("/");
+                                      const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
+
+                                      return (
+                                        <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                          <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono flex items-center gap-1">
+                                            {showSets && cfEx.sets ? `${cfEx.sets} series × ` : ""}
+                                            {isGenderSplit ? (
+                                              (() => {
+                                                const [male, female] = repsStr.split("/");
+                                                return (
+                                                  <span className="inline-flex items-center gap-1">
+                                                    <span className="text-blue-500 font-black">♂</span>
+                                                    <span className="text-zinc-700">{male || "—"}</span>
+                                                    <span className="text-zinc-400">/</span>
+                                                    <span className="text-rose-500 font-black">♀</span>
+                                                    <span className="text-zinc-700">{female || "—"}</span>
+                                                  </span>
+                                                );
+                                              })()
+                                            ) : (
+                                              repsStr
+                                            )}
+                                            {" "}{cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps"}
+                                          </span>
+                                        </div>
+                                      );
+                                    })()
+                                  ) : (
+                                    <div className="grid grid-cols-2 gap-2 text-xs font-semibold mt-1">
+                                      {cfEx.cf_wod_levels!.filter(l => l.value.trim() !== "").map(lvl => (
+                                        <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
+                                          <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                                            {lvl.level}
+                                          </span>
+                                          <span className="font-mono text-zinc-700">
+                                            {lvl.value}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {videoUrl && (
+                                  <a
+                                    href={videoUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0 self-start"
+                                    title="Ver video"
+                                  >
+                                    <Video className="w-5 h-5" />
+                                  </a>
+                                )}
+                              </div>
+
+                              {cfEx.notes && (
+                                <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
+                                  * {cfEx.notes}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {block.wod_config?.notes && (
+                        <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs text-zinc-500 italic">
+                          * Notas: {block.wod_config.notes}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 type BlockItem =
                   | { type: "single"; te: TrainingExercise }
                   | { type: "complex"; complexId: string; items: TrainingExercise[] };

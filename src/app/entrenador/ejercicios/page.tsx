@@ -16,7 +16,7 @@ const MUSCLE_LABELS: Record<string, string> = {
 
 const CF_CATEGORY_LABELS: Record<string, string> = {
   gymnastics: "Gymnastics", weightlifting: "Weightlifting",
-  monostructural: "Monostructural", other: "Otro",
+  monostructural: "Monostructural", mobility: "Movilidad", other: "Otro",
 };
 
 const CF_UNIT_LABELS: Record<string, string> = {
@@ -370,12 +370,11 @@ export default function EjerciciosPage() {
                         </span>
                       )}
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
+                        <Link href={`/entrenador/ejercicios/${ex.id}`}
                           className="p-2 rounded-lg hover:bg-orange-100 text-muted-foreground hover:text-orange-700 transition-colors"
-                          title="Editar"
-                          onClick={() => toast.info("Editor de ejercicio CF — próximamente")}>
+                          title="Editar">
                           <Pencil className="w-4 h-4" />
-                        </button>
+                        </Link>
                         <button onClick={() => setConfirmTarget({ id: ex.id, name: ex.name, table: "cf_exercises" })}
                           className="p-2 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
                           title="Eliminar">

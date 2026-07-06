@@ -30,7 +30,8 @@ const CF_CATEGORIES = [
   { value: "gymnastics", label: "Gymnastics", desc: "Pull Ups, Muscle Ups, HSPU, T2B..." },
   { value: "weightlifting", label: "Weightlifting", desc: "Clean, Snatch, Deadlift, Thrusters..." },
   { value: "monostructural", label: "Monostructural", desc: "Row, Bike, Run, Double Unders..." },
-  { value: "other", label: "Otro", desc: "Activaciones, movilidad, etc." },
+  { value: "mobility", label: "Movilidad", desc: "Roller, PVC, estiramientos, dinámicos..." },
+  { value: "other", label: "Otro", desc: "Activaciones, etc." },
 ];
 
 const CF_UNITS = [

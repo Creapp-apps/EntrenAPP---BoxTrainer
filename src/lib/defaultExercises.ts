@@ -11,7 +11,7 @@ export type DefaultExercise = {
 
 export type DefaultCfExercise = {
   name: string;
-  category: "gymnastics" | "weightlifting" | "monostructural" | "other";
+  category: "gymnastics" | "weightlifting" | "monostructural" | "other" | "mobility";
   default_unit: "reps" | "cals" | "meters" | "kg" | "lbs" | "seconds" | "distance_m";
 };
 
@@ -177,6 +177,50 @@ export const DEFAULT_CROSSFIT: DefaultCfExercise[] = [
   { name: "Devil Press", category: "other", default_unit: "reps" },
   { name: "Sandbag Carry", category: "other", default_unit: "meters" },
   { name: "Worm", category: "other", default_unit: "reps" },
+  { name: "Cat cow", category: "mobility", default_unit: "reps" },
+  { name: "greatest Stretch", category: "mobility", default_unit: "reps" },
+  { name: "Plate WINDMILL", category: "mobility", default_unit: "reps" },
+  { name: "Halo", category: "mobility", default_unit: "reps" },
+  { name: "espinales nado", category: "mobility", default_unit: "reps" },
+  { name: "Strict press", category: "weightlifting", default_unit: "kg" },
+  { name: "Tall jerk", category: "weightlifting", default_unit: "kg" },
+  { name: "behind neck split jerk", category: "weightlifting", default_unit: "kg" },
+  { name: "SPLIT JERK", category: "weightlifting", default_unit: "kg" },
+  { name: "FRON SQUAT", category: "weightlifting", default_unit: "kg" },
+  { name: "Double kb Front rack box step over", category: "weightlifting", default_unit: "reps" },
+  { name: "Wallwalks Complex", category: "gymnastics", default_unit: "reps" },
+  { name: "couch Stretch", category: "mobility", default_unit: "seconds" },
+  { name: "pigeon", category: "mobility", default_unit: "seconds" },
+  { name: "puppy pose", category: "mobility", default_unit: "seconds" },
+  { name: "Pasaje de bastón PVC (PVC pipe pass-throughs)", category: "mobility", default_unit: "reps" },
+  { name: "Movilidad de tobillo (Ankle mobility)", category: "mobility", default_unit: "seconds" },
+  { name: "Aperturas de cadera (Hip openers)", category: "mobility", default_unit: "reps" },
+  { name: "Rotaciones torácicas (T-spine rotations)", category: "mobility", default_unit: "reps" },
+  { name: "Estiramiento de isquiotibiales (Hamstring stretch)", category: "mobility", default_unit: "seconds" },
+  { name: "Cossack Squats", category: "mobility", default_unit: "reps" },
+  { name: "Foam Roller (LTC)", category: "mobility", default_unit: "seconds" },
+  { name: "Band pull-aparts", category: "mobility", default_unit: "reps" },
+  { name: "bici suave", category: "monostructural", default_unit: "seconds" },
+  { name: "Hand stand hold", category: "gymnastics", default_unit: "seconds" },
+  { name: "Hang squat clean", category: "weightlifting", default_unit: "kg" },
+  { name: "Double DB Bench press", category: "weightlifting", default_unit: "reps" },
+  { name: "Strict pull up", category: "gymnastics", default_unit: "reps" },
+  { name: "chainsaw DB row", category: "weightlifting", default_unit: "reps" },
+  { name: "DB Snatch alt", category: "weightlifting", default_unit: "reps" },
+  { name: "DB Over Head lunges", category: "weightlifting", default_unit: "reps" },
+  { name: "lateral Burpee over the db", category: "other", default_unit: "reps" },
+  { name: "singles crossovers", category: "gymnastics", default_unit: "reps" },
+  { name: "goblet squat", category: "weightlifting", default_unit: "reps" },
+  { name: "pull up", category: "gymnastics", default_unit: "reps" },
+  { name: "chest to bar", category: "gymnastics", default_unit: "reps" },
+  { name: "Rest", category: "other", default_unit: "seconds" },
+  { name: "Push up", category: "gymnastics", default_unit: "reps" },
+  { name: "Back rack Back Lunges", category: "weightlifting", default_unit: "kg" },
+  { name: "Wall Walk", category: "gymnastics", default_unit: "reps" },
+  { name: "Strict Toes-to-Bar", category: "gymnastics", default_unit: "reps" },
+  { name: "Shuttle Run", category: "monostructural", default_unit: "meters" },
+  { name: "Echo Bike", category: "monostructural", default_unit: "cals" },
+  { name: "Burpee Pull-up", category: "gymnastics", default_unit: "reps" },
 ];
 
 // ═══════════════════════════════════════════════════════════════

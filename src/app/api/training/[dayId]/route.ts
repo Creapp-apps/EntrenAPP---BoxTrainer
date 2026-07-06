@@ -30,7 +30,7 @@ export async function GET(
       training_weeks!inner (
         week_number,
         type,
-        training_cycles!inner ( id, name )
+        training_cycles!inner ( id, name, cycle_type )
       )
     `)
     .eq("id", dayId)
@@ -60,13 +60,19 @@ export async function GET(
   const { data: blocksData, error: blocksError } = await admin
     .from("training_blocks")
     .select(`
-      id, name, type, order,
+      id, name, type, order, wod_type, wod_config,
       training_exercises (
         id, exercise_id, variant_id, sets, reps,
         percentage_1rm, weight_target, rest_seconds, notes, order,
         complex_id, complex_order,
         exercises ( id, name, category, video_url ),
         exercise_variants ( id, name, video_url )
+      ),
+      cf_block_exercises (
+        id, exercise_id, variant_id, order, reps, unit_override, notes, sets,
+        cf_exercises ( id, name, category, default_unit, video_url ),
+        cf_exercise_variants ( id, name, video_url ),
+        cf_wod_levels ( id, level, value, notes )
       )
     `)
     .eq("day_id", dayId)
@@ -102,6 +108,7 @@ export async function GET(
       cycle_id: cycle?.id,
       cycle_name: cycle?.name,
       week_number: week?.week_number,
+      cycle_type: cycle?.cycle_type,
     },
   });
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Dumbbell, ArrowRight, UserCircle, MapPin, X, Info, Tag, ShoppingBag, MessageCircle, Search, ShoppingCart, Check, Loader2, ArrowLeft } from "lucide-react";
+import { Dumbbell, ArrowRight, UserCircle, MapPin, X, Info, Tag, ShoppingBag, MessageCircle, Search, ShoppingCart, Check, Loader2, ArrowLeft, Copy } from "lucide-react";
 
 interface Plan {
   id: string;
@@ -33,7 +33,56 @@ export default function BoxLandingClient({ box, plans = [], products = [], activ
   const primaryColor = box.branding_config?.primary_color || "#EA580C"; // default orange
   const welcomeMsg = box.branding_config?.welcome_message || "Tu mejor versión empieza acá.";
   
-  const [activeModal, setActiveModal] = useState<"about" | "prices" | "products" | null>(null);
+  const [activeModal, setActiveModal] = useState<"about" | "prices" | "products" | "trial" | null>(null);
+
+  // States for trial modal
+  const getTomorrowDateString = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split("T")[0];
+  };
+
+  const [trialDate, setTrialDate] = useState(getTomorrowDateString());
+  const [trialSlots, setTrialSlots] = useState<any[]>([]);
+  const [trialLoadingSlots, setTrialLoadingSlots] = useState(false);
+  const [selectedTrialSlotId, setSelectedTrialSlotId] = useState("");
+  const [trialFullName, setTrialFullName] = useState("");
+  const [trialEmail, setTrialEmail] = useState("");
+  const [trialPhone, setTrialPhone] = useState("");
+  const [trialSubmitting, setTrialSubmitting] = useState(false);
+  const [trialSuccess, setTrialSuccess] = useState(false);
+  const [trialCredentials, setTrialCredentials] = useState<any | null>(null);
+  const [copiedText, setCopiedText] = useState(false);
+
+  // Fetch slots for the selected date on trial modal open/change
+  useEffect(() => {
+    if (activeModal !== "trial" || !trialDate) return;
+
+    const fetchSlots = async () => {
+      setTrialLoadingSlots(true);
+      try {
+        const res = await fetch(`/api/public/boxes/${box.id}/slots?date=${trialDate}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTrialSlots(data.slots || []);
+          // Auto select first slot with available spots
+          const firstAvailable = (data.slots || []).find((s: any) => s.spots_available > 0);
+          setSelectedTrialSlotId(firstAvailable ? firstAvailable.slot_id : "");
+        } else {
+          setTrialSlots([]);
+          setSelectedTrialSlotId("");
+        }
+      } catch (error) {
+        console.error("Error fetching trial slots:", error);
+        setTrialSlots([]);
+        setSelectedTrialSlotId("");
+      } finally {
+        setTrialLoadingSlots(false);
+      }
+    };
+
+    fetchSlots();
+  }, [activeModal, trialDate, box.id]);
 
   // States for products modal
   const [searchTerm, setSearchTerm] = useState("");
@@ -231,6 +280,13 @@ export default function BoxLandingClient({ box, plans = [], products = [], activ
               Hacerme socio
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
+            <button
+              onClick={() => setActiveModal("trial")}
+              className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 text-base flex items-center justify-center gap-2"
+            >
+              <Dumbbell className="w-5 h-5 text-white/70 animate-pulse" style={{ color: primaryColor }} />
+              Clase de prueba
+            </button>
             <Link
               href={`/auth/login?box_id=${box.id}`}
               className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 text-base flex items-center justify-center gap-2"
@@ -793,6 +849,256 @@ export default function BoxLandingClient({ box, plans = [], products = [], activ
                       })()}
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+            
+            {activeModal === "trial" && (
+              <div className="flex flex-col h-full max-h-[85vh]">
+                {/* Header */}
+                <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-4 shrink-0">
+                  <div className="p-2 rounded-xl" style={{ backgroundColor: `rgba(${primaryRgb}, 0.1)` }}>
+                    <Dumbbell className="w-5 h-5" style={{ color: primaryColor }} />
+                  </div>
+                  <div className="text-left">
+                    <h2 className="text-xl font-black text-white">Probar una clase gratis</h2>
+                    <p className="text-xs text-white/40">Registrate para asistir a una clase de prueba en {box.name}</p>
+                  </div>
+                </div>
+
+                {trialSuccess && trialCredentials ? (
+                  /* Success View */
+                  <div className="flex-1 overflow-y-auto pr-1 py-4 space-y-6 text-center text-left">
+                    <div className="relative w-16 h-16 mx-auto">
+                      <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-lg scale-125 animate-pulse" />
+                      <div className="relative w-full h-full rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                        <Check className="w-8 h-8 text-emerald-400" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-black text-white">¡Clase de prueba reservada!</h3>
+                      <p className="text-xs text-white/60 leading-relaxed max-w-sm mx-auto">
+                        Te registramos como alumno y confirmamos tu turno de prueba para el día{" "}
+                        <strong className="text-white">
+                          {new Date(trialDate + "T00:00:00").toLocaleDateString("es-AR", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                          })}
+                        </strong>.
+                      </p>
+                    </div>
+
+                    {/* Acceso e info de inicio de sesión */}
+                    <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4 max-w-sm mx-auto text-left relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-3 bg-white/5 text-[9px] font-black uppercase tracking-widest text-white/40 border-l border-b border-white/5">
+                        Tus Datos
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-white/40 uppercase font-black tracking-wider">Tu Usuario / Email</p>
+                        <p className="text-sm font-semibold text-white">{trialCredentials.email}</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-white/40 uppercase font-black tracking-wider">Tu Contraseña Temporal</p>
+                        <div className="flex items-center justify-between gap-2 bg-black/40 border border-white/5 p-2 rounded-xl">
+                          <code className="text-xs font-mono text-white/90 select-all">{trialCredentials.password}</code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(trialCredentials.password);
+                              setCopiedText(true);
+                              setTimeout(() => setCopiedText(false), 2000);
+                            }}
+                            className="text-xs text-white/40 hover:text-white transition-colors"
+                          >
+                            {copiedText ? "Copiado" : "Copiar"}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <p className="text-[10px] text-white/30 leading-normal">
+                        Usá estas credenciales para iniciar sesión en tu panel o en la app y ver tus planificaciones físicas.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 max-w-sm mx-auto pt-4">
+                      {box.phone && (
+                        <a
+                          href={`https://wa.me/${String(box.phone).replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                            `¡Hola! Acabo de registrarme para una clase de prueba el día ${trialDate} desde la web del Box. Mi nombre es ${trialFullName}.`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-black px-6 py-3.5 rounded-xl shadow-xl transition-all duration-300 text-sm flex items-center justify-center gap-2 text-white hover:scale-[1.02]"
+                          style={{
+                            backgroundColor: "#25D366",
+                            boxShadow: "0 10px 20px -5px rgba(37, 211, 102, 0.4)"
+                          }}
+                        >
+                          <MessageCircle className="w-4 h-4 shrink-0" />
+                          Enviar WhatsApp para confirmar asistencia
+                        </a>
+                      )}
+                      <button
+                        onClick={() => {
+                          setActiveModal(null);
+                          // Reset states
+                          setTrialSuccess(false);
+                          setTrialCredentials(null);
+                          setTrialFullName("");
+                          setTrialEmail("");
+                          setTrialPhone("");
+                        }}
+                        className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold px-6 py-3 rounded-xl transition-all text-xs w-full"
+                      >
+                        Entendido, volver
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Form View */
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!trialFullName.trim() || !trialEmail.trim() || !trialPhone.trim() || !trialDate || !selectedTrialSlotId) {
+                        alert("Por favor completá todos los campos.");
+                        return;
+                      }
+
+                      setTrialSubmitting(true);
+                      try {
+                        const response = await fetch(`/api/public/boxes/${box.id}/trial-booking`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            fullName: trialFullName.trim(),
+                            email: trialEmail.trim(),
+                            phone: trialPhone.trim(),
+                            date: trialDate,
+                            slotId: selectedTrialSlotId,
+                          }),
+                        });
+
+                        const resData = await response.json();
+                        if (!response.ok) {
+                          alert(resData.error || "Hubo un error al reservar tu clase de prueba");
+                        } else {
+                          setTrialCredentials(resData.credentials);
+                          setTrialSuccess(true);
+                        }
+                      } catch (error) {
+                        console.error(error);
+                        alert("Error de conexión");
+                      } finally {
+                        setTrialSubmitting(false);
+                      }
+                    }}
+                    className="flex-1 overflow-y-auto pr-1 py-2 space-y-4 text-left"
+                  >
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Tu Nombre y Apellido</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej. Juan Pérez"
+                        value={trialFullName}
+                        onChange={(e) => setTrialFullName(e.target.value)}
+                        className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Tu Correo Electrónico</label>
+                        <input
+                          type="email"
+                          required
+                          placeholder="Ej. juan@gmail.com"
+                          value={trialEmail}
+                          onChange={(e) => setTrialEmail(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Tu WhatsApp / Teléfono</label>
+                        <input
+                          type="tel"
+                          required
+                          placeholder="Ej. 11 1234 5678"
+                          value={trialPhone}
+                          onChange={(e) => setTrialPhone(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Fecha de la clase</label>
+                        <input
+                          type="date"
+                          required
+                          min={getTomorrowDateString()}
+                          value={trialDate}
+                          onChange={(e) => setTrialDate(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/30"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Horario disponible</label>
+                        {trialLoadingSlots ? (
+                          <div className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white/40 flex items-center gap-2 h-[41px]">
+                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                            Cargando horarios...
+                          </div>
+                        ) : trialSlots.length > 0 ? (
+                          <select
+                            value={selectedTrialSlotId}
+                            onChange={(e) => setSelectedTrialSlotId(e.target.value)}
+                            required
+                            className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30 h-[41px]"
+                          >
+                            <option value="">Seleccioná un horario</option>
+                            {trialSlots.map((slot) => {
+                              const spots = slot.spots_available;
+                              const isFull = spots <= 0;
+                              return (
+                                <option key={slot.slot_id} value={slot.slot_id} disabled={isFull}>
+                                  {slot.start_time.slice(0, 5)} - {slot.label} ({isFull ? "Sin cupo" : `${spots} libre${spots > 1 ? "s" : ""}`})
+                                </option>
+                              );
+                            })}
+                          </select>
+                        ) : (
+                          <div className="w-full bg-slate-950 border border-red-500/20 text-red-400 rounded-xl px-4 py-2 text-xs flex items-center justify-center text-center h-[41px]">
+                            No hay turnos disponibles para esta fecha
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={trialSubmitting || !selectedTrialSlotId || trialSlots.length === 0}
+                      className="w-full font-black py-4 rounded-xl shadow-xl transition-all duration-300 text-sm flex items-center justify-center gap-2 text-white hover:scale-[1.01] mt-6"
+                      style={{
+                        backgroundColor: primaryColor,
+                        boxShadow: `0 15px 30px -5px rgba(${primaryRgb}, 0.4)`
+                      }}
+                    >
+                      {trialSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Dumbbell className="w-4 h-4 shrink-0" />
+                      )}
+                      Reservar mi clase de prueba gratis
+                    </button>
+                  </form>
                 )}
               </div>
             )}

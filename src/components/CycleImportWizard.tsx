@@ -12,13 +12,14 @@ import {
   parseCSV,
   parseWolfpackFormat,
   parseDavidFormat,
+  parseVuurFormat,
   type ParsedCycle,
   type ParsedExercise
 } from "@/lib/cycleImporter";
 import { WEEK_TYPE_LABELS, WEEK_TYPE_COLORS } from "@/lib/utils";
 
 type WizardStep = "upload" | "map" | "preview" | "importing";
-type FormatType = "wolfpack" | "david";
+type FormatType = "wolfpack" | "david" | "vuur";
 
 type ExerciseMapping = {
   rawName: string;
@@ -141,8 +142,10 @@ export default function CycleImportWizard({
       let cycle: ParsedCycle;
       if (format === "wolfpack") {
         cycle = parseWolfpackFormat(rows, cycleName);
-      } else {
+      } else if (format === "david") {
         cycle = parseDavidFormat(rows, cycleName);
+      } else {
+        cycle = parseVuurFormat(rows, cycleName);
       }
 
       const weeksList = cycle.weeks.map(w => ({
@@ -203,6 +206,47 @@ export default function CycleImportWizard({
       setCycleType(defaultCycleType);
     }
 
+    const autoDetectFormatAndType = (text: string) => {
+      try {
+        const tempRows = parseCSV(text);
+        if (tempRows.length > 2) {
+          const row2 = tempRows[2] || [];
+          const row1 = tempRows[1] || [];
+          const row0 = tempRows[0] || [];
+
+          const hasVuurDays = (row: string[]) => {
+            return row.some(cell => {
+              const c = cell.toLowerCase().trim();
+              return c.includes("lunes") || c.includes("martes") || c.includes("miércoles") || c.includes("miercoles") || c.includes("jueves") || c.includes("viernes") || c.includes("sabado") || c.includes("sábado");
+            });
+          };
+
+          if (hasVuurDays(row2) || hasVuurDays(row1) || hasVuurDays(row0)) {
+            console.log("[WIZARD] Auto-detected format: vuur (CrossFit)");
+            setFormat("vuur");
+            setCycleType("crossfit");
+          } else {
+            // Check for David format (weeks S1, S2 as columns)
+            const hasDavidWeeks = (row: string[]) => {
+              return row.some(cell => {
+                const c = cell.toLowerCase().trim();
+                return c === "s1" || c === "s2" || c === "s3" || c === "semana 1" || c === "semana 2";
+              });
+            };
+            if (row2.some(c => hasDavidWeeks([c])) || row1.some(c => hasDavidWeeks([c]))) {
+              console.log("[WIZARD] Auto-detected format: david");
+              setFormat("david");
+            } else {
+              console.log("[WIZARD] Auto-detected format: wolfpack");
+              setFormat("wolfpack");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[WIZARD] Auto-detect failed:", e);
+      }
+    };
+
     // Try modern file.text() first
     try {
       if (typeof file.text === "function") {
@@ -213,6 +257,7 @@ export default function CycleImportWizard({
           console.warn("[WIZARD] Warning: File content is empty!");
         }
         setCsvContent(text || "");
+        autoDetectFormatAndType(text || "");
         return;
       }
     } catch (err: any) {
@@ -229,6 +274,7 @@ export default function CycleImportWizard({
         console.warn("[WIZARD] Warning: File content is empty!");
       }
       setCsvContent(text || "");
+      autoDetectFormatAndType(text || "");
     };
     reader.onerror = (ev) => {
       const errorDetail = reader.error || ev;
@@ -274,8 +320,10 @@ export default function CycleImportWizard({
       const parserName = cycleType === "crossfit" ? "preparacion " + cycleName : cycleName;
       if (format === "wolfpack") {
         cycle = parseWolfpackFormat(rows, parserName);
-      } else {
+      } else if (format === "david") {
         cycle = parseDavidFormat(rows, parserName);
+      } else {
+        cycle = parseVuurFormat(rows, parserName);
       }
 
       // Filter weeks based on user selection
@@ -531,37 +579,74 @@ export default function CycleImportWizard({
             let wodType: string | null = null;
             let wodConfig: any = {};
 
+            const blockNameLower = pBlock.name.toLowerCase();
+            const isMobility = blockNameLower.includes("mobilidad") || 
+                               blockNameLower.includes("movilidad") || 
+                               blockNameLower.includes("mobility");
+            const isWarmUp = blockNameLower.includes("warm up") || 
+                             blockNameLower.includes("warmup") || 
+                             blockNameLower.includes("entrada en calor") || 
+                             blockNameLower.includes("zona media") || 
+                             blockNameLower.includes("midline") ||
+                             blockNameLower.includes("estructura");
+
+            if (isMobility || isWarmUp) {
+              blockType = "warm_up";
+            }
+
             if (cycleType === "crossfit") {
-              const blockNameLower = pBlock.name.toLowerCase();
-              if (blockNameLower.includes("emom")) {
-                blockType = "metcon";
-                wodType = "emom";
-                const match = pBlock.name.match(/emom\s*(\d+(?::\d+)?)/i);
-                if (match) {
-                  const timeStr = match[1];
-                  if (timeStr.includes(":")) {
-                    const [min, sec] = timeStr.split(":").map(Number);
-                    wodConfig = { every_seconds: min * 60 + sec, total_minutes: 12 };
-                  } else {
-                    const min = parseInt(timeStr, 10);
-                    if (min <= 5) {
-                      wodConfig = { every_seconds: min * 60, total_minutes: min * 4 };
-                    } else {
-                      wodConfig = { every_seconds: 60, total_minutes: min };
-                    }
-                  }
-                } else {
-                  wodConfig = { every_seconds: 60, total_minutes: 12 };
-                }
-              } else if (blockNameLower.includes("amrap")) {
-                blockType = "metcon";
-                wodType = "amrap";
-                const match = pBlock.name.match(/amrap\s*(\d+)/i);
-                wodConfig = { time_cap_minutes: match ? parseInt(match[1], 10) : 15 };
-              } else if (pBlock.name === "Estructura") {
+              if (isMobility) {
+                blockType = "mobility";
+              } else if (isWarmUp) {
+                blockType = "warm_up";
+              } else if (
+                blockNameLower.includes("fuerza") || 
+                blockNameLower.includes("strength") ||
+                blockNameLower.includes("jerk") ||
+                blockNameLower.includes("clean") ||
+                blockNameLower.includes("snatch") ||
+                blockNameLower.includes("squat") ||
+                blockNameLower.includes("press") ||
+                blockNameLower.includes("deadlift") ||
+                pBlock.type === "fuerza"
+              ) {
                 blockType = "skill";
               } else {
                 blockType = "metcon";
+              }
+
+              if (blockType === "metcon") {
+                if (blockNameLower.includes("emom")) {
+                  wodType = "emom";
+                  const match = pBlock.name.match(/emom\s*(\d+(?::\d+)?)/i);
+                  if (match) {
+                    const timeStr = match[1];
+                    if (timeStr.includes(":")) {
+                      const [min, sec] = timeStr.split(":").map(Number);
+                      wodConfig = { every_seconds: min * 60 + sec, total_minutes: 12 };
+                    } else {
+                      const min = parseInt(timeStr, 10);
+                      if (min <= 5) {
+                        wodConfig = { every_seconds: min * 60, total_minutes: min * 4 };
+                      } else {
+                        wodConfig = { every_seconds: 60, total_minutes: min };
+                      }
+                    }
+                  } else {
+                    wodConfig = { every_seconds: 60, total_minutes: 12 };
+                  }
+                } else if (blockNameLower.includes("amrap")) {
+                  wodType = "amrap";
+                  const match = pBlock.name.match(/amrap\s*(\d+)/i);
+                  wodConfig = { time_cap_minutes: match ? parseInt(match[1], 10) : 15 };
+                } else if (blockNameLower.includes("time") || blockNameLower.includes("rounds")) {
+                  wodType = "for_time";
+                  const match = pBlock.name.match(/(?:time cap|cap)\s*(\d+)/i);
+                  wodConfig = { time_cap_minutes: match ? parseInt(match[1], 10) : 15 };
+                } else {
+                  wodType = "for_time";
+                  wodConfig = { time_cap_minutes: 15 };
+                }
               }
             }
 
@@ -587,13 +672,15 @@ export default function CycleImportWizard({
               for (let exIdx = 0; exIdx < pBlock.exercises.length; exIdx++) {
                 const pEx = pBlock.exercises[exIdx];
 
+                const isWarmOrMobility = block.type === "warm_up" || block.type === "mobility";
                 const { data: insertedCfEx, error: cfExErr } = await supabase
                   .from("cf_block_exercises")
                   .insert({
                     block_id: block.id,
                     exercise_id: resolvedMappings[pEx.name],
                     order: exIdx + 1,
-                    reps: pEx.sets > 1 ? `${pEx.sets}x${pEx.reps}` : pEx.reps,
+                    sets: isWarmOrMobility ? (pEx.sets || 3) : undefined,
+                    reps: isWarmOrMobility ? pEx.reps : (pEx.sets > 1 ? `${pEx.sets}x${pEx.reps}` : pEx.reps),
                     notes: [
                       pEx.weight_target ? `${pEx.weight_target} kg` : (pEx.percentage_1rm ? `${pEx.percentage_1rm}%` : ""),
                       pEx.notes || ""
@@ -875,7 +962,7 @@ export default function CycleImportWizard({
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-500 uppercase block">Formato de Planilla</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setFormat("wolfpack")}
@@ -886,7 +973,7 @@ export default function CycleImportWizard({
                   }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <div>
+                  <div className="text-center">
                     <p className="font-bold">Filas Continuas</p>
                     <p className="text-[9px] font-medium text-zinc-400">Estilo Wolfpack</p>
                   </div>
@@ -901,9 +988,24 @@ export default function CycleImportWizard({
                   }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <div>
-                    <p className="font-bold">Columnas Semanales</p>
+                  <div className="text-center">
+                    <p className="font-bold">Cols Semanales</p>
                     <p className="text-[9px] font-medium text-zinc-400">Estilo David</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormat("vuur")}
+                  className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold transition flex flex-col items-center justify-center gap-1.5 ${
+                    format === "vuur"
+                      ? "border-primary bg-primary/5 text-primary shadow-sm"
+                      : "border-border hover:border-zinc-300 text-zinc-600"
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <div className="text-center">
+                    <p className="font-bold">Columnas Diarias</p>
+                    <p className="text-[9px] font-medium text-zinc-400">Estilo Vuur</p>
                   </div>
                 </button>
               </div>
@@ -911,7 +1013,9 @@ export default function CycleImportWizard({
               <p className="text-[10px] text-muted-foreground leading-normal mt-1 bg-zinc-50 p-2.5 rounded-xl border border-zinc-100">
                 {format === "wolfpack" 
                   ? "💡 Recomendado si tu planilla lista las semanas una debajo de la otra. Cada ejercicio ocupa dos filas: una arriba con el porcentaje de carga y otra debajo con las repeticiones." 
-                  : "💡 Recomendado si tu planilla tiene una columna por cada semana (S1, S2, S3, S4) y separás los días mediante filas de encabezado (ej. 'DIA 1')."}
+                  : format === "david"
+                  ? "💡 Recomendado si tu planilla tiene una columna por cada semana (S1, S2, S3, S4) y separás los días mediante filas de encabezado (ej. 'DIA 1')."
+                  : "💡 Recomendado si tu planilla tiene los días de la semana como columnas (Lunes a Domingo) y lista las actividades verticalmente (Movilidad, Fuerza, WOD)."}
               </p>
 
               {/* Visual Spreadsheet Preview */}
@@ -950,7 +1054,7 @@ export default function CycleImportWizard({
                       </tbody>
                     </table>
                   </div>
-                ) : (
+                ) : format === "david" ? (
                   <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
                     <table className="w-full text-[9px] text-left border-collapse">
                       <thead>
@@ -976,6 +1080,40 @@ export default function CycleImportWizard({
                           <td className="px-2 py-1 border-r border-zinc-200 text-center bg-amber-50/10">4x8</td>
                           <td className="px-2 py-1 border-r border-zinc-200 text-center bg-blue-50/10">4x8</td>
                           <td className="px-2 py-1 text-center">4x6</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+                    <table className="w-full text-[9px] text-left border-collapse">
+                      <thead>
+                        <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-500 font-semibold">
+                          <th className="px-2 py-1 border-r border-zinc-200">LUNES</th>
+                          <th className="px-2 py-1 border-r border-zinc-200">MARTES</th>
+                          <th className="px-2 py-1">MIÉRCOLES</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-zinc-100 bg-zinc-50">
+                          <td className="px-2 py-0.5 border-r border-zinc-200 text-zinc-400 font-semibold">Mobility (3 sets)</td>
+                          <td className="px-2 py-0.5 border-r border-zinc-200 text-zinc-400 font-semibold">Mobility (3 sets)</td>
+                          <td className="px-2 py-0.5 text-zinc-400 font-semibold">Mobility (2 sets)</td>
+                        </tr>
+                        <tr className="border-b border-zinc-100">
+                          <td className="px-2 py-0.5 border-r border-zinc-200 text-zinc-300">- (Rest Day)</td>
+                          <td className="px-2 py-0.5 border-r border-zinc-200 font-medium">10 Cat cow</td>
+                          <td className="px-2 py-0.5 font-medium">5/5 WINDMILL</td>
+                        </tr>
+                        <tr className="border-b border-zinc-100 bg-zinc-50">
+                          <td className="px-2 py-0.5 border-r border-zinc-200 text-zinc-400 font-semibold">FUERZA</td>
+                          <td className="px-2 py-0.5 border-r border-zinc-200 text-zinc-400 font-semibold">FUERZA</td>
+                          <td className="px-2 py-0.5 text-zinc-400 font-semibold">FUERZA</td>
+                        </tr>
+                        <tr className="border-b border-zinc-100">
+                          <td className="px-2 py-0.5 border-r border-zinc-200 text-zinc-300">-</td>
+                          <td className="px-2 py-0.5 border-r border-zinc-200 font-medium">Deadlift 5x5</td>
+                          <td className="px-2 py-0.5 font-medium">Split Jerk 5x1</td>
                         </tr>
                       </tbody>
                     </table>

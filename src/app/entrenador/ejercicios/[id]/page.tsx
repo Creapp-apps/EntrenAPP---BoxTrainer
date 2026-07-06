@@ -29,6 +29,20 @@ const MUSCLE_GROUPS = [
 const CATEGORY_LABELS: Record<string, string> = {
   fuerza: "Fuerza", prep_fisica: "Preparación Física", accesorio: "Accesorio",
 };
+const CF_CATEGORY_LABELS: Record<string, string> = {
+  gymnastics: "Gymnastics",
+  weightlifting: "Weightlifting",
+  monostructural: "Monostructural",
+  mobility: "Movilidad",
+  other: "Otro",
+};
+const CF_CATEGORIES = [
+  { value: "gymnastics", label: "Gymnastics" },
+  { value: "weightlifting", label: "Weightlifting" },
+  { value: "monostructural", label: "Monostructural" },
+  { value: "mobility", label: "Movilidad" },
+  { value: "other", label: "Otro" },
+];
 const MUSCLE_LABELS: Record<string, string> = {
   olimpico: "Olímpico", piernas: "Piernas", espalda: "Espalda", pecho: "Pecho",
   hombros: "Hombros", brazos: "Brazos", core: "Core", full_body: "Full Body", otro: "Otro",
@@ -59,6 +73,7 @@ export default function EjercicioDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Exercise | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isCF, setIsCF] = useState(false);
 
   // Per-variant video URL editing
   const [variantVideos, setVariantVideos] = useState<Record<string, string>>({});
@@ -68,21 +83,54 @@ export default function EjercicioDetailPage() {
     const load = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      const [{ data: ex }, { data: vars }, { data: settings }] = await Promise.all([
-        supabase.from("exercises").select("*").eq("id", id).single(),
-        supabase.from("exercise_variants").select("*").eq("exercise_id", id).order("order"),
-        supabase.from("trainer_settings").select("common_variants").single(),
-      ]);
-      setExercise(ex);
-      setEditForm(ex);
-      setVariants(vars || []);
-      setCommonVariants(settings?.common_variants ?? DEFAULT_COMMON_VARIANTS);
 
-      // Init video URL inputs from DB values
-      if (vars) {
-        const initial: Record<string, string> = {};
-        vars.forEach((v: Variant) => { initial[v.id] = v.video_url || ""; });
-        setVariantVideos(initial);
+      // Try to fetch from exercises table first
+      const { data: exStrength } = await supabase.from("exercises").select("*").eq("id", id).maybeSingle();
+
+      if (exStrength) {
+        const [{ data: vars }, { data: settings }] = await Promise.all([
+          supabase.from("exercise_variants").select("*").eq("exercise_id", id).order("order"),
+          supabase.from("trainer_settings").select("common_variants").single(),
+        ]);
+        setExercise(exStrength);
+        setEditForm(exStrength);
+        setIsCF(false);
+        setVariants(vars || []);
+        setCommonVariants(settings?.common_variants ?? DEFAULT_COMMON_VARIANTS);
+
+        if (vars) {
+          const initial: Record<string, string> = {};
+          vars.forEach((v: Variant) => { initial[v.id] = v.video_url || ""; });
+          setVariantVideos(initial);
+        }
+      } else {
+        // Try to fetch from cf_exercises table
+        const { data: exCF } = await supabase.from("cf_exercises").select("*").eq("id", id).maybeSingle();
+        if (exCF) {
+          const [{ data: vars }, { data: settings }] = await Promise.all([
+            supabase.from("cf_exercise_variants").select("*").eq("exercise_id", id).order("order"),
+            supabase.from("trainer_settings").select("common_variants").single(),
+          ]);
+          const mappedEx = {
+            id: exCF.id,
+            name: exCF.name,
+            category: exCF.category,
+            muscle_group: "otro",
+            video_url: exCF.video_url || undefined,
+            notes: undefined,
+          };
+          setExercise(mappedEx);
+          setEditForm(mappedEx);
+          setIsCF(true);
+          setVariants(vars || []);
+          setCommonVariants(settings?.common_variants ?? DEFAULT_COMMON_VARIANTS);
+
+          if (vars) {
+            const initial: Record<string, string> = {};
+            vars.forEach((v: Variant) => { initial[v.id] = v.video_url || ""; });
+            setVariantVideos(initial);
+          }
+        }
       }
     };
     load();
@@ -93,13 +141,25 @@ export default function EjercicioDetailPage() {
     if (!editForm?.name.trim()) return toast.error("El nombre es obligatorio");
     setSaving(true);
     const supabase = createClient();
-    const { error } = await supabase.from("exercises").update({
-      name: editForm.name.trim().toUpperCase(),
-      category: editForm.category,
-      muscle_group: editForm.muscle_group,
-      video_url: editForm.video_url?.trim() || null,
-      notes: editForm.notes?.trim() || null,
-    }).eq("id", id);
+
+    let error;
+    if (isCF) {
+      const { error: err } = await supabase.from("cf_exercises").update({
+        name: editForm.name.trim().toUpperCase(),
+        category: editForm.category,
+        video_url: editForm.video_url?.trim() || null,
+      }).eq("id", id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from("exercises").update({
+        name: editForm.name.trim().toUpperCase(),
+        category: editForm.category,
+        muscle_group: editForm.muscle_group,
+        video_url: editForm.video_url?.trim() || null,
+        notes: editForm.notes?.trim() || null,
+      }).eq("id", id);
+      error = err;
+    }
 
     if (error) {
       toast.error("Error al guardar: " + error.message);
@@ -121,7 +181,8 @@ export default function EjercicioDetailPage() {
     if (!confirm(`¿Eliminar "${exercise?.name}"?`)) return;
     setDeleting(true);
     const supabase = createClient();
-    const { error } = await supabase.from("exercises").update({ archived: true }).eq("id", id);
+    const table = isCF ? "cf_exercises" : "exercises";
+    const { error } = await supabase.from(table).update({ archived: true }).eq("id", id);
     if (error) {
       toast.error("Error al eliminar: " + error.message);
       setDeleting(false);
@@ -138,7 +199,8 @@ export default function EjercicioDetailPage() {
     if (variants.find(v => v.name === trimmed)) return toast.error("Esa variante ya existe");
     setLoading(true);
     const supabase = createClient();
-    const { data, error } = await supabase.from("exercise_variants").insert({
+    const table = isCF ? "cf_exercise_variants" : "exercise_variants";
+    const { data, error } = await supabase.from(table).insert({
       exercise_id: id, name: trimmed, order: variants.length,
     }).select().single();
     if (error) { toast.error("Error al agregar variante"); setLoading(false); return; }
@@ -153,7 +215,8 @@ export default function EjercicioDetailPage() {
     if (variants.find(v => v.name === upper)) return toast.error(`"${upper}" ya está agregada`);
     setLoading(true);
     const supabase = createClient();
-    const { data, error } = await supabase.from("exercise_variants").insert({
+    const table = isCF ? "cf_exercise_variants" : "exercise_variants";
+    const { data, error } = await supabase.from(table).insert({
       exercise_id: id, name: upper, order: variants.length,
     }).select().single();
     if (error) { toast.error("Error: " + error.message); setLoading(false); return; }
@@ -165,7 +228,8 @@ export default function EjercicioDetailPage() {
 
   const removeVariant = async (variantId: string) => {
     const supabase = createClient();
-    const { error } = await supabase.from("exercise_variants").delete().eq("id", variantId);
+    const table = isCF ? "cf_exercise_variants" : "exercise_variants";
+    const { error } = await supabase.from(table).delete().eq("id", variantId);
     if (error) return toast.error("Error al eliminar variante");
     setVariants(variants.filter(v => v.id !== variantId));
     setVariantVideos(prev => { const copy = { ...prev }; delete copy[variantId]; return copy; });
@@ -174,13 +238,13 @@ export default function EjercicioDetailPage() {
   // ─── Guardar video de variante ────────────────────────────
   const saveVariantVideo = async (variantId: string) => {
     const url = variantVideos[variantId]?.trim() || null;
-    // Skip if unchanged
     const current = variants.find(v => v.id === variantId)?.video_url || null;
     if ((url || null) === (current || null)) return;
 
     setSavingVideo(variantId);
     const supabase = createClient();
-    const { error } = await supabase.from("exercise_variants")
+    const table = isCF ? "cf_exercise_variants" : "exercise_variants";
+    const { error } = await supabase.from(table)
       .update({ video_url: url })
       .eq("id", variantId);
 
@@ -211,23 +275,25 @@ export default function EjercicioDetailPage() {
             <>
               <h1 className="text-2xl font-bold text-foreground truncate">{exercise.name}</h1>
               <div className="flex gap-2 mt-1">
-                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                  {CATEGORY_LABELS[exercise.category]}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isCF ? "bg-orange-100 text-orange-700" : "bg-primary/10 text-primary"}`}>
+                  {isCF ? (CF_CATEGORY_LABELS[exercise.category] || exercise.category) : CATEGORY_LABELS[exercise.category]}
                 </span>
-                <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                  {MUSCLE_LABELS[exercise.muscle_group]}
-                </span>
+                {!isCF && (
+                  <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                    {MUSCLE_LABELS[exercise.muscle_group]}
+                  </span>
+                )}
               </div>
             </>
           ) : (
-            <p className="text-sm font-medium text-primary">Editando ejercicio</p>
+            <p className={`text-sm font-medium ${isCF ? "text-orange-600" : "text-primary"}`}>Editando ejercicio</p>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {!editMode ? (
             <>
               <button onClick={() => setEditMode(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors">
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:text-${isCF ? "orange-600" : "primary"} hover:border-${isCF ? "orange-500/50" : "primary/50"} transition-colors`}>
                 <Edit2 className="w-4 h-4" />
                 <span className="hidden sm:inline">Editar</span>
               </button>
@@ -244,7 +310,7 @@ export default function EjercicioDetailPage() {
                 Cancelar
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-white text-sm font-semibold transition-colors ${isCF ? "bg-orange-600 hover:bg-orange-500" : "bg-primary hover:bg-primary/90"} disabled:opacity-50`}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Guardar
               </button>
@@ -260,33 +326,35 @@ export default function EjercicioDetailPage() {
             <label className="block text-sm font-medium text-foreground mb-1.5">Nombre *</label>
             <input value={editForm.name}
               onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className={`w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-${isCF ? "orange-500" : "primary"}`}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Categoría</label>
-            <div className="grid grid-cols-3 gap-3">
-              {CATEGORIES.map(cat => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {(isCF ? CF_CATEGORIES : CATEGORIES).map(cat => (
                 <button key={cat.value} type="button"
                   onClick={() => setEditForm({ ...editForm, category: cat.value })}
                   className={`py-2.5 px-3 rounded-xl border text-sm font-medium transition-all ${
                     editForm.category === cat.value
-                      ? "bg-primary text-white border-primary"
-                      : "border-border text-foreground hover:border-primary/50"
+                      ? (isCF ? "bg-orange-600 text-white border-orange-600" : "bg-primary text-white border-primary")
+                      : `border-border text-foreground hover:border-${isCF ? "orange-500/50" : "primary/50"}`
                   }`}>
                   {cat.label}
                 </button>
               ))}
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Grupo muscular</label>
-            <select value={editForm.muscle_group}
-              onChange={e => setEditForm({ ...editForm, muscle_group: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
-              {MUSCLE_GROUPS.map(mg => <option key={mg.value} value={mg.value}>{mg.label}</option>)}
-            </select>
-          </div>
+          {!isCF && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Grupo muscular</label>
+              <select value={editForm.muscle_group}
+                onChange={e => setEditForm({ ...editForm, muscle_group: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+                {MUSCLE_GROUPS.map(mg => <option key={mg.value} value={mg.value}>{mg.label}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
               URL video del ejercicio base
@@ -294,17 +362,19 @@ export default function EjercicioDetailPage() {
             <input type="url" value={editForm.video_url || ""}
               onChange={e => setEditForm({ ...editForm, video_url: e.target.value })}
               placeholder="https://youtube.com/watch?v=..."
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className={`w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-${isCF ? "orange-500" : "primary"}`}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Notas técnicas</label>
-            <textarea value={editForm.notes || ""}
-              onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
-              rows={3} placeholder="Indicaciones técnicas, puntos clave..."
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
-          </div>
+          {!isCF && (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Notas técnicas</label>
+              <textarea value={editForm.notes || ""}
+                onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                rows={3} placeholder="Indicaciones técnicas, puntos clave..."
+                className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              />
+            </div>
+          )}
         </div>
       ) : (
         (exercise.video_url || exercise.notes) && (
@@ -312,11 +382,11 @@ export default function EjercicioDetailPage() {
             {exercise.video_url && (
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-2">
-                  <Video className="w-4 h-4 text-primary" />
+                  <Video className={`w-4 h-4 ${isCF ? "text-orange-600" : "text-primary"}`} />
                   <h3 className="font-medium text-foreground text-sm">Video — ejercicio base</h3>
                 </div>
                 <a href={exercise.video_url} target="_blank" rel="noopener noreferrer"
-                  className="text-primary hover:underline text-sm break-all">
+                  className={`${isCF ? "text-orange-600 hover:text-orange-500" : "text-primary hover:text-primary/80"} hover:underline text-sm break-all`}>
                   {exercise.video_url}
                 </a>
               </div>
@@ -324,7 +394,7 @@ export default function EjercicioDetailPage() {
             {exercise.notes && (
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-2">
-                  <FileText className="w-4 h-4 text-primary" />
+                  <FileText className={`w-4 h-4 ${isCF ? "text-orange-600" : "text-primary"}`} />
                   <h3 className="font-medium text-foreground text-sm">Notas técnicas</h3>
                 </div>
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">{exercise.notes}</p>
@@ -352,7 +422,7 @@ export default function EjercicioDetailPage() {
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Agregar variante común:
               </p>
-              <Link href="/entrenador/configuracion" className="text-xs text-primary hover:underline">
+              <Link href="/entrenador/configuracion" className={`text-xs hover:underline ${isCF ? "text-orange-600 hover:text-orange-500" : "text-primary hover:text-primary/80"}`}>
                 Gestionar
               </Link>
             </div>
@@ -365,8 +435,8 @@ export default function EjercicioDetailPage() {
                     disabled={loading || alreadyAdded}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
                       alreadyAdded
-                        ? "bg-primary/10 text-primary border-primary/30 cursor-default opacity-60"
-                        : "bg-muted hover:bg-primary/10 hover:text-primary hover:border-primary/30 border-border"
+                        ? (isCF ? "bg-orange-100 text-orange-700 border-orange-300" : "bg-primary/10 text-primary border-primary/30") + " cursor-default opacity-60"
+                        : `bg-muted hover:bg-${isCF ? "orange-100" : "primary/10"} hover:text-${isCF ? "orange-700" : "primary"} hover:border-${isCF ? "orange-300" : "primary/30"} border-border`
                     } disabled:cursor-not-allowed`}>
                     {alreadyAdded ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
                     {cv}
@@ -391,7 +461,7 @@ export default function EjercicioDetailPage() {
                 return (
                   <div key={v.id} className="flex items-center gap-3 px-4 py-3 bg-white hover:bg-muted/20 transition-colors">
                     {/* Nombre */}
-                    <span className="font-bold text-sm text-primary w-20 shrink-0">{v.name}</span>
+                    <span className={`font-bold text-sm w-20 shrink-0 ${isCF ? "text-orange-600" : "text-primary"}`}>{v.name}</span>
 
                     {/* Input URL */}
                     <div className="flex-1 flex items-center gap-2 min-w-0">
@@ -402,12 +472,12 @@ export default function EjercicioDetailPage() {
                         onBlur={() => saveVariantVideo(v.id)}
                         onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveVariantVideo(v.id); (e.target as HTMLInputElement).blur(); } }}
                         placeholder="Pegar URL de YouTube..."
-                        className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        className={`flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-${isCF ? "orange-500" : "primary"}`}
                       />
-                      {isSaving && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
+                      {isSaving && <Loader2 className={`w-4 h-4 animate-spin ${isCF ? "text-orange-600" : "text-primary"} shrink-0`} />}
                       {!isSaving && hasVideo && (
                         <a href={v.video_url!} target="_blank" rel="noopener noreferrer"
-                          className="text-primary hover:text-primary/70 shrink-0" title="Ver video">
+                          className={`${isCF ? "text-orange-600 hover:text-orange-500" : "text-primary hover:text-primary/70"} shrink-0`} title="Ver video">
                           <ExternalLink className="w-4 h-4" />
                         </a>
                       )}
@@ -431,10 +501,10 @@ export default function EjercicioDetailPage() {
             onChange={e => setNewVariant(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addVariant(newVariant); } }}
             placeholder="Ej: SUSPENDIDO, CON PAUSA..."
-            className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            className={`flex-1 px-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-${isCF ? "orange-500" : "primary"} text-sm`}
           />
           <button type="button" onClick={() => addVariant(newVariant)} disabled={loading}
-            className="px-4 py-2.5 rounded-xl bg-muted hover:bg-primary hover:text-white font-medium text-sm transition-colors flex items-center gap-1.5 disabled:opacity-50">
+            className={`px-4 py-2.5 rounded-xl bg-muted hover:bg-${isCF ? "orange-600" : "primary"} hover:text-white font-medium text-sm transition-colors flex items-center gap-1.5 disabled:opacity-50`}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             Agregar
           </button>

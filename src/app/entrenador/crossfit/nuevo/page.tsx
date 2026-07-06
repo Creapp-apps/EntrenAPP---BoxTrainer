@@ -188,7 +188,7 @@ export default function NuevoCicloCFPage() {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Link href="/entrenador/crossfit" className="p-2 rounded-xl hover:bg-muted transition-colors">
+          <Link href="/entrenador/ciclos/nuevo" className="p-2 rounded-xl hover:bg-muted transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-3">

@@ -70,7 +70,8 @@ export default async function StudentHome() {
           id, day_of_week, label, is_rest,
           training_blocks (
             id,
-            training_exercises ( id )
+            training_exercises ( id ),
+            cf_block_exercises ( id )
           )
         )
       `)
@@ -110,7 +111,11 @@ export default async function StudentHome() {
   // Contar ejercicios por día
   function countExercises(day: Record<string, unknown>): number {
     return ((day.training_blocks as Record<string, unknown>[]) || [])
-      .reduce((acc, b) => acc + (((b.training_exercises as unknown[]) || []).length), 0);
+      .reduce((acc, b) => {
+        const teLength = ((b.training_exercises as unknown[]) || []).length;
+        const cfLength = ((b.cf_block_exercises as unknown[]) || []).length;
+        return acc + teLength + cfLength;
+      }, 0);
   }
 
   const [{ data: pendingPayment }, subRes, nextBookingRes, announcementsRes] = await Promise.all([
