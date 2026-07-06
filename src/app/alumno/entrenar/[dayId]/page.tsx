@@ -472,6 +472,7 @@ export default function EntrenarPage() {
           cycle_id: di.cycle_id,
           cycle_name: di.cycle_name,
           week_number: di.week_number,
+          cycle_type: di.cycle_type,
         });
       }
 
@@ -1042,7 +1043,7 @@ export default function EntrenarPage() {
         </div>
 
         {/* View Switcher */}
-        {!blocks.some(b => b.type !== "fuerza") && (
+        {dayInfo?.cycle_type !== "crossfit" && (
           <div className="mt-4 flex gap-1 bg-white/10 p-1 rounded-xl text-xs">
             <button
               onClick={() => handleViewModeChange("interactive")}
@@ -1414,9 +1415,9 @@ export default function EntrenarPage() {
 
             <div className="space-y-10">
               {blocks.map(block => {
-                const isCf = dayInfo?.cycle_type === "crossfit";
+                const isCfBlock = dayInfo?.cycle_type === "crossfit" && block.type !== "fuerza" && block.type !== "prep_fisica";
 
-                if (isCf) {
+                if (isCfBlock) {
                   const exercises = block.cf_block_exercises || [];
                   const isWarmUp = block.type === "warm_up";
                   const isMobility = block.type === "mobility";
