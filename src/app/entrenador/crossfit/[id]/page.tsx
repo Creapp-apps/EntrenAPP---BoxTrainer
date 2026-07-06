@@ -9,7 +9,7 @@ import {
   Trash2, Search, X, Check, Copy, Flame, Moon,
   Zap, Dumbbell, Heart, Timer, Video as VideoIcon,
   Repeat, Clock, Skull, ClipboardList, Save, Link2, GripVertical,
-  Activity, Eye
+  Activity, Eye, Users, UserPlus, ArrowRightLeft, UserMinus
 } from "lucide-react";
 import Link from "next/link";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS } from "@/lib/utils";
@@ -358,6 +358,82 @@ export default function CrossfitCycleEditorPage() {
   const [previewDay, setPreviewDay] = useState<Day | null>(null);
   const [enabledGenderExIds, setEnabledGenderExIds] = useState<Set<string>>(new Set());
 
+  // Student assignments states
+  const [students, setStudents] = useState<Student[]>([]);
+  const [showStudents, setShowStudents] = useState(true);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<{ studentId: string; studentCycleId: string } | null>(null);
+  const [allCycles, setAllCycles] = useState<{ id: string; name: string; is_template: boolean; training_cycle_enrollments?: { active: boolean; student_id: string }[] }[]>([]);
+
+  // Deactivate student enrollment
+  const deactivateStudentCycle = async (cycleId: string, studentId: string, studentName: string) => {
+    if (!confirm(`¿Desactivar la suscripción de ${studentName}? El alumno ya no verá esta planificación.`)) return;
+    const { error } = await supabase
+      .from("training_cycle_enrollments")
+      .update({ active: false })
+      .eq("cycle_id", cycleId)
+      .eq("student_id", studentId);
+    if (error) { toast.error("Error al desactivar"); return; }
+    toast.success(`Suscripción de ${studentName} desactivada`);
+    loadCycle();
+  };
+
+  // Transfer student to a different cycle
+  const transferStudent = async (studentId: string, oldCycleId: string, newCycleId: string) => {
+    const { error } = await supabase.rpc("enroll_student", {
+      p_cycle_id: newCycleId,
+      p_student_id: studentId,
+      p_sync_mode: "SYNC",
+      p_enrolled_at: new Date().toISOString()
+    });
+    if (error) { toast.error("Error al transferir: " + error.message); return; }
+    toast.success("Alumno transferido correctamente");
+    setTransferTarget(null);
+    loadCycle();
+  };
+
+  // Assign cycle to students
+  const assignToStudents = async (studentIds: string[], syncMode: string) => {
+    if (!cycle) return;
+    setAssigning(true);
+
+    let successCount = 0;
+    const errors: string[] = [];
+
+    for (const studentId of studentIds) {
+      const student = students.find(s => s.id === studentId);
+      const { error } = await supabase.rpc("enroll_student", {
+        p_cycle_id: cycle.id,
+        p_student_id: studentId,
+        p_sync_mode: syncMode,
+        p_enrolled_at: new Date().toISOString(),
+      });
+      if (error) {
+        errors.push(student?.full_name || studentId);
+      } else {
+        successCount++;
+      }
+    }
+
+    setAssigning(false);
+    setShowAssignModal(false);
+
+    if (successCount > 0) {
+      toast.success(`Ciclo asignado a ${successCount} alumno${successCount !== 1 ? "s" : ""} correctamente`);
+      loadCycle();
+    }
+    if (errors.length > 0) {
+      toast.error(`Error al asignar a: ${errors.join(", ")}`);
+    }
+  };
+
+  const managedStudents = students
+    .filter(s => s.activeCycle?.id === cycleId)
+    .map(s => ({ ...s, cycleId: s.activeCycle!.id, cycleName: s.activeCycle!.name }));
+
+  const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+
   const toggleBlock = (blockId: string) => {
     setCollapsedBlocks(prev => {
       const next = new Set(prev);
@@ -374,11 +450,38 @@ export default function CrossfitCycleEditorPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data: cycleData } = await supabase
-      .from("training_cycles")
-      .select("id, name, total_weeks, is_template, training_cycle_enrollments(active, student_id, users(full_name))")
-      .eq("id", cycleId)
-      .single();
+    const [cycleRes, weeksRes, studentsRes, allCyclesRes] = await Promise.all([
+      supabase
+        .from("training_cycles")
+        .select("id, name, total_weeks, is_template, training_cycle_enrollments(active, student_id, users(full_name))")
+        .eq("id", cycleId)
+        .single(),
+      supabase
+        .from("training_weeks")
+        .select("id, week_number, type")
+        .eq("cycle_id", cycleId)
+        .order("week_number"),
+      supabase
+        .from("users")
+        .select(`
+          id, full_name, 
+          training_cycle_enrollments(
+            active, sync_mode, enrolled_at,
+            training_cycles(id, name, is_template)
+          )
+        `)
+        .eq("role", "student")
+        .order("full_name"),
+      supabase
+        .from("training_cycles")
+        .select("id, name, is_template, training_cycle_enrollments(active, student_id)")
+        .order("name"),
+    ]);
+
+    const cycleData = cycleRes.data;
+    const weeksData = weeksRes.data;
+    const studentsData = studentsRes.data;
+    const allCyclesData = allCyclesRes.data;
 
     if (!cycleData) { setLoading(false); return; }
 
@@ -401,25 +504,24 @@ export default function CrossfitCycleEditorPage() {
       is_template: cycleData.is_template,
     });
 
-    // Load student 1RMs if cycle has enrollment
-    let oneRMs: Record<string, number> = {};
-    if (studentId) {
-      const { data: rmsData } = await supabase
-        .from("personal_records")
-        .select("exercise_id, weight")
-        .eq("student_id", studentId);
-      if (rmsData) {
-        rmsData.forEach(r => { oneRMs[r.exercise_id] = r.weight; });
-      }
+    if (studentsData) {
+      setStudents(studentsData.map((s: Record<string, any>) => {
+        const enrollments = s.training_cycle_enrollments || [];
+        const activeEnrollment = enrollments.find((e: any) => e.active && e.training_cycles && !e.training_cycles.is_template);
+        return {
+          id: s.id as string,
+          full_name: s.full_name as string,
+          activeCycle: activeEnrollment ? { 
+            id: activeEnrollment.training_cycles.id, 
+            name: activeEnrollment.training_cycles.name 
+          } : undefined,
+        };
+      }));
     }
-    setStudentOneRMs(oneRMs);
 
-    // Load weeks with days
-    const { data: weeksData } = await supabase
-      .from("training_weeks")
-      .select("id, week_number, type")
-      .eq("cycle_id", cycleId)
-      .order("week_number");
+    if (allCyclesData) {
+      setAllCycles(allCyclesData as any);
+    }
 
     if (!weeksData) { setLoading(false); return; }
 
@@ -1718,7 +1820,90 @@ export default function CrossfitCycleEditorPage() {
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setShowAssignModal(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:text-orange-600 hover:border-orange-500/50 transition-colors">
+            <UserPlus className="w-4 h-4" />
+            <span className="hidden sm:inline">Asignar alumnos</span>
+          </button>
+        </div>
       </div>
+
+      {/* Alumnos activos — collapsible */}
+      {managedStudents.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
+          <button
+            onClick={() => setShowStudents(!showStudents)}
+            className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left"
+          >
+            <Users className="w-4 h-4 text-orange-600" />
+            <span className="text-sm font-semibold text-foreground flex-1">
+              {managedStudents.length} alumno{managedStudents.length !== 1 ? "s" : ""} activo{managedStudents.length !== 1 ? "s" : ""}
+            </span>
+            {showStudents ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+          </button>
+          {showStudents && (
+            <div className="border-t border-border divide-y divide-border">
+              {managedStudents.map(student => (
+                <div key={student.id} className="px-5 py-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-100/60 flex items-center justify-center text-orange-700 font-bold text-sm shrink-0">
+                    {getInitials(student.full_name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{student.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{student.cycleName}</p>
+                  </div>
+
+                  {/* Transfer button */}
+                  {transferTarget?.studentId === student.id ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="text-xs border border-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 max-w-[160px]"
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            transferStudent(student.id, transferTarget.studentCycleId, e.target.value);
+                          }
+                        }}
+                      >
+                        <option value="" disabled>Elegir ciclo...</option>
+                        {allCycles
+                          .filter(c => c.id !== student.cycleId && (c.is_template || !(c.training_cycle_enrollments || []).some(e => e.active)))
+                          .map(c => (
+                            <option key={c.id} value={c.id}>{c.name}{c.is_template ? " (plantilla)" : ""}</option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={() => setTransferTarget(null)}
+                        className="p-1 rounded-md text-muted-foreground hover:bg-muted"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setTransferTarget({ studentId: student.id, studentCycleId: student.cycleId })}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        title="Transferir a otro ciclo"
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deactivateStudentCycle(student.cycleId, student.id, student.full_name)}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                        title="Desactivar ciclo del alumno"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Weeks */}
       <div className="space-y-4">
@@ -2472,6 +2657,17 @@ export default function CrossfitCycleEditorPage() {
           weekNumber={weeks.find(w => w.days.some(d => d.id === previewDay.id))?.week_number || 1}
           complexSets={complexSets}
           onClose={() => setPreviewDay(null)}
+        />
+      )}
+
+      {/* Modal de Asignación de Alumnos */}
+      {showAssignModal && cycle && (
+        <AssignStudentsModal
+          students={students}
+          cycleName={cycle.name}
+          onAssign={assignToStudents}
+          onClose={() => setShowAssignModal(false)}
+          assigning={assigning}
         />
       )}
     </div>
@@ -4037,6 +4233,181 @@ function ComplexPicker({
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
             {loading ? "Creando..." : `Crear (${selectedItems.length})`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Assign Students Modal ────────────────────────────────────
+function AssignStudentsModal({
+  students, cycleName, onAssign, onClose, assigning,
+}: {
+  students: Student[];
+  cycleName: string;
+  onAssign: (studentIds: string[], syncMode: string) => void;
+  onClose: () => void;
+  assigning: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [syncMode, setSyncMode] = useState<"SYNC" | "ASYNC">("SYNC");
+
+  const filtered = students.filter(s =>
+    s.full_name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggleStudent = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map(s => s.id)));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div>
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" /> Asignar a alumnos
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[260px]">
+              {cycleName}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="p-3 border-b border-border">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar alumno..."
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        </div>
+
+        {/* Select all */}
+        {filtered.length > 1 && (
+          <button
+            onClick={toggleAll}
+            className="flex items-center gap-2 px-4 py-2.5 border-b border-border hover:bg-muted/30 transition-colors text-left">
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+              selected.size === filtered.length && filtered.length > 0
+                ? "bg-primary border-primary"
+                : selected.size > 0
+                ? "border-primary bg-primary/20"
+                : "border-border"
+            }`}>
+              {selected.size === filtered.length && filtered.length > 0
+                ? <Check className="w-3 h-3 text-white" />
+                : selected.size > 0
+                ? <div className="w-2 h-0.5 bg-primary" />
+                : null
+              }
+            </div>
+            <span className="text-sm font-medium text-foreground">
+              Seleccionar todos ({filtered.length})
+            </span>
+          </button>
+        )}
+
+        {/* Student list */}
+        <div className="overflow-y-auto flex-1">
+          {filtered.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">Sin resultados</p>
+          ) : filtered.map(student => {
+            const isSelected = selected.has(student.id);
+            return (
+              <button
+                key={student.id}
+                onClick={() => toggleStudent(student.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 border-b border-border last:border-0 transition-colors text-left ${
+                  isSelected ? "bg-primary/5" : "hover:bg-muted/30"
+                }`}>
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                  isSelected ? "bg-primary border-primary" : "border-border"
+                }`}>
+                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{student.full_name}</p>
+                  {student.activeCycle ? (
+                    <p className="text-xs text-orange-600 font-medium mt-0.5 truncate">
+                      ⚠ Ciclo activo: {student.activeCycle.name}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-0.5">Sin ciclo activo</p>
+                  )}
+                </div>
+                {student.activeCycle && (
+                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+                    Tiene ciclo
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Modalidad */}
+        <div className="p-4 border-b border-border bg-muted/20">
+          <label className="block text-sm font-medium text-foreground mb-2">Modalidad de seguimiento</label>
+          <div className="flex gap-3">
+            <label className="flex-1 cursor-pointer">
+              <input type="radio" name="syncMode" value="SYNC" className="peer sr-only" checked={syncMode === "SYNC"} onChange={() => setSyncMode("SYNC")} />
+              <div className="p-3 rounded-xl border border-border bg-white peer-checked:border-primary peer-checked:ring-1 peer-checked:ring-primary transition-all">
+                <p className="text-sm font-semibold text-foreground">A la par</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Se suma a la semana en curso del ciclo.</p>
+              </div>
+            </label>
+            <label className="flex-1 cursor-pointer">
+              <input type="radio" name="syncMode" value="ASYNC" className="peer sr-only" checked={syncMode === "ASYNC"} onChange={() => setSyncMode("ASYNC")} />
+              <div className="p-3 rounded-xl border border-border bg-white peer-checked:border-primary peer-checked:ring-1 peer-checked:ring-primary transition-all">
+                <p className="text-sm font-semibold text-foreground">Desde cero</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Empieza el ciclo desde la Semana 1.</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-border flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => selected.size > 0 && onAssign(Array.from(selected), syncMode)}
+            disabled={selected.size === 0 || assigning}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+          >
+            {assigning ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Asignando...</>
+            ) : (
+              <><UserPlus className="w-4 h-4" /> Asignar a {selected.size}</>
+            )}
           </button>
         </div>
       </div>

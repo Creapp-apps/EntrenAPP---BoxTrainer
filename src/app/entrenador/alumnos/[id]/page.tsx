@@ -57,8 +57,10 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
 
   if (!student) notFound();
 
-  const [{ data: cycles }, { data: payments }, { data: records }, { data: recentSessions }, { data: oneRMs }] = await Promise.all([
+  const [{ data: directCycles }, { data: enrolledData }, { data: payments }, { data: records }, { data: recentSessions }, { data: oneRMs }] = await Promise.all([
     supabase.from("training_cycles").select("*")
+      .eq("student_id", params.id).order("created_at", { ascending: false }),
+    supabase.from("training_cycle_enrollments").select("*, training_cycles(*)")
       .eq("student_id", params.id).order("created_at", { ascending: false }),
     supabase.from("student_payments").select("*")
       .eq("student_id", params.id).order("due_date", { ascending: false }).limit(6),
@@ -73,6 +75,25 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
       .eq("student_id", params.id)
       .order("recorded_at", { ascending: false }),
   ]);
+
+  // Combine cycles, avoiding duplicates
+  const cycleMap = new Map<string, any>();
+  if (directCycles) {
+    directCycles.forEach(c => cycleMap.set(c.id, c));
+  }
+  if (enrolledData) {
+    enrolledData.forEach(e => {
+      if (e.training_cycles) {
+        cycleMap.set(e.training_cycles.id, {
+          ...e.training_cycles,
+          active: e.active, // use enrollment active status
+        });
+      }
+    });
+  }
+  const cycles = Array.from(cycleMap.values()).sort(
+    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
 
   // Build weekly tonnage from recent sessions
   type WeekData = { label: string; tonnage: number; sessions: number };
@@ -258,7 +279,7 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
             {cycles && cycles.length > 0 ? (
               <div className="space-y-2">
                 {cycles.map((cycle) => (
-                  <Link key={cycle.id} href={`/entrenador/ciclos/${cycle.id}`}
+                  <Link key={cycle.id} href={cycle.cycle_type === "crossfit" ? `/entrenador/crossfit/${cycle.id}` : `/entrenador/ciclos/${cycle.id}`}
                     className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors">
                     <Dumbbell className="w-4 h-4 text-primary shrink-0" />
                     <div className="flex-1 min-w-0">
