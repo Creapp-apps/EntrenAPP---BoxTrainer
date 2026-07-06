@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { ArrowLeft, User, Calendar, CreditCard, Dumbbell, Phone, Target, AlertTriangle, BarChart2, MessageCircle, TrendingUp } from "lucide-react";
@@ -16,31 +18,35 @@ function parseReps(repsStr: string): number {
   return isNaN(n) ? 1 : n;
 }
 
-type ExerciseLogRow = {
+interface ExerciseLogRow {
   weight_used_kg?: number | null;
-  sets_completed: number;
-  reps_completed: string;
-  set_weights?: number[] | null;
-};
+  sets_completed?: number | null;
+  reps_completed?: string | null;
+  set_weights?: (number | null)[];
+}
 
 function calcSessionTonnage(logs: ExerciseLogRow[]): number {
-  return logs.reduce((total, log) => {
-    if (!log.weight_used_kg && !log.set_weights) return total;
-    const reps = parseReps(log.reps_completed);
+  let tonnage = 0;
+  for (const log of logs) {
+    const sets = log.sets_completed || 0;
+    const reps = parseReps(log.reps_completed || "1");
     if (log.set_weights && log.set_weights.length > 0) {
-      return total + log.set_weights.reduce((s, w) => s + (w ?? 0) * reps, 0);
+      tonnage += log.set_weights.reduce((sum, w) => sum + (w || 0) * reps, 0);
+    } else {
+      const weight = log.weight_used_kg || 0;
+      tonnage += sets * reps * weight;
     }
-    return total + (log.weight_used_kg ?? 0) * log.sets_completed * reps;
-  }, 0);
+  }
+  return tonnage;
 }
 
 function getWeekLabel(dateStr: string): string {
   const d = new Date(dateStr);
-  // ISO week start = Monday
-  const day = d.getDay() === 0 ? 6 : d.getDay() - 1;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - day);
-  return monday.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+  const start = new Date(d);
+  const day = start.getDay();
+  const diff = start.getDate() - day + (day === 0 ? -6 : 1); // adjust to monday
+  start.setDate(diff);
+  return `Semana ${start.toLocaleDateString("es-AR", { day: "numeric", month: "short" })}`;
 }
 
 function whatsappUrl(phone: string) {
@@ -48,6 +54,8 @@ function whatsappUrl(phone: string) {
   const clean = phone.replace(/[^\d+]/g, "");
   return `https://wa.me/${clean}`;
 }
+
+type Student = { id: string; full_name: string; activeCycle?: { id: string; name: string } };
 
 export default async function AlumnoDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -57,9 +65,7 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
 
   if (!student) notFound();
 
-  const [{ data: directCycles }, { data: enrolledData }, { data: payments }, { data: records }, { data: recentSessions }, { data: oneRMs }] = await Promise.all([
-    supabase.from("training_cycles").select("*")
-      .eq("student_id", params.id).order("created_at", { ascending: false }),
+  const [{ data: enrolledData }, { data: payments }, { data: records }, { data: recentSessions }, { data: oneRMs }] = await Promise.all([
     supabase.from("training_cycle_enrollments").select("*, training_cycles(*)")
       .eq("student_id", params.id).order("created_at", { ascending: false }),
     supabase.from("student_payments").select("*")
@@ -78,9 +84,6 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
 
   // Combine cycles, avoiding duplicates
   const cycleMap = new Map<string, any>();
-  if (directCycles) {
-    directCycles.forEach(c => cycleMap.set(c.id, c));
-  }
   if (enrolledData) {
     enrolledData.forEach(e => {
       if (e.training_cycles) {

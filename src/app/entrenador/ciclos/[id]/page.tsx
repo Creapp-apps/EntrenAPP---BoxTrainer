@@ -23,7 +23,7 @@ type TrainingExercise = {
   notes?: string; order: number;
   complex_id?: string; complex_order?: number;
 };
-type Block = { id: string; name: string; type: string; order: number; training_exercises: TrainingExercise[] };
+type Block = { id: string; name: string; type: string; order: number; wod_type?: string; wod_config?: Record<string, unknown>; training_exercises: TrainingExercise[] };
 type Day = { id: string; day_of_week: number; label: string; order: number; is_rest: boolean; blocks: Block[]; expanded: boolean };
 type Week = { id: string; week_number: number; type: string; days: Day[]; expanded: boolean };
 type Cycle = { id: string; name: string; total_weeks: number; student_id: string; student_name: string; is_template: boolean };
@@ -1980,7 +1980,7 @@ export default function CicloDetailPage() {
     try {
       const supabase = createClient();
       const { data, error } = await supabase.from("training_blocks").insert({
-        day_id: dayId, name, type, order: day?.blocks.length || 0,
+        day_id: dayId, name, type, order: day?.blocks.length || 0, wod_config: {},
       }).select().single();
 
       if (error) {
@@ -1991,7 +1991,7 @@ export default function CicloDetailPage() {
       setWeeks(weeks.map(w => ({
         ...w,
         days: w.days.map(d => d.id === dayId ? {
-          ...d, blocks: [...d.blocks, { ...data, training_exercises: [] }],
+          ...d, blocks: [...d.blocks, { ...data, training_exercises: [], wod_config: data.wod_config || {} }],
         } : d),
       })));
       setExpandedBlocks(prev => {
@@ -2018,6 +2018,23 @@ export default function CicloDetailPage() {
       ),
     })));
     toast.success("Bloque eliminado");
+  };
+
+  // ─── Update WOD config ─────────────────────────────────────
+  const updateWodConfig = async (weekId: string, dayId: string, blockId: string, config: Record<string, unknown>) => {
+    const supabase = createClient();
+    await supabase.from("training_blocks").update({ wod_config: config }).eq("id", blockId);
+    setWeeks(prev => prev.map(w =>
+      w.id === weekId ? {
+        ...w, days: w.days.map(d =>
+          d.id === dayId ? {
+            ...d, blocks: d.blocks.map(b =>
+              b.id === blockId ? { ...b, wod_config: config } : b
+            )
+          } : d
+        )
+      } : w
+    ));
   };
 
   // ─── Copiar semana ────────────────────────────────────────
@@ -2955,6 +2972,17 @@ export default function CicloDetailPage() {
                                   </div>
                                 </>
                               )}
+
+                              {/* Block Notes */}
+                              <div className="pt-3 border-t border-border/50 mt-4">
+                                <input
+                                  type="text"
+                                  defaultValue={block.wod_config?.notes ? String(block.wod_config.notes) : ""}
+                                  onBlur={e => updateWodConfig(week.id, day.id, block.id, { ...block.wod_config, notes: e.target.value })}
+                                  placeholder="📝 Agregar notas o instrucciones para el alumno sobre este bloque..."
+                                  className="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-white focus:border-indigo-300 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all placeholder:text-muted-foreground/60 text-foreground"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>

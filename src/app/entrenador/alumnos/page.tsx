@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createClient } from "@/lib/supabase/server";
 import { Users, Plus, Search, MessageCircle, Ticket, AlertCircle, Clock } from "lucide-react";
 import Link from "next/link";

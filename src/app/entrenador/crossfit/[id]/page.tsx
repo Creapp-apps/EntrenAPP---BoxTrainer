@@ -523,14 +523,127 @@ export default function CrossfitCycleEditorPage() {
       setAllCycles(allCyclesData as any);
     }
 
-    if (!weeksData) { setLoading(false); return; }
+    // Get all weeks with nested days, blocks, exercises, levels, and variants in a single nested select query
+    const { data: fullWeeksData } = await supabase
+      .from("training_weeks")
+      .select(`
+        id, week_number, type,
+        training_days (
+          id, day_of_week, label, "order", is_rest,
+          training_blocks (
+            id, name, type, "order", wod_type, wod_config,
+            training_exercises (
+              id, exercise_id, variant_id, sets, reps, percentage_1rm, weight_target, rpe_target, rest_seconds, notes, "order", complex_id, complex_order,
+              exercises ( id, name, category, muscle_group ),
+              exercise_variants ( id, name )
+            ),
+            cf_block_exercises (
+              id, exercise_id, variant_id, "order", reps, unit_override, notes, sets,
+              cf_exercises ( id, name, category, default_unit, video_url ),
+              cf_exercise_variants ( id, name ),
+              cf_wod_levels ( id, level, value, notes )
+            )
+          )
+        )
+      `)
+      .eq("cycle_id", cycleId)
+      .order("week_number");
+
+    if (!fullWeeksData) { setLoading(false); return; }
+
+    const weeksList: Week[] = fullWeeksData.map((w: any) => {
+      const days = (w.training_days || []).map((d: any) => {
+        const blocks = (d.training_blocks || []).map((b: any) => {
+          const trainingExercises = (b.training_exercises || []).map((te: any) => ({
+            id: te.id,
+            exercise_id: te.exercise_id,
+            variant_id: te.variant_id ?? undefined,
+            exercise: te.exercises ? {
+              id: te.exercises.id,
+              name: te.exercises.name,
+              category: te.exercises.category,
+              muscle_group: te.exercises.muscle_group || "",
+              variants: [],
+            } : undefined,
+            variant: te.exercise_variants ? {
+              id: te.exercise_variants.id,
+              name: te.exercise_variants.name,
+            } : undefined,
+            sets: te.sets,
+            reps: te.reps,
+            percentage_1rm: te.percentage_1rm ?? undefined,
+            weight_target: te.weight_target ?? undefined,
+            rpe_target: te.rpe_target ?? undefined,
+            rest_seconds: te.rest_seconds ?? undefined,
+            notes: te.notes ?? undefined,
+            order: te.order,
+            complex_id: te.complex_id ?? undefined,
+            complex_order: te.complex_order ?? undefined,
+          })).sort((x: any, y: any) => x.order - y.order);
+
+          const cfBlockExercises = (b.cf_block_exercises || []).map((cfe: any) => ({
+            id: cfe.id,
+            exercise_id: cfe.exercise_id,
+            variant_id: cfe.variant_id ?? undefined,
+            exercise: cfe.cf_exercises ? {
+              id: cfe.cf_exercises.id,
+              name: cfe.cf_exercises.name,
+              category: cfe.cf_exercises.category,
+              default_unit: cfe.cf_exercises.default_unit,
+              video_url: cfe.cf_exercises.video_url || undefined,
+            } : undefined,
+            variant: cfe.cf_exercise_variants ? {
+              id: cfe.cf_exercise_variants.id,
+              name: cfe.cf_exercise_variants.name,
+            } : undefined,
+            order: cfe.order,
+            reps: cfe.reps ?? undefined,
+            unit_override: cfe.unit_override ?? undefined,
+            notes: cfe.notes ?? undefined,
+            sets: cfe.sets ?? 3,
+            levels: (cfe.cf_wod_levels || []).map((l: any) => ({
+              id: l.id,
+              level: l.level,
+              value: l.value,
+              notes: l.notes || undefined,
+            })).sort((x: any, y: any) => x.level.localeCompare(y.level)),
+          })).sort((x: any, y: any) => x.order - y.order);
+
+          return {
+            id: b.id,
+            name: b.name,
+            type: b.type,
+            order: b.order,
+            wod_type: b.wod_type ?? undefined,
+            wod_config: (b.wod_config as Record<string, unknown>) ?? {},
+            cf_exercises: cfBlockExercises,
+            training_exercises: trainingExercises,
+          };
+        }).sort((x: any, y: any) => x.order - y.order);
+
+        return {
+          id: d.id,
+          day_of_week: d.day_of_week,
+          label: d.label,
+          order: d.order,
+          is_rest: d.is_rest ?? false,
+          blocks,
+          expanded: false,
+        };
+      }).sort((x: any, y: any) => x.order - y.order);
+
+      return {
+        id: w.id,
+        week_number: w.week_number,
+        type: w.type,
+        days,
+        expanded: w.week_number === 1,
+      };
+    });
 
     // Get all day IDs for the cycle to load complex sets
-    const { data: allDaysData } = await supabase
-      .from("training_days")
-      .select("id")
-      .in("week_id", weeksData.map(w => w.id));
-    const dayIds = (allDaysData || []).map(d => d.id);
+    const dayIds: string[] = [];
+    weeksList.forEach(w => w.days.forEach(d => dayIds.push(d.id)));
 
     const { data: setsData } = await supabase
       .from("training_complex_sets")
@@ -553,125 +666,6 @@ export default function CrossfitCycleEditorPage() {
       });
     }
     setComplexSets(complexSetsMap);
-
-    const weeksList: Week[] = [];
-    for (const w of weeksData) {
-      const { data: daysData } = await supabase
-        .from("training_days")
-        .select("id, day_of_week, label, \"order\", is_rest")
-        .eq("week_id", w.id)
-        .order("order");
-
-      const days: Day[] = [];
-      for (const d of (daysData || [])) {
-        const { data: blocksData } = await supabase
-          .from("training_blocks")
-          .select("id, name, type, \"order\", wod_type, wod_config")
-          .eq("day_id", d.id)
-          .in("type", ["warm_up", "skill", "metcon", "fuerza", "mobility"])
-          .order("order");
-
-        const blocks: Block[] = [];
-        for (const b of (blocksData || [])) {
-          let cfBlockExercises: CfBlockExercise[] = [];
-          let trainingExercises: TrainingExercise[] = [];
-
-          if (b.type === "fuerza") {
-            const { data: teData } = await supabase
-              .from("training_exercises")
-              .select("id, exercise_id, variant_id, sets, reps, percentage_1rm, weight_target, rpe_target, rest_seconds, notes, order, complex_id, complex_order, exercises(id, name, category, muscle_group), exercise_variants(id, name)")
-              .eq("block_id", b.id)
-              .order("order");
-
-            trainingExercises = (teData || []).map(te => ({
-              id: te.id,
-              exercise_id: te.exercise_id,
-              variant_id: te.variant_id ?? undefined,
-              exercise: te.exercises ? {
-                id: te.exercises.id,
-                name: te.exercises.name,
-                category: te.exercises.category,
-                muscle_group: te.exercises.muscle_group || "",
-                variants: [],
-              } : undefined,
-              variant: te.exercise_variants ? {
-                id: te.exercise_variants.id,
-                name: te.exercise_variants.name,
-              } : undefined,
-              sets: te.sets,
-              reps: te.reps,
-              percentage_1rm: te.percentage_1rm ?? undefined,
-              weight_target: te.weight_target ?? undefined,
-              rpe_target: te.rpe_target ?? undefined,
-              rest_seconds: te.rest_seconds ?? undefined,
-              notes: te.notes ?? undefined,
-              order: te.order,
-              complex_id: te.complex_id ?? undefined,
-              complex_order: te.complex_order ?? undefined,
-            }));
-          } else {
-            const { data: cfExData } = await supabase
-              .from("cf_block_exercises")
-              .select("id, exercise_id, variant_id, \"order\", reps, unit_override, notes, sets, cf_exercises(id, name, category, default_unit, video_url), cf_exercise_variants(id, name)")
-              .eq("block_id", b.id)
-              .order("order");
-
-            for (const cfe of (cfExData || [])) {
-              const { data: levelsData } = await supabase
-                .from("cf_wod_levels")
-                .select("id, level, value, notes")
-                .eq("block_exercise_id", cfe.id);
-
-              cfBlockExercises.push({
-                id: cfe.id,
-                exercise_id: cfe.exercise_id,
-                variant_id: cfe.variant_id ?? undefined,
-                exercise: (cfe.cf_exercises as unknown as CfExercise) || undefined,
-                variant: cfe.cf_exercise_variants ? {
-                  id: cfe.cf_exercise_variants.id,
-                  name: cfe.cf_exercise_variants.name,
-                } : undefined,
-                order: cfe.order,
-                reps: cfe.reps ?? undefined,
-                unit_override: cfe.unit_override ?? undefined,
-                notes: cfe.notes ?? undefined,
-                sets: cfe.sets ?? 3,
-                levels: (levelsData || []) as CfWodLevel[],
-              });
-            }
-          }
-
-          blocks.push({
-            id: b.id,
-            name: b.name,
-            type: b.type,
-            order: b.order,
-            wod_type: b.wod_type ?? undefined,
-            wod_config: (b.wod_config as Record<string, unknown>) ?? {},
-            cf_exercises: cfBlockExercises,
-            training_exercises: trainingExercises,
-          });
-        }
-
-        days.push({
-          id: d.id,
-          day_of_week: d.day_of_week,
-          label: d.label,
-          order: d.order,
-          is_rest: d.is_rest ?? false,
-          blocks,
-          expanded: false,
-        });
-      }
-
-      weeksList.push({
-        id: w.id,
-        week_number: w.week_number,
-        type: w.type,
-        days,
-        expanded: w.week_number === 1,
-      });
-    }
 
     setWeeks(weeksList);
 
@@ -2143,6 +2137,16 @@ export default function CrossfitCycleEditorPage() {
                                       onDeleteExercise={(cfExId) => deleteBlockExercise(week.id, day.id, block.id, cfExId)}
                                       onUpdateExerciseField={updateExProps}
                                     />
+                                    {/* Block Notes for Warm Up / Mobility */}
+                                    <div className="pt-3 border-t border-border/50">
+                                      <input
+                                        type="text"
+                                        defaultValue={block.wod_config?.notes ? String(block.wod_config.notes) : ""}
+                                        onBlur={e => updateWodConfig(week.id, day.id, block.id, { ...block.wod_config, notes: e.target.value })}
+                                        placeholder="📝 Agregar notas o instrucciones para el alumno sobre este bloque..."
+                                        className="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-white focus:border-orange-300 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-all placeholder:text-muted-foreground/60 text-foreground"
+                                      />
+                                    </div>
                                   </div>
                                 )}
                               </div>
