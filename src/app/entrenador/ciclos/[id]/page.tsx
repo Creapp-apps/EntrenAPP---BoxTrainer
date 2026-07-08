@@ -3405,33 +3405,35 @@ function DayPreviewModal({
   complexSets: Record<string, ComplexSet[]>;
   onClose: () => void;
 }) {
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+
   return (
     <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 overflow-y-auto">
       {/* Container simulating a mobile device or a premium preview card */}
-      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="bg-zinc-50 border border-zinc-200 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
         {/* Header bar simulating a mobile phone screen header or blackboard */}
-        <div className="flex items-center justify-between px-6 py-4 bg-zinc-900 border-b border-zinc-800 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-zinc-200 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-[#ff5252] animate-pulse" />
-            <span className="text-xs font-bold uppercase tracking-widest text-[#ff5252] font-mono">
-              Pizarra Alumno
+            <span className="text-xs font-black uppercase tracking-widest text-[#ff5252] font-mono">
+              Pizarra Alumno (Vista Previa)
             </span>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* WOD Content area ( chalkboard theme ) */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6 text-zinc-100 font-sans selection:bg-[#ff5252]/30">
-          <div className="space-y-1 pb-4 border-b border-zinc-800">
-            <h2 className="text-2xl font-black text-white tracking-tight uppercase">
+        {/* WOD Content area ( light premium theme matching student view ) */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-6 text-slate-800 font-sans selection:bg-[#ff5252]/10">
+          <div className="space-y-1 pb-4 border-b border-zinc-200">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
               {cycleName}
             </h2>
-            <p className="text-sm text-zinc-400 font-semibold">
+            <p className="text-sm text-zinc-500 font-semibold">
               Semana {weekNumber} · {DAY_NAMES[day.day_of_week]} — {day.label}
             </p>
           </div>
@@ -3441,197 +3443,216 @@ function DayPreviewModal({
               const blockItems = getBlockItems(block.training_exercises);
               if (blockItems.length === 0) return null;
 
+              const isCollapsed = collapsedBlocks[block.id];
+
               return (
                 <div key={block.id} className="space-y-4">
-                  <h3 className="text-lg font-black text-[#ff5252] uppercase tracking-widest border-b border-zinc-900 pb-1">
-                    {block.name}
-                  </h3>
+                  <div className="border-b border-zinc-200 pb-1 flex items-center justify-between select-none">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                        className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors shrink-0"
+                      >
+                        {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </button>
+                      <h3
+                        onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                        className="text-lg font-black text-[#ff5252] uppercase tracking-widest cursor-pointer flex-1 flex items-center gap-2"
+                      >
+                        <Dumbbell className="w-4 h-4 text-primary shrink-0" />
+                        <span>{block.name}</span>
+                      </h3>
+                    </div>
+                  </div>
                   
-                  <div className="space-y-4">
-                    {blockItems.map((item) => {
-                      if (item.type === "single") {
-                        const te = item.ex;
-                        const hasPct = te.percentage_1rm !== undefined && te.percentage_1rm !== null;
-                        const hasWt = te.weight_target !== undefined && te.weight_target !== null;
-                        
-                        return (
-                          <div
-                            key={te.id}
-                            className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-2 hover:border-zinc-800 transition-colors"
-                          >
-                            <h4 className="text-white font-extrabold text-base leading-tight">
-                              {te.exercise?.name || "Ejercicio"}
-                              {te.variant?.name && (
-                                <span className="text-primary font-bold ml-1.5">— {te.variant.name}</span>
-                              )}
-                            </h4>
-                            
-                            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-zinc-400">
-                              <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">
-                                {te.sets} series × {te.reps} reps
-                              </span>
-                              {hasPct && (
-                                <span className="px-2 py-0.5 bg-zinc-800 rounded text-primary font-bold">
-                                  {te.percentage_1rm}% 1RM
+                  {!isCollapsed && (
+                    <div className="space-y-4">
+                      {blockItems.map((item) => {
+                        if (item.type === "single") {
+                          const te = item.ex;
+                          const hasPct = te.percentage_1rm !== undefined && te.percentage_1rm !== null;
+                          const hasWt = te.weight_target !== undefined && te.weight_target !== null;
+                          
+                          return (
+                            <div
+                              key={te.id}
+                              className="p-4 rounded-xl bg-white border border-zinc-200 shadow-sm space-y-2 hover:border-zinc-300 transition-colors"
+                            >
+                              <h4 className="text-slate-900 font-extrabold text-base leading-tight">
+                                {te.exercise?.name || "Ejercicio"}
+                                {te.variant?.name && (
+                                  <span className="text-emerald-600 font-bold ml-1.5">— {te.variant.name}</span>
+                                )}
+                              </h4>
+                              
+                              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-zinc-500">
+                                <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700 font-mono">
+                                  {te.sets} series × {te.reps} reps
                                 </span>
-                              )}
-                              {hasWt && (
-                                <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 font-bold">
-                                  {te.weight_target} kg
-                                </span>
-                              )}
-                              {te.rest_seconds && (
-                                <span className="text-zinc-500 font-normal">
-                                  Descanso: {te.rest_seconds}s
-                                </span>
+                                {hasPct && (
+                                  <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-[#ff5252] font-bold">
+                                    {te.percentage_1rm}% 1RM
+                                  </span>
+                                )}
+                                {hasWt && (
+                                  <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700 font-bold">
+                                    {te.weight_target} kg
+                                  </span>
+                                )}
+                                {te.rest_seconds && (
+                                  <span className="text-zinc-500 font-normal">
+                                    Descanso: {te.rest_seconds}s
+                                  </span>
+                                )}
+                              </div>
+
+                              {te.notes && (
+                                <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-200 pl-2">
+                                  * {te.notes}
+                                </p>
                               )}
                             </div>
+                          );
+                        } else {
+                          const cSets = [...(complexSets[item.complexId] || [])].sort((a, b) => a.set_number - b.set_number);
+                          const isPrep = block.type === "prep_fisica";
 
-                            {te.notes && (
-                              <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-800 pl-2">
-                                * {te.notes}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      } else {
-                        const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
-                        const isPrep = block.type === "prep_fisica";
+                          if (isPrep) {
+                            return (
+                              <div
+                                key={item.complexId}
+                                className="p-4 rounded-xl bg-white border border-emerald-100 shadow-sm space-y-3 hover:border-emerald-200 transition-colors"
+                              >
+                                <div className="space-y-1">
+                                  <h4 className="text-slate-900 font-extrabold text-base leading-tight flex items-center gap-1.5">
+                                    <Dumbbell className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                                    <span>Circuito de Preparación Física</span>
+                                  </h4>
+                                  <div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-500">
+                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded">
+                                      {cSets.length} Rondas
+                                    </span>
+                                    {item.exs[0]?.rest_seconds && (
+                                      <span className="text-zinc-500 font-normal">
+                                        Descanso: {item.exs[0].rest_seconds}s
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
 
-                        if (isPrep) {
+                                {item.exs.some(te => te.notes) && (
+                                  <div className="space-y-1 border-l border-emerald-250 pl-2">
+                                    {item.exs.filter(te => te.notes).map(te => (
+                                      <p key={te.id} className="text-zinc-500 text-[10px] italic">
+                                        * {te.exercise?.name}: {te.notes}
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Desglose de rondas */}
+                                <div className="space-y-3 pt-1">
+                                  {cSets.map((s, sIdx) => (
+                                    <div key={s.id} className="space-y-1 border-t border-zinc-100 pt-1.5 first:border-t-0 first:pt-0">
+                                      <span className="text-emerald-600 font-bold text-xs">Ronda {s.set_number || sIdx + 1}:</span>
+                                      <div className="space-y-0.5 pl-2">
+                                        {item.exs.map(te => {
+                                          const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                          const r = ov?.reps ?? te.reps;
+                                          
+                                          const ovPct = ov?.percentage_1rm;
+                                          const ovWt = ov?.weight_target;
+                                          const basePct = te.percentage_1rm;
+                                          const baseWt = te.weight_target;
+
+                                          let pct = null;
+                                          let wt = null;
+
+                                          if (ovPct !== undefined || ovWt !== undefined) {
+                                            pct = ovPct ?? null;
+                                            wt = ovWt ?? null;
+                                          } else {
+                                            pct = basePct ?? null;
+                                            wt = baseWt ?? null;
+                                          }
+
+                                          const loadText = pct !== null ? `@ ${pct}% 1RM` : wt !== null ? `@ ${wt} kg` : "";
+
+                                          return (
+                                            <div key={te.id} className="text-xs text-slate-700 flex justify-between">
+                                              <span className="truncate max-w-[200px] font-semibold">{te.exercise?.name}</span>
+                                              <span className="font-mono text-zinc-500">{r} reps {loadText}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          const complexTitle = item.exs.map(te => {
+                            return te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name;
+                          }).join(" + ");
+
                           return (
                             <div
                               key={item.complexId}
-                              className="p-4 rounded-xl bg-zinc-900/50 border border-emerald-800/30 space-y-3 hover:border-emerald-800/50 transition-colors"
+                              className="p-4 rounded-xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
                             >
                               <div className="space-y-1">
-                                <h4 className="text-white font-extrabold text-base leading-tight flex items-center gap-1.5">
-                                  <Dumbbell className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-                                  <span>Circuito de Preparación Física</span>
+                                <h4 className="text-slate-900 font-extrabold text-base leading-tight">
+                                  {complexTitle}
                                 </h4>
-                                <div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400">
-                                  <span className="px-2 py-0.5 bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 rounded">
-                                    {cSets.length} Rondas
+                                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
+                                  <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700">
+                                    {item.exs.length > 1 ? "Complex" : "Trepada"} ({cSets.length} series)
                                   </span>
-                                  {item.exs[0]?.rest_seconds && (
-                                    <span className="text-zinc-500 font-normal">
-                                      Descanso: {item.exs[0].rest_seconds}s
-                                    </span>
-                                  )}
                                 </div>
                               </div>
 
                               {item.exs.some(te => te.notes) && (
-                                <div className="space-y-1 border-l border-emerald-900 pl-2">
+                                <div className="space-y-1 border-l border-zinc-200 pl-2">
                                   {item.exs.filter(te => te.notes).map(te => (
-                                    <p key={te.id} className="text-zinc-500 text-[10px] italic">
+                                    <p key={te.id} className="text-zinc-500 text-xs italic font-medium">
                                       * {te.exercise?.name}: {te.notes}
                                     </p>
                                   ))}
                                 </div>
                               )}
 
-                              {/* Desglose de rondas */}
-                              <div className="space-y-3 pt-1">
-                                {cSets.map((s, sIdx) => (
-                                  <div key={s.id} className="space-y-1 border-t border-zinc-800/40 pt-1.5 first:border-t-0 first:pt-0">
-                                    <span className="text-emerald-500 font-bold text-xs">Ronda {s.set_number || sIdx + 1}:</span>
-                                    <div className="space-y-0.5 pl-2">
-                                      {item.exs.map(te => {
-                                        const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                        const r = ov?.reps ?? te.reps;
-                                        
-                                        const ovPct = ov?.percentage_1rm;
-                                        const ovWt = ov?.weight_target;
-                                        const basePct = te.percentage_1rm;
-                                        const baseWt = te.weight_target;
+                              {/* Desglose de series */}
+                              <div className="space-y-1.5 pt-1 border-t border-zinc-100">
+                                {cSets.map((s) => {
+                                  const repsText = item.exs.map(te => {
+                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                    return ov ? ov.reps : te.reps;
+                                  }).join("+");
 
-                                        let pct = null;
-                                        let wt = null;
+                                  const targetLoad = s.percentage_1rm 
+                                    ? `@ ${s.percentage_1rm}%` 
+                                    : s.weight_target 
+                                      ? `@ ${s.weight_target} kg` 
+                                      : "";
+                                  const roundsText = s.rounds && s.rounds > 1 ? ` (${s.rounds} rondas)` : "";
 
-                                        if (ovPct !== undefined || ovWt !== undefined) {
-                                          pct = ovPct ?? null;
-                                          wt = ovWt ?? null;
-                                        } else {
-                                          pct = basePct ?? null;
-                                          wt = baseWt ?? null;
-                                        }
-
-                                        const loadText = pct !== null ? `@ ${pct}% 1RM` : wt !== null ? `@ ${wt} kg` : "";
-
-                                        return (
-                                          <div key={te.id} className="text-xs text-zinc-300 flex justify-between">
-                                            <span className="truncate max-w-[200px]">{te.exercise?.name}</span>
-                                            <span className="font-mono text-zinc-400">{r} reps {loadText}</span>
-                                          </div>
-                                        );
-                                      })}
+                                  return (
+                                    <div key={s.id} className="flex items-center gap-2 text-xs font-mono text-zinc-650">
+                                      <span className="text-[#ff5252] font-bold">S{s.set_number}:</span>
+                                      <span>{repsText} {targetLoad}{roundsText}</span>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           );
                         }
-
-                        const complexTitle = item.exs.map(te => {
-                          return te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name;
-                        }).join(" + ");
-
-                        return (
-                          <div
-                            key={item.complexId}
-                            className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-3 hover:border-zinc-800 transition-colors"
-                          >
-                            <div className="space-y-1">
-                              <h4 className="text-white font-extrabold text-base leading-tight">
-                                {complexTitle}
-                              </h4>
-                              <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-                                <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">
-                                  {item.exs.length > 1 ? "Complex" : "Trepada"} ({cSets.length} series)
-                                </span>
-                              </div>
-                            </div>
-
-                            {item.exs.some(te => te.notes) && (
-                              <div className="space-y-1 border-l border-zinc-800 pl-2">
-                                {item.exs.filter(te => te.notes).map(te => (
-                                  <p key={te.id} className="text-zinc-500 text-xs italic font-medium">
-                                    * {te.exercise?.name}: {te.notes}
-                                  </p>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Desglose de series */}
-                            <div className="space-y-1.5 pt-1">
-                              {cSets.map((s) => {
-                                const repsText = item.exs.map(te => {
-                                  const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                  return ov ? ov.reps : te.reps;
-                                }).join("+");
-
-                                const targetLoad = s.percentage_1rm 
-                                  ? `@ ${s.percentage_1rm}%` 
-                                  : s.weight_target 
-                                    ? `@ ${s.weight_target} kg` 
-                                    : "";
-                                const roundsText = s.rounds && s.rounds > 1 ? ` (${s.rounds} rondas)` : "";
-
-                                return (
-                                  <div key={s.id} className="flex items-center gap-2 text-xs font-mono text-zinc-300">
-                                    <span className="text-[#ff5252] font-bold">S{s.set_number}:</span>
-                                    <span>{repsText} {targetLoad}{roundsText}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      }
-                    })}
-                  </div>
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -3639,7 +3660,7 @@ function DayPreviewModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex justify-end shrink-0">
+        <div className="p-4 bg-white border-t border-zinc-200 flex justify-end shrink-0">
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm font-semibold text-white transition-colors"
@@ -3651,7 +3672,6 @@ function DayPreviewModal({
     </div>
   );
 }
-
 function SetsInput({
   initialValue,
   onChange,

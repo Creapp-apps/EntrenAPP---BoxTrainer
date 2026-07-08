@@ -2878,168 +2878,192 @@ function DayPreviewModal({
   complexSets: Record<string, ComplexSet[]>;
   onClose: () => void;
 }) {
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+
   return (
     <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 bg-zinc-900 border-b border-zinc-800 shrink-0">
+      {/* Container simulating a mobile device or a premium preview card */}
+      <div className="bg-zinc-50 border border-zinc-200 rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+        {/* Header bar simulating a mobile phone screen header or blackboard */}
+        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-zinc-200 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-[#ff5252] animate-pulse" />
-            <span className="text-xs font-bold uppercase tracking-widest text-[#ff5252] font-mono">
-              Pizarra Alumno
+            <span className="text-xs font-black uppercase tracking-widest text-[#ff5252] font-mono">
+              Pizarra Alumno (Vista Previa)
             </span>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1 space-y-6 text-zinc-100 font-sans selection:bg-[#ff5252]/30">
-          <div className="space-y-1 pb-4 border-b border-zinc-800">
-            <h2 className="text-2xl font-black text-white tracking-tight uppercase">
+        {/* WOD Content area ( light premium theme matching student view ) */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-6 text-slate-800 font-sans selection:bg-[#ff5252]/10">
+          <div className="space-y-1 pb-4 border-b border-zinc-200">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
               {cycleName}
             </h2>
-            <p className="text-sm text-zinc-400 font-semibold">
+            <p className="text-sm text-zinc-500 font-semibold">
               Semana {weekNumber} · {DAY_NAMES[day.day_of_week]} — {day.label}
             </p>
           </div>
 
           <div className="space-y-8">
             {day.blocks.map(block => {
+              const isCollapsed = collapsedBlocks[block.id];
+              const config = (block.wod_config as any) || {};
+
               if (block.type === "fuerza") {
                 const blockItems = getBlockItems(block.training_exercises || []);
                 if (blockItems.length === 0) return null;
 
                 return (
                   <div key={block.id} className="space-y-4">
-                    <h3 className="text-lg font-black text-[#ff5252] uppercase tracking-widest border-b border-zinc-900 pb-1 flex items-center gap-2">
-                      <Dumbbell className="w-4 h-4 text-primary shrink-0" />
-                      <span>{block.name}</span>
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      {blockItems.map((item) => {
-                        if (item.type === "single") {
-                          const te = item.ex;
-                          const hasPct = te.percentage_1rm !== undefined && te.percentage_1rm !== null;
-                          const hasWt = te.weight_target !== undefined && te.weight_target !== null;
-                          const { dropsets, actualNotes } = parseNotesAndDropsets(te.notes);
-                          
-                          return (
-                            <div
-                              key={te.id}
-                              className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-2 hover:border-zinc-800 transition-colors"
-                            >
-                              <h4 className="text-white font-extrabold text-base leading-tight">
-                                {te.exercise?.name || "Ejercicio"}
-                                {te.variant?.name && (
-                                  <span className="text-primary font-bold ml-1.5">— {te.variant.name}</span>
-                                )}
-                              </h4>
-                              
-                              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-zinc-400">
-                                <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">
-                                  {te.sets} series × {te.reps} reps
-                                </span>
-                                {hasPct && (
-                                  <span className="px-2 py-0.5 bg-zinc-800 rounded text-primary font-bold">
-                                    {te.percentage_1rm}% 1RM
-                                  </span>
-                                )}
-                                {hasWt && (
-                                  <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 font-bold">
-                                    {te.weight_target} kg
-                                  </span>
-                                )}
-                                {te.rpe_target !== null && te.rpe_target !== undefined && (
-                                  <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 font-bold">
-                                    {te.rpe_target > 0 ? `RPE ${te.rpe_target}` : `RIR ${Math.abs(te.rpe_target) === 0.1 ? 0 : Math.abs(te.rpe_target)}`}
-                                  </span>
-                                )}
-                                {dropsets.map((ds, idx) => (
-                                  <span key={idx} className="px-2 py-0.5 bg-orange-950/40 text-orange-400 rounded border border-orange-900/30 text-[10px] font-bold flex items-center gap-1">
-                                    <Repeat className="w-3 h-3 text-orange-500 shrink-0" /> Drop: {getDropsetText(ds, te.weight_target || undefined)}
-                                  </span>
-                                ))}
-                                {te.rest_seconds && (
-                                  <span className="text-zinc-500 font-normal">
-                                    Descanso: {te.rest_seconds}s
-                                  </span>
-                                )}
-                              </div>
-
-                              {actualNotes && (
-                                <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-800 pl-2">
-                                  * {actualNotes}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        } else {
-                          const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
-                          const complexTitle = item.exs.map(te => {
-                            return te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name;
-                          }).join(" + ");
-
-                          return (
-                            <div
-                              key={item.complexId}
-                              className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-3 hover:border-zinc-800 transition-colors"
-                            >
-                              <div className="space-y-1">
-                                <h4 className="text-white font-extrabold text-base leading-tight">
-                                  {complexTitle}
-                                </h4>
-                                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-                                  <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">
-                                    Complex ({cSets.length} series)
-                                  </span>
-                                </div>
-                              </div>
-
-                              {item.exs.some(te => te.notes) && (
-                                <div className="space-y-1 border-l border-zinc-800 pl-2">
-                                  {item.exs.filter(te => te.notes).map(te => (
-                                    <p key={te.id} className="text-zinc-500 text-xs italic font-medium">
-                                      * {te.exercise?.name}: {te.notes}
-                                    </p>
-                                  ))}
-                                </div>
-                              )}
-
-                              <div className="space-y-1.5 pt-1">
-                                {cSets.map((s) => {
-                                  const repsText = item.exs.map(te => {
-                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                    return ov ? ov.reps : te.reps;
-                                  }).join("+");
-
-                                  const targetLoad = s.percentage_1rm 
-                                    ? `@ ${s.percentage_1rm}%` 
-                                    : s.weight_target 
-                                      ? `@ ${s.weight_target} kg` 
-                                      : "";
-                                  const roundsText = s.rounds && s.rounds > 1 ? ` (${s.rounds} rondas)` : "";
-
-                                  return (
-                                    <div key={s.id} className="flex items-center gap-2 text-xs font-mono text-zinc-300">
-                                      <span className="text-[#ff5252] font-bold font-sans">S{s.set_number}:</span>
-                                      <span>{repsText} {targetLoad}{roundsText}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        }
-                      })}
+                    <div className="border-b border-zinc-200 pb-1 flex items-center justify-between select-none">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                          className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors shrink-0"
+                        >
+                          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                        </button>
+                        <h3
+                          onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                          className="text-lg font-black text-[#ff5252] uppercase tracking-widest cursor-pointer flex-1 flex items-center gap-2"
+                        >
+                          <Dumbbell className="w-4 h-4 text-primary shrink-0" />
+                          <span>{block.name}</span>
+                        </h3>
+                      </div>
                     </div>
+                    
+                    {!isCollapsed && (
+                      <div className="space-y-4">
+                        {blockItems.map((item) => {
+                          if (item.type === "single") {
+                            const te = item.ex;
+                            const hasPct = te.percentage_1rm !== undefined && te.percentage_1rm !== null;
+                            const hasWt = te.weight_target !== undefined && te.weight_target !== null;
+                            const { dropsets, actualNotes } = parseNotesAndDropsets(te.notes);
+                            
+                            return (
+                              <div
+                                key={te.id}
+                                className="p-4 rounded-xl bg-white border border-zinc-200 shadow-sm space-y-2 hover:border-zinc-300 transition-colors"
+                              >
+                                <h4 className="text-slate-900 font-extrabold text-base leading-tight">
+                                  {te.exercise?.name || "Ejercicio"}
+                                  {te.variant?.name && (
+                                    <span className="text-emerald-600 font-bold ml-1.5">— {te.variant.name}</span>
+                                  )}
+                                </h4>
+                                
+                                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-zinc-500">
+                                  <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-750 font-mono">
+                                    {te.sets} series × {te.reps} reps
+                                  </span>
+                                  {hasPct && (
+                                    <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-[#ff5252] font-bold">
+                                      {te.percentage_1rm}% 1RM
+                                    </span>
+                                  )}
+                                  {hasWt && (
+                                    <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700 font-bold">
+                                      {te.weight_target} kg
+                                    </span>
+                                  )}
+                                  {te.rpe_target !== null && te.rpe_target !== undefined && (
+                                    <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700 font-bold">
+                                      {te.rpe_target > 0 ? `RPE ${te.rpe_target}` : `RIR ${Math.abs(te.rpe_target) === 0.1 ? 0 : Math.abs(te.rpe_target)}`}
+                                    </span>
+                                  )}
+                                  {dropsets.map((ds, idx) => (
+                                    <span key={idx} className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded border border-orange-100 text-[10px] font-bold flex items-center gap-1">
+                                      <Repeat className="w-3 h-3 text-orange-500 shrink-0" /> Drop: {getDropsetText(ds, te.weight_target || undefined)}
+                                    </span>
+                                  ))}
+                                  {te.rest_seconds && (
+                                    <span className="text-zinc-500 font-normal">
+                                      Descanso: {te.rest_seconds}s
+                                    </span>
+                                  )}
+                                </div>
 
-                    {block.wod_config?.notes && (
-                      <div className="p-3 bg-zinc-900/30 border border-zinc-800/40 rounded-xl text-xs text-zinc-400 italic">
-                        * Notas: {block.wod_config.notes}
+                                {actualNotes && (
+                                  <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-200 pl-2">
+                                    * {actualNotes}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          } else {
+                            const cSets = [...(complexSets[item.complexId] || [])].sort((a, b) => a.set_number - b.set_number);
+                            const complexTitle = item.exs.map(te => {
+                              return te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name;
+                            }).join(" + ");
+
+                            return (
+                              <div
+                                key={item.complexId}
+                                className="p-4 rounded-xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
+                              >
+                                <div className="space-y-1">
+                                  <h4 className="text-slate-900 font-extrabold text-base leading-tight">
+                                    {complexTitle}
+                                  </h4>
+                                  <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
+                                    <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700">
+                                      Complex ({cSets.length} series)
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {item.exs.some(te => te.notes) && (
+                                  <div className="space-y-1 border-l border-zinc-200 pl-2">
+                                    {item.exs.filter(te => te.notes).map(te => (
+                                      <p key={te.id} className="text-zinc-500 text-xs italic font-medium">
+                                        * {te.exercise?.name}: {te.notes}
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+
+                                <div className="space-y-1.5 pt-1 border-t border-zinc-100">
+                                  {cSets.map((s) => {
+                                    const repsText = item.exs.map(te => {
+                                      const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                      return ov ? ov.reps : te.reps;
+                                    }).join("+");
+
+                                    const targetLoad = s.percentage_1rm 
+                                      ? `@ ${s.percentage_1rm}%` 
+                                      : s.weight_target 
+                                        ? `@ ${s.weight_target} kg` 
+                                        : "";
+                                    const roundsText = s.rounds && s.rounds > 1 ? ` (${s.rounds} rondas)` : "";
+
+                                    return (
+                                      <div key={s.id} className="flex items-center gap-2 text-xs font-mono text-zinc-600">
+                                        <span className="text-[#ff5252] font-bold font-sans">S{s.set_number}:</span>
+                                        <span>{repsText} {targetLoad}{roundsText}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }
+                        })}
+                      </div>
+                    )}
+
+                    {!isCollapsed && config.notes && (
+                      <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-500 italic mt-3">
+                        * Notas: {config.notes}
                       </div>
                     )}
                   </div>
@@ -3071,19 +3095,31 @@ function DayPreviewModal({
                 const showWodConfig = block.type === "metcon" || block.type === "skill";
                 const wodTypeLabel = block.wod_type ? block.wod_type.toUpperCase() : "SERIES";
 
-                const blockSets = block.wod_config?.sets 
-                  ? Number(block.wod_config.sets) 
-                  : (block.wod_type === "emom" && block.wod_config?.total_minutes && block.wod_config?.every_seconds
-                    ? Math.round(Number(block.wod_config.total_minutes) / (Number(block.wod_config.every_seconds) / 60))
+                const blockSets = config.sets 
+                  ? Number(config.sets) 
+                  : (block.wod_type === "emom" && config.total_minutes && config.every_seconds
+                    ? Math.round(Number(config.total_minutes) / (Number(config.every_seconds) / 60))
                     : undefined);
 
                 return (
                   <div key={block.id} className="space-y-4">
-                    <div className="border-b border-zinc-900 pb-1 flex items-center justify-between">
-                      <h3 className={`text-lg font-black ${typeColor} uppercase tracking-widest flex items-center gap-2`}>
-                        <TypeIcon className="w-4 h-4 shrink-0" />
-                        <span>{block.name}</span>
-                      </h3>
+                    <div className="border-b border-zinc-200 pb-1 flex items-center justify-between select-none">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                          className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors shrink-0"
+                        >
+                          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                        </button>
+                        <h3
+                          onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                          className={`text-lg font-black ${typeColor} uppercase tracking-widest cursor-pointer flex-1 flex items-center gap-2`}
+                        >
+                          <TypeIcon className="w-4 h-4 shrink-0" />
+                          <span>{block.name}</span>
+                        </h3>
+                      </div>
                       {showWodConfig && (
                         <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-md tracking-wider ${
                           block.wod_type === "amrap" 
@@ -3099,99 +3135,175 @@ function DayPreviewModal({
                       )}
                     </div>
 
-                    {showWodConfig && (
-                      <div className="text-xs text-zinc-400 font-medium bg-zinc-900/40 border border-zinc-800/40 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-1">
-                        {block.wod_type === "amrap" && block.wod_config?.time_cap_minutes && (
-                          <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
-                        )}
-                        {block.wod_type === "emom" && (
-                          <>
-                            {block.wod_config?.every_seconds && (
-                              <span>
-                                Cada: {block.wod_config.every_seconds % 60 === 0 
-                                  ? `${block.wod_config.every_seconds / 60} min` 
-                                  : `${block.wod_config.every_seconds} seg`}
-                              </span>
+                    {!isCollapsed && (
+                      <div className="space-y-4">
+                        {showWodConfig && (
+                          <div className="text-xs text-zinc-500 font-medium bg-zinc-50 border border-zinc-200 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-1">
+                            {block.wod_type === "amrap" && config.time_cap_minutes && (
+                              <span>Time Cap: {config.time_cap_minutes} min</span>
                             )}
-                            {block.wod_config?.every_seconds && block.wod_config?.total_minutes && (
-                              <span>
-                                Rondas: {Math.round((block.wod_config.total_minutes as number) / ((block.wod_config.every_seconds as number) / 60))}
-                              </span>
+                            {block.wod_type === "emom" && (
+                              <>
+                                {config.every_seconds && (
+                                  <span>
+                                    Cada: {config.every_seconds % 60 === 0 
+                                      ? `${config.every_seconds / 60} min` 
+                                      : `${config.every_seconds} seg`}
+                                  </span>
+                                )}
+                                {config.every_seconds && config.total_minutes && (
+                                  <span>
+                                    Rondas: {Math.round((config.total_minutes as number) / ((config.every_seconds as number) / 60))}
+                                  </span>
+                                )}
+                                {config.total_minutes && <span>Duración: {config.total_minutes} min</span>}
+                              </>
                             )}
-                            {block.wod_config?.total_minutes && <span>Duración: {block.wod_config.total_minutes} min</span>}
-                          </>
-                        )}
-                        {block.wod_type === "for_time" && (
-                          <>
-                            {block.wod_config?.time_cap_minutes && <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>}
-                            {block.wod_config?.rep_scheme && <span>Esquema: {block.wod_config.rep_scheme}</span>}
-                          </>
-                        )}
-                        {block.wod_type === "tabata" && (
-                          <>
-                            {block.wod_config?.work_seconds && <span>Trabajo: {block.wod_config.work_seconds}s</span>}
-                            {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
-                            {block.wod_config?.rounds && <span>Rondas: {block.wod_config.rounds}</span>}
-                          </>
-                        )}
-                        {block.wod_type === "death_by" && (
-                          <>
-                            {block.wod_config?.starting_reps && <span>Inicio: {block.wod_config.starting_reps} reps</span>}
-                            {block.wod_config?.add_per_round && <span>Sumar: +{block.wod_config.add_per_round} reps/rd</span>}
-                          </>
-                        )}
-                        {block.wod_type === "for_load" && (
-                          <>
-                            {block.wod_config?.sets && <span>Series: {block.wod_config.sets}</span>}
-                            {block.wod_config?.reps_per_set && <span>Reps/serie: {block.wod_config.reps_per_set}</span>}
-                          </>
-                        )}
-                        {block.wod_type === "chipper" && block.wod_config?.time_cap_minutes && (
-                          <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
-                        )}
-                        {(!block.wod_type || block.wod_type === "series") && block.wod_config?.sets && (
-                          <>
-                            <span>Series: {block.wod_config.sets}</span>
-                            {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                      {blockSets ? (
-                        <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-                          {/* Left bracket indicating block sets */}
-                          <div className="flex flex-row sm:flex-col justify-center items-center px-3.5 py-3 bg-zinc-900 border border-zinc-800 rounded-2xl sm:min-w-[80px] shrink-0 text-center select-none shadow-sm gap-2 sm:gap-0">
-                            <div className="flex flex-col items-center">
-                              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Total</span>
-                              <span className="text-xl font-black text-white leading-none">{blockSets}</span>
-                              <span className="text-[10px] font-bold text-[#ff5252] leading-none mt-1">Series</span>
-                            </div>
-                            
-                            {block.wod_config?.has_internal_loop && block.wod_config?.vueltas_por_serie && (
-                              <div className="sm:mt-2.5 sm:pt-2 sm:border-t border-zinc-800 w-full flex flex-row sm:flex-col items-center gap-1 sm:gap-0 justify-center">
-                                <Repeat className="w-3.5 h-3.5 text-zinc-500 mb-0.5 shrink-0" />
-                                <span className="text-[8px] font-bold text-zinc-500 uppercase leading-tight hidden sm:inline">Circuito</span>
-                                <span className="text-[9px] font-black text-emerald-500 leading-none">{block.wod_config.vueltas_por_serie} vts</span>
-                              </div>
+                            {block.wod_type === "for_time" && (
+                              <>
+                                {config.time_cap_minutes && <span>Time Cap: {config.time_cap_minutes} min</span>}
+                                {config.rep_scheme && <span>Esquema: {config.rep_scheme}</span>}
+                              </>
+                            )}
+                            {block.wod_type === "tabata" && (
+                              <>
+                                {config.work_seconds && <span>Trabajo: {config.work_seconds}s</span>}
+                                {config.rest_seconds && <span>Descanso: {config.rest_seconds}s</span>}
+                                {config.rounds && <span>Rondas: {config.rounds}</span>}
+                              </>
+                            )}
+                            {block.wod_type === "death_by" && (
+                              <>
+                                {config.starting_reps && <span>Inicio: {config.starting_reps} reps</span>}
+                                {config.add_per_round && <span>Sumar: +{config.add_per_round} reps/rd</span>}
+                              </>
+                            )}
+                            {block.wod_type === "for_load" && (
+                              <>
+                                {config.sets && <span>Series: {config.sets}</span>}
+                                {config.reps_per_set && <span>Reps/serie: {config.reps_per_set}</span>}
+                              </>
+                            )}
+                            {block.wod_type === "chipper" && config.time_cap_minutes && (
+                              <span>Time Cap: {config.time_cap_minutes} min</span>
+                            )}
+                            {(!block.wod_type || block.wod_type === "series") && config.sets && (
+                              <>
+                                <span>Series: {config.sets}</span>
+                                {config.rest_seconds && <span>Descanso: {config.rest_seconds}s</span>}
+                              </>
                             )}
                           </div>
+                        )}
 
-                          {/* Exercises List */}
-                          <div className="flex-1 space-y-3">
+                        {blockSets ? (
+                          <div className="flex flex-col sm:flex-row gap-3 items-stretch animate-in fade-in duration-200">
+                            {/* Left bracket indicating block sets */}
+                            <div className="flex flex-row sm:flex-col justify-center items-center px-3.5 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl sm:min-w-[80px] shrink-0 text-center select-none shadow-sm gap-2 sm:gap-0">
+                              <div className="flex flex-col items-center">
+                                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Total</span>
+                                <span className="text-xl font-black text-slate-900 leading-none">{blockSets}</span>
+                                <span className="text-[10px] font-bold text-[#ff5252] leading-none mt-1">Series</span>
+                              </div>
+                              
+                              {config.has_internal_loop && config.vueltas_por_serie && (
+                                <div className="sm:mt-2.5 sm:pt-2 sm:border-t border-zinc-200 w-full flex flex-row sm:flex-col items-center gap-1 sm:gap-0 justify-center">
+                                  <Repeat className="w-3.5 h-3.5 text-zinc-450 mb-0.5 shrink-0" />
+                                  <span className="text-[8px] font-bold text-zinc-500 uppercase leading-tight hidden sm:inline">Circuito</span>
+                                  <span className="text-[9px] font-black text-emerald-600 leading-none">{config.vueltas_por_serie} vts</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Exercises List */}
+                            <div className="flex-1 space-y-3">
+                              {exercises.map((cfEx) => {
+                                const hasLevels = cfEx.levels && cfEx.levels.some(l => l.value.trim() !== "");
+                                
+                                return (
+                                  <div
+                                    key={cfEx.id}
+                                    className="p-4 rounded-xl bg-white border border-zinc-200 shadow-sm space-y-2 hover:border-zinc-300 transition-colors"
+                                  >
+                                    <h4 className="text-slate-900 font-extrabold text-base leading-tight">
+                                      {cfEx.exercise?.name || "Ejercicio"}
+                                      {cfEx.variant?.name && (
+                                        <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.variant.name}</span>
+                                      )}
+                                    </h4>
+
+                                    {!hasLevels ? (
+                                      (cfEx.reps || cfEx.sets) && (() => {
+                                        const repsStr = cfEx.reps || "—";
+                                        const isGenderSplit = repsStr.includes("/");
+                                        
+                                        return (
+                                          <div className="text-xs font-semibold text-zinc-500 flex items-center gap-1">
+                                            <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700 font-mono flex items-center gap-1">
+                                              {(() => {
+                                                const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
+                                                return showSets && cfEx.sets ? `${cfEx.sets} series × ` : "";
+                                              })()}
+                                              {isGenderSplit ? (
+                                                (() => {
+                                                  const [male, female] = repsStr.split("/");
+                                                  return (
+                                                    <span className="inline-flex items-center gap-1">
+                                                      <span className="text-blue-500 font-black">♂</span>
+                                                      <span className="text-zinc-700">{male || "—"}</span>
+                                                      <span className="text-zinc-400">/</span>
+                                                      <span className="text-rose-500 font-black">♀</span>
+                                                      <span className="text-zinc-700">{female || "—"}</span>
+                                                    </span>
+                                                  );
+                                                })()
+                                              ) : (
+                                                repsStr
+                                              )}
+                                              {" "}{cfEx.unit_override || cfEx.exercise?.default_unit || "reps"}
+                                            </span>
+                                          </div>
+                                        );
+                                      })()
+                                    ) : (
+                                      <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                                        {cfEx.levels.filter(l => l.value.trim() !== "").map(lvl => (
+                                          <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
+                                            <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                                              {lvl.level}
+                                            </span>
+                                            <span className="font-mono text-zinc-700">
+                                              {lvl.value}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {cfEx.notes && (
+                                      <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-200 pl-2">
+                                        * {cfEx.notes}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
                             {exercises.map((cfEx) => {
                               const hasLevels = cfEx.levels && cfEx.levels.some(l => l.value.trim() !== "");
                               
                               return (
                                 <div
                                   key={cfEx.id}
-                                  className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-2 hover:border-zinc-850 transition-colors"
+                                  className="p-4 rounded-xl bg-white border border-zinc-200 shadow-sm space-y-2 hover:border-zinc-300 transition-colors"
                                 >
-                                  <h4 className="text-white font-extrabold text-base leading-tight">
+                                  <h4 className="text-slate-900 font-extrabold text-base leading-tight">
                                     {cfEx.exercise?.name || "Ejercicio"}
                                     {cfEx.variant?.name && (
-                                      <span className="text-primary font-bold ml-1.5">— {cfEx.variant.name}</span>
+                                      <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.variant.name}</span>
                                     )}
                                   </h4>
 
@@ -3201,8 +3313,8 @@ function DayPreviewModal({
                                       const isGenderSplit = repsStr.includes("/");
                                       
                                       return (
-                                        <div className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                                          <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 font-mono flex items-center gap-1">
+                                        <div className="text-xs font-semibold text-zinc-500 flex items-center gap-1">
+                                          <span className="px-2 py-0.5 bg-zinc-50 border border-zinc-100 rounded text-zinc-700 font-mono flex items-center gap-1">
                                             {(() => {
                                               const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
                                               return showSets && cfEx.sets ? `${cfEx.sets} series × ` : "";
@@ -3212,11 +3324,11 @@ function DayPreviewModal({
                                                 const [male, female] = repsStr.split("/");
                                                 return (
                                                   <span className="inline-flex items-center gap-1">
-                                                    <span className="text-blue-400 font-black">♂</span>
-                                                    <span className="text-zinc-200">{male || "—"}</span>
-                                                    <span className="text-zinc-500">/</span>
-                                                    <span className="text-rose-400 font-black">♀</span>
-                                                    <span className="text-zinc-200">{female || "—"}</span>
+                                                    <span className="text-blue-500 font-black">♂</span>
+                                                    <span className="text-zinc-700">{male || "—"}</span>
+                                                    <span className="text-zinc-400">/</span>
+                                                    <span className="text-rose-500 font-black">♀</span>
+                                                    <span className="text-zinc-700">{female || "—"}</span>
                                                   </span>
                                                 );
                                               })()
@@ -3231,11 +3343,11 @@ function DayPreviewModal({
                                   ) : (
                                     <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
                                       {cfEx.levels.filter(l => l.value.trim() !== "").map(lvl => (
-                                        <div key={lvl.id} className="flex justify-between items-center bg-zinc-900 px-2.5 py-1 rounded border border-zinc-800/60">
-                                          <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">
+                                        <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
+                                          <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
                                             {lvl.level}
                                           </span>
-                                          <span className="font-mono text-zinc-200">
+                                          <span className="font-mono text-zinc-700">
                                             {lvl.value}
                                           </span>
                                         </div>
@@ -3244,7 +3356,7 @@ function DayPreviewModal({
                                   )}
 
                                   {cfEx.notes && (
-                                    <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-800 pl-2">
+                                    <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-200 pl-2">
                                       * {cfEx.notes}
                                     </p>
                                   )}
@@ -3252,87 +3364,13 @@ function DayPreviewModal({
                               );
                             })}
                           </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {exercises.map((cfEx) => {
-                            const hasLevels = cfEx.levels && cfEx.levels.some(l => l.value.trim() !== "");
-                            
-                            return (
-                              <div
-                                key={cfEx.id}
-                                className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800/80 space-y-2 hover:border-zinc-800 transition-colors"
-                              >
-                                <h4 className="text-white font-extrabold text-base leading-tight">
-                                  {cfEx.exercise?.name || "Ejercicio"}
-                                  {cfEx.variant?.name && (
-                                    <span className="text-primary font-bold ml-1.5">— {cfEx.variant.name}</span>
-                                  )}
-                                </h4>
+                        )}
+                      </div>
+                    )}
 
-                                {!hasLevels ? (
-                                  (cfEx.reps || cfEx.sets) && (() => {
-                                    const repsStr = cfEx.reps || "—";
-                                    const isGenderSplit = repsStr.includes("/");
-                                    
-                                    return (
-                                      <div className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                                        <span className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 font-mono flex items-center gap-1">
-                                          {(() => {
-                                            const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
-                                            return showSets && cfEx.sets ? `${cfEx.sets} series × ` : "";
-                                          })()}
-                                          {isGenderSplit ? (
-                                            (() => {
-                                              const [male, female] = repsStr.split("/");
-                                              return (
-                                                <span className="inline-flex items-center gap-1">
-                                                  <span className="text-blue-400 font-black">♂</span>
-                                                  <span className="text-zinc-200">{male || "—"}</span>
-                                                  <span className="text-zinc-500">/</span>
-                                                  <span className="text-rose-400 font-black">♀</span>
-                                                  <span className="text-zinc-200">{female || "—"}</span>
-                                                </span>
-                                              );
-                                            })()
-                                          ) : (
-                                            repsStr
-                                          )}
-                                          {" "}{cfEx.unit_override || cfEx.exercise?.default_unit || "reps"}
-                                        </span>
-                                      </div>
-                                    );
-                                  })()
-                                ) : (
-                                  <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-                                    {cfEx.levels.filter(l => l.value.trim() !== "").map(lvl => (
-                                      <div key={lvl.id} className="flex justify-between items-center bg-zinc-900 px-2.5 py-1 rounded border border-zinc-800/60">
-                                        <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">
-                                          {lvl.level}
-                                        </span>
-                                        <span className="font-mono text-zinc-200">
-                                          {lvl.value}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {cfEx.notes && (
-                                  <p className="text-zinc-500 text-xs italic font-medium mt-1 leading-relaxed border-l border-zinc-800 pl-2">
-                                    * {cfEx.notes}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {block.wod_config?.notes && (
-                      <div className="p-3 bg-zinc-900/30 border border-zinc-800/40 rounded-xl text-xs text-zinc-400 italic">
-                        * Notas: {block.wod_config.notes}
+                    {!isCollapsed && config.notes && (
+                      <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-500 italic mt-3">
+                        * Notas: {config.notes}
                       </div>
                     )}
                   </div>
@@ -3342,7 +3380,7 @@ function DayPreviewModal({
           </div>
         </div>
 
-        <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex justify-end shrink-0">
+        <div className="p-4 bg-white border-t border-zinc-200 flex justify-end shrink-0">
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm font-semibold text-white transition-colors"
@@ -3353,9 +3391,7 @@ function DayPreviewModal({
       </div>
     </div>
   );
-}
-
-// ─── Constants & Subcomponents for Strength Blocks ────────────
+}// ─── Constants & Subcomponents for Strength Blocks ────────────
 const STRENGTH_CATEGORY_TABS = [
   { value: "all", label: "Todos" },
   { value: "fuerza", label: "Fuerza" },

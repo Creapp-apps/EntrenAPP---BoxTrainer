@@ -422,6 +422,88 @@ export default function EntrenarPage() {
   const completedItems = checkedExercises.size + checkedSeries.size;
   const progressPct = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+
+  const isBlockCompleted = (block: Block) => {
+    const isCfBlock = dayInfo?.cycle_type === "crossfit" && block.type !== "fuerza" && block.type !== "prep_fisica";
+    if (isCfBlock) {
+      const exercises = block.cf_block_exercises || [];
+      if (exercises.length === 0) return false;
+      return exercises.every((ex) => checkedExercises.has(ex.id));
+    } else {
+      const singles = block.training_exercises.filter((te) => !te.complex_id);
+      const complexes = block.training_exercises.filter((te) => te.complex_id);
+      const singlesDone = singles.every((te) => checkedExercises.has(te.id));
+      
+      const complexIds = Array.from(new Set(complexes.map((te) => te.complex_id)));
+      const complexesDone = complexIds.every((cId) => {
+        const cSets = complexSets[cId] || [];
+        if (cSets.length === 0) return true;
+        return cSets.every((s) => checkedSeries.has(s.id));
+      });
+      
+      return singlesDone && complexesDone;
+    }
+  };
+
+  const toggleBlockCompleted = (block: Block) => {
+    const isCompleted = isBlockCompleted(block);
+    const isCfBlock = dayInfo?.cycle_type === "crossfit" && block.type !== "fuerza" && block.type !== "prep_fisica";
+    
+    if (isCfBlock) {
+      const exercises = block.cf_block_exercises || [];
+      setCheckedExercises(prev => {
+        const next = new Set(prev);
+        exercises.forEach((ex) => {
+          if (isCompleted) {
+            next.delete(ex.id);
+          } else {
+            next.add(ex.id);
+          }
+        });
+        return next;
+      });
+    } else {
+      const singles = block.training_exercises.filter((te) => !te.complex_id);
+      const complexes = block.training_exercises.filter((te) => te.complex_id);
+      
+      setCheckedExercises(prev => {
+        const next = new Set(prev);
+        singles.forEach((te) => {
+          if (isCompleted) {
+            next.delete(te.id);
+          } else {
+            next.add(te.id);
+          }
+        });
+        return next;
+      });
+
+      const complexIds = Array.from(new Set(complexes.map((te) => te.complex_id)));
+      setCheckedSeries(prev => {
+        const next = new Set(prev);
+        complexIds.forEach((cId) => {
+          const cSets = complexSets[cId] || [];
+          cSets.forEach((s) => {
+            if (isCompleted) {
+              next.delete(s.id);
+            } else {
+              next.add(s.id);
+            }
+          });
+        });
+        return next;
+      });
+    }
+
+    if (!isCompleted) {
+      setCollapsedBlocks(prev => ({
+        ...prev,
+        [block.id]: true
+      }));
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       // Usamos el API route server-side que usa el admin client
@@ -1160,7 +1242,7 @@ export default function EntrenarPage() {
 
           // ─── Render a complex/trepada as the trainer sees it ────
           const renderComplex = (complexId: string, items: TrainingExercise[]) => {
-            const cSets = (complexSets[complexId] || []).sort((a, b) => a.set_number - b.set_number);
+            const cSets = [...(complexSets[complexId] || [])].sort((a, b) => a.set_number - b.set_number);
             const isPrep = block.type === "prep_fisica";
             const isComplex = items.length > 1;
             const firstEx = items[0];
@@ -1439,118 +1521,244 @@ export default function EntrenarPage() {
                   const showWodConfig = block.type === "metcon" || block.type === "skill";
                   const wodTypeLabel = block.wod_type ? block.wod_type.toUpperCase() : "SERIES";
 
+                  const isCollapsed = collapsedBlocks[block.id];
+                  const isDone = isBlockCompleted(block);
+
                   return (
                     <div key={block.id} className="space-y-4 animate-in fade-in duration-300">
-                      <div className="border-b border-zinc-200 pb-1 flex items-center justify-between">
-                        <h3 className={`text-2xl font-black ${typeColor} uppercase tracking-widest pt-2`}>
-                          {block.name}
-                        </h3>
-                        {showWodConfig && (
-                          <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-md tracking-wider ${
-                            block.wod_type === "amrap" 
-                              ? "bg-rose-600 text-white animate-pulse" 
-                              : block.wod_type === "emom" 
-                              ? "bg-blue-600 text-white" 
-                              : block.wod_type === "for_time" 
-                              ? "bg-amber-600 text-white" 
-                              : "bg-zinc-800 text-zinc-300"
-                          }`}>
-                            {wodTypeLabel}
-                          </span>
-                        )}
-                      </div>
+                      <div className="border-b border-zinc-200 pb-1 flex items-center justify-between select-none">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                            className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors shrink-0"
+                          >
+                            {isCollapsed ? <ChevronRight className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+                          </button>
+                          <h3
+                            onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                            className={`text-2xl font-black ${typeColor} uppercase tracking-widest pt-2 cursor-pointer flex-1`}
+                          >
+                            {block.name}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleBlockCompleted(block)}
+                            className={`px-3 py-1 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 ${
+                              isDone
+                                ? "bg-emerald-500 border-emerald-500 text-white shadow-sm"
+                                : "bg-white border-zinc-200 text-zinc-500 hover:text-zinc-800 hover:border-zinc-300"
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>{isDone ? "Completo" : "Completar"}</span>
+                          </button>
 
-                      {showWodConfig && (
-                        <div className="text-xs text-zinc-500 font-medium bg-zinc-50 border border-zinc-100 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-1">
-                          {block.wod_type === "amrap" && block.wod_config?.time_cap_minutes && (
-                            <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
-                          )}
-                          {block.wod_type === "emom" && (
-                            <>
-                              {block.wod_config?.every_seconds && (
-                                <span>
-                                  Cada: {block.wod_config.every_seconds % 60 === 0 
-                                    ? `${block.wod_config.every_seconds / 60} min` 
-                                    : `${block.wod_config.every_seconds} seg`}
-                                </span>
-                              )}
-                              {block.wod_config?.every_seconds && block.wod_config?.total_minutes && (
-                                <span>
-                                  Rondas: {Math.round((block.wod_config.total_minutes as number) / ((block.wod_config.every_seconds as number) / 60))}
-                                </span>
-                              )}
-                              {block.wod_config?.total_minutes && <span>Duración: {block.wod_config.total_minutes} min</span>}
-                            </>
-                          )}
-                          {block.wod_type === "for_time" && (
-                            <>
-                              {block.wod_config?.time_cap_minutes && <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>}
-                              {block.wod_config?.rep_scheme && <span>Esquema: {block.wod_config.rep_scheme}</span>}
-                            </>
-                          )}
-                          {block.wod_type === "tabata" && (
-                            <>
-                              {block.wod_config?.work_seconds && <span>Trabajo: {block.wod_config.work_seconds}s</span>}
-                              {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
-                              {block.wod_config?.rounds && <span>Rondas: {block.wod_config.rounds}</span>}
-                            </>
-                          )}
-                          {block.wod_type === "death_by" && (
-                            <>
-                              {block.wod_config?.starting_reps && <span>Inicio: {block.wod_config.starting_reps} reps</span>}
-                              {block.wod_config?.add_per_round && <span>Sumar: +{block.wod_config.add_per_round} reps/rd</span>}
-                            </>
-                          )}
-                          {block.wod_type === "for_load" && (
-                            <>
-                              {block.wod_config?.sets && <span>Series: {block.wod_config.sets}</span>}
-                              {block.wod_config?.reps_per_set && <span>Reps/serie: {block.wod_config.reps_per_set}</span>}
-                            </>
-                          )}
-                          {block.wod_type === "chipper" && block.wod_config?.time_cap_minutes && (
-                            <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
-                          )}
-                          {(!block.wod_type || block.wod_type === "series") && block.wod_config?.sets && (
-                            <>
-                              <span>Series: {block.wod_config.sets}</span>
-                              {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
-                            </>
+                          {showWodConfig && (
+                            <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-md tracking-wider ${
+                              block.wod_type === "amrap" 
+                                ? "bg-rose-600 text-white animate-pulse" 
+                                : block.wod_type === "emom" 
+                                ? "bg-blue-600 text-white" 
+                                : block.wod_type === "for_time" 
+                                ? "bg-amber-600 text-white" 
+                                : "bg-zinc-800 text-zinc-300"
+                            }`}>
+                              {wodTypeLabel}
+                            </span>
                           )}
                         </div>
-                      )}
+                      </div>
 
-                      {(() => {
-                        const isWarmUpOrMobility = block.type === "warm_up" || block.type === "mobility";
-                        const blockSets = block.wod_config?.sets 
-                          ? Number(block.wod_config.sets) 
-                          : (isWarmUpOrMobility 
-                            ? (exercises.find(e => e.sets)?.sets || 3)
-                            : (block.wod_type === "emom" && block.wod_config?.total_minutes && block.wod_config?.every_seconds
-                              ? Math.round(Number(block.wod_config.total_minutes) / (Number(block.wod_config.every_seconds) / 60))
-                              : undefined));
+                      {!isCollapsed && (
+                        <>
+                          {showWodConfig && (
+                            <div className="text-xs text-zinc-500 font-medium bg-zinc-50 border border-zinc-100 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-1">
+                              {block.wod_type === "amrap" && block.wod_config?.time_cap_minutes && (
+                                <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
+                              )}
+                              {block.wod_type === "emom" && (
+                                <>
+                                  {block.wod_config?.every_seconds && (
+                                    <span>
+                                      Cada: {block.wod_config.every_seconds % 60 === 0 
+                                        ? `${block.wod_config.every_seconds / 60} min` 
+                                        : `${block.wod_config.every_seconds} seg`}
+                                    </span>
+                                  )}
+                                  {block.wod_config?.every_seconds && block.wod_config?.total_minutes && (
+                                    <span>
+                                      Rondas: {Math.round((block.wod_config.total_minutes as number) / ((block.wod_config.every_seconds as number) / 60))}
+                                    </span>
+                                  )}
+                                  {block.wod_config?.total_minutes && <span>Duración: {block.wod_config.total_minutes} min</span>}
+                                </>
+                              )}
+                              {block.wod_type === "for_time" && (
+                                <>
+                                  {block.wod_config?.time_cap_minutes && <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>}
+                                  {block.wod_config?.rep_scheme && <span>Esquema: {block.wod_config.rep_scheme}</span>}
+                                </>
+                              )}
+                              {block.wod_type === "tabata" && (
+                                <>
+                                  {block.wod_config?.work_seconds && <span>Trabajo: {block.wod_config.work_seconds}s</span>}
+                                  {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
+                                  {block.wod_config?.rounds && <span>Rondas: {block.wod_config.rounds}</span>}
+                                </>
+                              )}
+                              {block.wod_type === "death_by" && (
+                                <>
+                                  {block.wod_config?.starting_reps && <span>Inicio: {block.wod_config.starting_reps} reps</span>}
+                                  {block.wod_config?.add_per_round && <span>Sumar: +{block.wod_config.add_per_round} reps/rd</span>}
+                                </>
+                              )}
+                              {block.wod_type === "for_load" && (
+                                <>
+                                  {block.wod_config?.sets && <span>Series: {block.wod_config.sets}</span>}
+                                  {block.wod_config?.reps_per_set && <span>Reps/serie: {block.wod_config.reps_per_set}</span>}
+                                </>
+                              )}
+                              {block.wod_type === "chipper" && block.wod_config?.time_cap_minutes && (
+                                <span>Time Cap: {block.wod_config.time_cap_minutes} min</span>
+                              )}
+                              {(!block.wod_type || block.wod_type === "series") && block.wod_config?.sets && (
+                                <>
+                                  <span>Series: {block.wod_config.sets}</span>
+                                  {block.wod_config?.rest_seconds && <span>Descanso: {block.wod_config.rest_seconds}s</span>}
+                                </>
+                              )}
+                            </div>
+                          )}
 
-                        if (blockSets) {
-                          return (
-                            <div className="flex flex-col md:flex-row gap-4 items-stretch">
-                              {/* Left bracket indicating block sets */}
-                              <div className="flex flex-row md:flex-col justify-center items-center px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl md:min-w-[85px] shrink-0 text-center select-none shadow-sm gap-2 md:gap-0">
-                                <div className="flex flex-col items-center">
-                                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Total</span>
-                                  <span className="text-2xl font-black text-slate-900 leading-none">{blockSets}</span>
-                                  <span className="text-xs font-bold text-[#ff5252] leading-none mt-1">Series</span>
-                                </div>
-                                
-                                {block.wod_config?.has_internal_loop && block.wod_config?.vueltas_por_serie && (
-                                  <div className="md:mt-3 md:pt-2 md:border-t border-zinc-200 w-full flex flex-row md:flex-col items-center gap-1 md:gap-0 justify-center">
-                                    <Repeat className="w-3.5 h-3.5 text-zinc-400 mb-0.5" />
-                                    <span className="text-[9px] font-bold text-zinc-500 uppercase leading-tight hidden md:inline">Circuito</span>
-                                    <span className="text-[10px] font-black text-emerald-600 leading-none">{block.wod_config.vueltas_por_serie} vueltas</span>
+                          {(() => {
+                            const isWarmUpOrMobility = block.type === "warm_up" || block.type === "mobility";
+                            const blockSets = block.wod_config?.sets 
+                              ? Number(block.wod_config.sets) 
+                              : (isWarmUpOrMobility 
+                                ? (exercises.find(e => e.sets)?.sets || 3)
+                                : (block.wod_type === "emom" && block.wod_config?.total_minutes && block.wod_config?.every_seconds
+                                  ? Math.round(Number(block.wod_config.total_minutes) / (Number(block.wod_config.every_seconds) / 60))
+                                  : undefined));
+
+                            if (blockSets) {
+                              return (
+                                <div className="flex flex-col md:flex-row gap-4 items-stretch">
+                                  {/* Left bracket indicating block sets */}
+                                  <div className="flex flex-row md:flex-col justify-center items-center px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl md:min-w-[85px] shrink-0 text-center select-none shadow-sm gap-2 md:gap-0">
+                                    <div className="flex flex-col items-center">
+                                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Total</span>
+                                      <span className="text-2xl font-black text-slate-900 leading-none">{blockSets}</span>
+                                      <span className="text-xs font-bold text-[#ff5252] leading-none mt-1">Series</span>
+                                    </div>
+                                    
+                                    {block.wod_config?.has_internal_loop && block.wod_config?.vueltas_por_serie && (
+                                      <div className="md:mt-3 md:pt-2 md:border-t border-zinc-200 w-full flex flex-row md:flex-col items-center gap-1 md:gap-0 justify-center">
+                                        <Repeat className="w-3.5 h-3.5 text-zinc-400 mb-0.5" />
+                                        <span className="text-[9px] font-bold text-zinc-500 uppercase leading-tight hidden md:inline">Circuito</span>
+                                        <span className="text-[10px] font-black text-emerald-600 leading-none">{block.wod_config.vueltas_por_serie} vueltas</span>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
 
-                              {/* Exercises List */}
-                              <div className="flex-1 space-y-4">
+                                  {/* Exercises List */}
+                                  <div className="flex-1 space-y-4">
+                                    {exercises.map((cfEx) => {
+                                      const hasLevels = cfEx.cf_wod_levels && cfEx.cf_wod_levels.some(l => l.value.trim() !== "");
+                                      const videoUrl = cfEx.cf_exercise_variants?.video_url || cfEx.cf_exercises?.video_url;
+
+                                      return (
+                                        <div
+                                          key={cfEx.id}
+                                          className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
+                                        >
+                                          <div className="flex items-start justify-between gap-4">
+                                            <div className="space-y-1 flex-1 min-w-0">
+                                              <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                                {cfEx.cf_exercises?.name || "Ejercicio"}
+                                                {cfEx.cf_exercise_variants?.name && (
+                                                  <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.cf_exercise_variants.name}</span>
+                                                )}
+                                              </h4>
+
+                                              {!hasLevels ? (
+                                                cfEx.reps && (() => {
+                                                  const repsStr = cfEx.reps || "—";
+                                                  const isGenderSplit = repsStr.includes("/");
+
+                                                  return (
+                                                    <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                                      <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono flex items-center gap-1">
+                                                        {isGenderSplit ? (
+                                                          (() => {
+                                                            const [male, female] = repsStr.split("/");
+                                                            return (
+                                                              <span className="inline-flex items-center gap-1">
+                                                                <span className="text-blue-500 font-black">♂</span>
+                                                                <span className="text-zinc-700">{male || "—"}</span>
+                                                                <span className="text-zinc-400">/</span>
+                                                                <span className="text-rose-500 font-black">♀</span>
+                                                                <span className="text-zinc-700">{female || "—"}</span>
+                                                              </span>
+                                                            );
+                                                          })()
+                                                        ) : (
+                                                          repsStr
+                                                        )}
+                                                        {" "}{(() => {
+                                                          const unit = cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps";
+                                                          return unit === "reps" ? "repes" : unit;
+                                                        })()}
+                                                      </span>
+                                                    </div>
+                                                  );
+                                                })()
+                                              ) : (
+                                                <div className="grid grid-cols-2 gap-2 text-xs font-semibold mt-1">
+                                                  {cfEx.cf_wod_levels!.filter(l => l.value.trim() !== "").map(lvl => (
+                                                    <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
+                                                      <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                                                        {lvl.level}
+                                                      </span>
+                                                      <span className="font-mono text-zinc-700">
+                                                        {lvl.value}
+                                                      </span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {videoUrl && (
+                                              <a
+                                                href={videoUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0 self-start"
+                                                title="Ver video"
+                                              >
+                                                <Video className="w-5 h-5" />
+                                              </a>
+                                            )}
+                                          </div>
+
+                                          {cfEx.notes && (
+                                            <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
+                                              * {cfEx.notes}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="space-y-4">
                                 {exercises.map((cfEx) => {
                                   const hasLevels = cfEx.cf_wod_levels && cfEx.cf_wod_levels.some(l => l.value.trim() !== "");
                                   const videoUrl = cfEx.cf_exercise_variants?.video_url || cfEx.cf_exercises?.video_url;
@@ -1570,13 +1778,15 @@ export default function EntrenarPage() {
                                           </h4>
 
                                           {!hasLevels ? (
-                                            cfEx.reps && (() => {
+                                            (cfEx.reps || cfEx.sets) && (() => {
                                               const repsStr = cfEx.reps || "—";
                                               const isGenderSplit = repsStr.includes("/");
+                                              const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
 
                                               return (
                                                 <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
                                                   <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono flex items-center gap-1">
+                                                    {showSets && cfEx.sets ? `${cfEx.sets} series × ` : ""}
                                                     {isGenderSplit ? (
                                                       (() => {
                                                         const [male, female] = repsStr.split("/");
@@ -1639,109 +1849,15 @@ export default function EntrenarPage() {
                                   );
                                 })}
                               </div>
+                            );
+                          })()}
+
+                          {block.wod_config?.notes && (
+                            <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs text-zinc-500 italic">
+                              * Notas: {block.wod_config.notes}
                             </div>
-                          );
-                        }
-
-                        return (
-                          <div className="space-y-4">
-                            {exercises.map((cfEx) => {
-                              const hasLevels = cfEx.cf_wod_levels && cfEx.cf_wod_levels.some(l => l.value.trim() !== "");
-                              const videoUrl = cfEx.cf_exercise_variants?.video_url || cfEx.cf_exercises?.video_url;
-
-                              return (
-                                <div
-                                  key={cfEx.id}
-                                  className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
-                                >
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="space-y-1">
-                                      <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
-                                        {cfEx.cf_exercises?.name || "Ejercicio"}
-                                        {cfEx.cf_exercise_variants?.name && (
-                                          <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.cf_exercise_variants.name}</span>
-                                        )}
-                                      </h4>
-
-                                      {!hasLevels ? (
-                                        (cfEx.reps || cfEx.sets) && (() => {
-                                          const repsStr = cfEx.reps || "—";
-                                          const isGenderSplit = repsStr.includes("/");
-                                          const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
-
-                                          return (
-                                            <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
-                                              <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono flex items-center gap-1">
-                                                {showSets && cfEx.sets ? `${cfEx.sets} series × ` : ""}
-                                                {isGenderSplit ? (
-                                                  (() => {
-                                                    const [male, female] = repsStr.split("/");
-                                                    return (
-                                                      <span className="inline-flex items-center gap-1">
-                                                        <span className="text-blue-500 font-black">♂</span>
-                                                        <span className="text-zinc-700">{male || "—"}</span>
-                                                        <span className="text-zinc-400">/</span>
-                                                        <span className="text-rose-500 font-black">♀</span>
-                                                        <span className="text-zinc-700">{female || "—"}</span>
-                                                      </span>
-                                                    );
-                                                  })()
-                                                ) : (
-                                                  repsStr
-                                                )}
-                                                {" "}{(() => {
-                                                  const unit = cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps";
-                                                  return unit === "reps" ? "repes" : unit;
-                                                })()}
-                                              </span>
-                                            </div>
-                                          );
-                                        })()
-                                      ) : (
-                                        <div className="grid grid-cols-2 gap-2 text-xs font-semibold mt-1">
-                                          {cfEx.cf_wod_levels!.filter(l => l.value.trim() !== "").map(lvl => (
-                                            <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
-                                              <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
-                                                {lvl.level}
-                                              </span>
-                                              <span className="font-mono text-zinc-700">
-                                                {lvl.value}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {videoUrl && (
-                                      <a
-                                        href={videoUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0 self-start"
-                                        title="Ver video"
-                                      >
-                                        <Video className="w-5 h-5" />
-                                      </a>
-                                    )}
-                                  </div>
-
-                                  {cfEx.notes && (
-                                    <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
-                                      * {cfEx.notes}
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-
-                      {block.wod_config?.notes && (
-                        <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs text-zinc-500 italic">
-                          * Notas: {block.wod_config.notes}
-                        </div>
+                          )}
+                        </>
                       )}
                     </div>
                   );
@@ -1771,6 +1887,9 @@ export default function EntrenarPage() {
                   return aOrd - bOrd;
                 });
 
+                const isCollapsed = collapsedBlocks[block.id];
+                const isDone = isBlockCompleted(block);
+
                 return (
                   <div key={block.id} className="space-y-4 animate-in fade-in duration-300">
                     {(() => {
@@ -1787,536 +1906,186 @@ export default function EntrenarPage() {
                         : "text-[#ff5252]";
 
                       return (
-                        <h3 className={`text-2xl font-black ${typeColor} uppercase tracking-widest pt-2`}>
-                          {block.name}
-                        </h3>
+                        <div className="border-b border-zinc-200 pb-1 flex items-center justify-between select-none">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                              className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors shrink-0"
+                            >
+                              {isCollapsed ? <ChevronRight className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+                            </button>
+                            <h3
+                              onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !prev[block.id] }))}
+                              className={`text-2xl font-black ${typeColor} uppercase tracking-widest pt-2 cursor-pointer flex-1`}
+                            >
+                              {block.name}
+                            </h3>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleBlockCompleted(block)}
+                            className={`px-3 py-1 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 ${
+                              isDone
+                                ? "bg-emerald-500 border-emerald-500 text-white shadow-sm"
+                                : "bg-white border-zinc-200 text-zinc-500 hover:text-zinc-800 hover:border-zinc-300"
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>{isDone ? "Completo" : "Completar"}</span>
+                          </button>
+                        </div>
                       );
                     })()}
                     
-                    <div className="space-y-4">
-                      {(() => {
-                        const blockSets = (block.type === "warm_up" || block.type === "mobility") 
-                          ? (block.wod_config?.sets ? Number(block.wod_config.sets) : (block.training_exercises.find(e => e.sets)?.sets || 3)) 
-                          : (block.wod_config?.sets ? Number(block.wod_config.sets) : undefined);
+                    {!isCollapsed && (
+                      <>
+                        <div className="space-y-4">
+                          {(() => {
+                            const blockSets = (block.type === "warm_up" || block.type === "mobility") 
+                              ? (block.wod_config?.sets ? Number(block.wod_config.sets) : (block.training_exercises.find(e => e.sets)?.sets || 3)) 
+                              : (block.wod_config?.sets ? Number(block.wod_config.sets) : undefined);
 
-                        if (blockSets) {
-                          return (
-                            <div className="flex flex-col md:flex-row gap-4 items-stretch">
-                              {/* Left bracket indicating block sets */}
-                              <div className="flex flex-row md:flex-col justify-center items-center px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl md:min-w-[85px] shrink-0 text-center select-none shadow-sm gap-2 md:gap-0">
-                                <div className="flex flex-col items-center">
-                                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Total</span>
-                                  <span className="text-2xl font-black text-slate-900 leading-none">{blockSets}</span>
-                                  <span className="text-xs font-bold text-[#ff5252] leading-none mt-1">Series</span>
-                                </div>
-                                
-                                {block.wod_config?.has_internal_loop && block.wod_config?.vueltas_por_serie && (
-                                  <div className="md:mt-3 md:pt-2 md:border-t border-zinc-200 w-full flex flex-row md:flex-col items-center gap-1 md:gap-0 justify-center">
-                                    <Repeat className="w-3.5 h-3.5 text-zinc-400 mb-0.5" />
-                                    <span className="text-[9px] font-bold text-zinc-500 uppercase leading-tight hidden md:inline">Circuito</span>
-                                    <span className="text-[10px] font-black text-emerald-600 leading-none">{block.wod_config.vueltas_por_serie} vueltas</span>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Exercises List */}
-                              <div className="flex-1 space-y-4">
-                                {block.training_exercises.sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((te) => {
-                                  const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
-                                    ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
-                                    : te.weight_target || undefined;
-
-                                  const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
-                                  const { dropsets, actualNotes } = parseNotesAndDropsets(te.notes);
-
-                                  return (
-                                    <div
-                                      key={te.id}
-                                      className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
-                                    >
-                                      <div className="flex items-start justify-between gap-4">
-                                        <div className="space-y-1 flex-1 min-w-0">
-                                          <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
-                                            {te.exercises?.name}
-                                            {te.exercise_variants?.name && (
-                                              <span className="text-emerald-600 font-bold ml-1.5">— {te.exercise_variants.name}</span>
-                                            )}
-                                          </h4>
-                                          <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
-                                            <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono">
-                                              {te.reps} reps
-                                            </span>
-                                            {suggestedKg && (
-                                              <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
-                                                Sug: {suggestedKg} kg
-                                              </span>
-                                            )}
-                                            {te.rpe_target !== null && te.rpe_target !== undefined && (
-                                              <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-bold">
-                                                {te.rpe_target > 0 ? `RPE ${te.rpe_target}` : `RIR ${Math.abs(te.rpe_target) === 0.1 ? 0 : Math.abs(te.rpe_target)}`}
-                                              </span>
-                                            )}
-                                            {dropsets.map((ds, idx) => (
-                                              <span key={idx} className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded-md border border-orange-100 font-bold text-[10px] flex items-center gap-1">
-                                                <Repeat className="w-3.5 h-3.5 text-orange-500 shrink-0" /> Drop: {getDropsetText(ds, suggestedKg)}
-                                              </span>
-                                            ))}
-                                            {videoUrl && (
-                                              <a
-                                                href={videoUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold ml-1"
-                                              >
-                                                <Video className="w-3.5 h-3.5" /> Video
-                                              </a>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {actualNotes && (
-                                        <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
-                                          * {actualNotes}
-                                        </p>
-                                      )}
+                            if (blockSets) {
+                              return (
+                                <div className="flex flex-col md:flex-row gap-4 items-stretch">
+                                  {/* Left bracket indicating block sets */}
+                                  <div className="flex flex-row md:flex-col justify-center items-center px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl md:min-w-[85px] shrink-0 text-center select-none shadow-sm gap-2 md:gap-0">
+                                    <div className="flex flex-col items-center">
+                                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Total</span>
+                                      <span className="text-2xl font-black text-slate-900 leading-none">{blockSets}</span>
+                                      <span className="text-xs font-bold text-[#ff5252] leading-none mt-1">Series</span>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return blockItems.map(item => {
-                        if (item.type === "single") {
-                          const te = item.te;
-                          const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
-                            ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
-                            : te.weight_target || undefined;
-
-                          const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
-
-                          return (
-                            <div
-                              key={te.id}
-                              className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-4 hover:border-zinc-300 transition-colors"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="space-y-1">
-                                  <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
-                                    {te.exercises?.name}
-                                    {te.exercise_variants?.name && (
-                                      <span className="text-emerald-600 font-bold ml-1.5">— {te.exercise_variants.name}</span>
-                                    )}
-                                  </h4>
-                                  <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
-                                    <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700">
-                                      {te.sets} series × {te.reps} reps
-                                    </span>
-                                    {suggestedKg && (
-                                      <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
-                                        Sug: {suggestedKg} kg
-                                      </span>
-                                    )}
-                                    {videoUrl && (
-                                      <a
-                                        href={videoUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold"
-                                      >
-                                        <Video className="w-3.5 h-3.5" /> Video
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {te.notes && (
-                                <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
-                                  * {te.notes}
-                                </p>
-                              )}
-                              {/* Lista de series */}
-                              <div className="space-y-2 pt-1 border-t border-zinc-100">
-                                {Array.from({ length: te.sets }).map((_, setIdx) => {
-                                  const isSetDone = completedSingleSets.has(`${te.id}-${setIdx}`);
-                                  const pct = te.percentage_1rm;
-                                  const wt = te.weight_target;
-                                  const loggedWeight = exerciseLogs[te.id]?.set_weights?.[setIdx];
-
-                                  return (
-                                    <div key={setIdx} className="flex items-center justify-between py-1.5 border-b border-zinc-50 last:border-0 animate-in fade-in duration-200">
-                                      <div className="flex items-center gap-2 text-sm">
-                                        <span className="text-[#ff5252] font-black font-mono w-7 text-left">S{setIdx + 1}:</span>
-                                        <span className="text-slate-900 font-extrabold">{te.reps} reps</span>
-                                        {(pct || wt) && (
-                                          <span className="text-zinc-500 font-semibold">
-                                            @ {pct ? `${pct}%` : `${wt} kg`}
-                                            {pct && suggestedKg && (
-                                              <span className="text-primary font-bold ml-1">
-                                                → {suggestedKg} kg
-                                              </span>
-                                            )}
-                                          </span>
-                                        )}
-                                        {isSetDone && (
-                                          <span className="ml-2 text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                                            {loggedWeight !== undefined ? `${loggedWeight} kg` : "✓"}
-                                          </span>
-                                        )}
+                                    
+                                    {block.wod_config?.has_internal_loop && block.wod_config?.vueltas_por_serie && (
+                                      <div className="md:mt-3 md:pt-2 md:border-t border-zinc-200 w-full flex flex-row md:flex-col items-center gap-1 md:gap-0 justify-center">
+                                        <Repeat className="w-3.5 h-3.5 text-zinc-400 mb-0.5" />
+                                        <span className="text-[9px] font-bold text-zinc-500 uppercase leading-tight hidden md:inline">Circuito</span>
+                                        <span className="text-[10px] font-black text-emerald-600 leading-none">{block.wod_config.vueltas_por_serie} vueltas</span>
                                       </div>
-                                      <div className="flex items-center gap-2">
-                                        {isSetDone ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setPendingSingleSetConfirm({ te, setIdx: setIdx, calcWeight: suggestedKg || null });
-                                              }}
-                                              className="text-xs text-zinc-400 hover:text-primary font-bold px-2 py-1"
-                                            >
-                                              Modificar
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const setKey = `${te.id}-${setIdx}`;
-                                                setCompletedSingleSets(prev => {
-                                                  const next = new Set(prev);
-                                                  next.delete(setKey);
-                                                  return next;
-                                                });
-
-                                                const completedCount = Array.from({ length: te.sets }).filter((_, idx) =>
-                                                  idx === setIdx ? false : completedSingleSets.has(`${te.id}-${idx}`)
-                                                ).length;
-
-                                                setCheckedExercises(prev => {
-                                                  const next = new Set(prev);
-                                                  next.delete(te.id);
-                                                  return next;
-                                                });
-
-                                                setExerciseLogs(prev => {
-                                                  const log = prev[te.id];
-                                                  if (!log) return prev;
-                                                  const newWeights = [...(log.set_weights || [])];
-                                                  newWeights[setIdx] = undefined;
-                                                  return {
-                                                    ...prev,
-                                                    [te.id]: {
-                                                      ...log,
-                                                      set_weights: newWeights,
-                                                      sets_completed: completedCount,
-                                                    }
-                                                  };
-                                                });
-                                              }}
-                                              className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-all active:scale-95 shadow-sm"
-                                            >
-                                              <Check className="w-4 h-4 stroke-[3]" />
-                                            </button>
-                                          </>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setPendingSingleSetConfirm({ te, setIdx: setIdx, calcWeight: suggestedKg || null });
-                                            }}
-                                            className="w-8 h-8 rounded-full border-2 border-zinc-200 hover:border-[#ff5252] bg-zinc-50 flex items-center justify-center transition-all active:scale-95 hover:bg-zinc-100"
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        } else {
-                          const cSets = (complexSets[item.complexId] || []).sort((a, b) => a.set_number - b.set_number);
-                          const firstEx = item.items[0];
-                          const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
-                          const isPrep = block.type === "prep_fisica";
-
-                          if (isPrep) {
-                            const complexTitle = "Circuito de Preparación Física";
-                            return (
-                              <div key={item.complexId} className="p-5 rounded-2xl bg-white border-2 border-emerald-500/20 shadow-sm space-y-4 hover:border-emerald-500/30 transition-colors">
-                                <div className="space-y-1">
-                                  <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight flex items-center gap-1.5">
-                                    <Dumbbell className="w-5 h-5 text-emerald-600 animate-pulse" />
-                                    <span>{complexTitle}</span>
-                                  </h4>
-                                  <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
-                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-100 font-bold">
-                                      {cSets.length} Rondas
-                                    </span>
+                                    )}
                                   </div>
-                                </div>
 
-                                {item.items.some(te => te.notes) && (
-                                  <div className="space-y-1 mt-1 border-l-2 border-emerald-500/20 pl-3">
-                                    {item.items.filter(te => te.notes).map(te => (
-                                      <p key={te.id} className="text-zinc-500 text-xs italic font-medium leading-relaxed">
-                                        * {te.exercises?.name}: {te.notes}
-                                      </p>
-                                    ))}
-                                  </div>
-                                )}
+                                  {/* Exercises List */}
+                                  <div className="flex-1 space-y-4">
+                                    {[...block.training_exercises].sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((te) => {
+                                      const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
+                                        ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+                                        : te.weight_target || undefined;
 
-                                {/* Lista de series para Prep. Física en Pizarra */}
-                                <div className="space-y-3 pt-1 border-t border-zinc-100">
-                                  {cSets.map((s, idx) => {
-                                    const isSetDone = checkedSeries.has(s.id);
-                                    const loggedWeight = seriesWeights[s.id];
+                                      const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
+                                      const { dropsets, actualNotes } = parseNotesAndDropsets(te.notes);
 
-                                    return (
-                                      <div key={s.id} className="flex items-start justify-between py-2 border-b border-zinc-50 last:border-0 animate-in fade-in duration-200">
-                                        <div className="flex-1 min-w-0">
-                                          <span className="text-emerald-600 font-black text-sm block">Ronda {s.set_number || idx + 1}:</span>
-                                          <div className="space-y-1 mt-1 pl-2 border-l-2 border-emerald-500/10">
-                                            {item.items.map(te => {
-                                              const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                              const r = ov ? ov.reps : te.reps;
-                                              const ovPct = ov?.percentage_1rm;
-                                              const ovWt = ov?.weight_target;
-                                              const ovRpe = ov?.rpe_target;
-                                              const basePct = te.percentage_1rm;
-                                              const baseWt = te.weight_target;
-                                              const baseRpe = te.rpe_target;
-
-                                              let pct = null;
-                                              let wt = null;
-                                              let rpe = null;
-
-                                              if (ovPct !== undefined || ovWt !== undefined || ovRpe !== undefined) {
-                                                pct = ovPct ?? null;
-                                                wt = ovWt ?? null;
-                                                rpe = ovRpe ?? null;
-                                              } else {
-                                                pct = basePct ?? null;
-                                                wt = baseWt ?? null;
-                                                rpe = baseRpe ?? null;
-                                              }
-
-                                              const exOneRM = te.exercise_id ? oneRMs[te.exercise_id] : undefined;
-                                              const calcExWeight = exOneRM && pct
-                                                ? Math.round((exOneRM * pct / 100) / 2.5) * 2.5
-                                                : wt || null;
-
-                                              const v = te.exercise_variants?.name ?? "";
-                                              const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
-
-                                              let intensityStr = "";
-                                              if (calcExWeight) {
-                                                intensityStr = `@ ${calcExWeight} kg`;
-                                              } else if (pct) {
-                                                intensityStr = `@ ${pct}%`;
-                                              } else if (rpe !== null && rpe !== undefined) {
-                                                if (rpe > 0) {
-                                                  intensityStr = `@ RPE ${rpe}`;
-                                                } else {
-                                                  const rirVal = rpe === -0.1 ? 0 : Math.abs(rpe);
-                                                  intensityStr = `@ RIR ${rirVal}`;
-                                                }
-                                              }
-
-                                              return (
-                                                <div key={te.id} className="text-xs text-zinc-600 flex justify-between gap-4 py-0.5">
-                                                  <span className={`${isSetDone ? "text-zinc-400 line-through font-normal" : "font-semibold text-slate-800"}`}>{displayName}</span>
-                                                  <span className={`font-mono text-[11px] font-extrabold shrink-0 ${isSetDone ? "text-zinc-400" : "text-emerald-700"}`}>
-                                                    {r} reps {intensityStr}
+                                      return (
+                                        <div
+                                          key={te.id}
+                                          className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
+                                        >
+                                          <div className="flex items-start justify-between gap-4">
+                                            <div className="space-y-1 flex-1 min-w-0">
+                                              <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                                {te.exercises?.name}
+                                                {te.exercise_variants?.name && (
+                                                  <span className="text-emerald-600 font-bold ml-1.5">— {te.exercise_variants.name}</span>
+                                                )}
+                                              </h4>
+                                              <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                                <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono">
+                                                  {te.reps} reps
+                                                </span>
+                                                {suggestedKg && (
+                                                  <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
+                                                    Sug: {suggestedKg} kg
                                                   </span>
-                                                </div>
-                                              );
-                                            })}
+                                                )}
+                                                {te.rpe_target !== null && te.rpe_target !== undefined && (
+                                                  <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-bold">
+                                                    {te.rpe_target > 0 ? `RPE ${te.rpe_target}` : `RIR ${Math.abs(te.rpe_target) === 0.1 ? 0 : Math.abs(te.rpe_target)}`}
+                                                  </span>
+                                                )}
+                                                {dropsets.map((ds, idx) => (
+                                                  <span key={idx} className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded-md border border-orange-100 font-bold text-[10px] flex items-center gap-1">
+                                                    <Repeat className="w-3.5 h-3.5 text-orange-500 shrink-0" /> Drop: {getDropsetText(ds, suggestedKg)}
+                                                  </span>
+                                                ))}
+                                                {videoUrl && (
+                                                  <a
+                                                    href={videoUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold ml-1"
+                                                  >
+                                                    <Video className="w-3.5 h-3.5" /> Video
+                                                  </a>
+                                                )}
+                                              </div>
+                                            </div>
                                           </div>
-                                          {isSetDone && (
-                                            <span className="mt-1 inline-block text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                                              Registrado: {loggedWeight !== undefined ? `${loggedWeight} kg` : "✓"}
-                                            </span>
+
+                                          {actualNotes && (
+                                            <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
+                                              * {actualNotes}
+                                            </p>
                                           )}
                                         </div>
-
-                                        <div className="flex items-center gap-2 ml-4 shrink-0 mt-1">
-                                          {isSetDone ? (
-                                            <>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setPendingSeriesConfirm({ set: s, items: item.items, calcWeight: null });
-                                                }}
-                                                className="text-xs text-zinc-400 hover:text-primary font-bold px-2 py-1"
-                                              >
-                                                Modificar
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const sId = s.id;
-                                                  setCheckedSeries(prev => {
-                                                    const next = new Set(prev);
-                                                    next.delete(sId);
-                                                    return next;
-                                                  });
-                                                  setSeriesWeights(prev => {
-                                                    const next = { ...prev };
-                                                    delete next[sId];
-                                                    return next;
-                                                  });
-                                                }}
-                                                className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-all active:scale-95 shadow-sm"
-                                              >
-                                                <Check className="w-4 h-4 stroke-[3]" />
-                                              </button>
-                                            </>
-                                          ) : (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setPendingSeriesConfirm({ set: s, items: item.items, calcWeight: null });
-                                              }}
-                                              className="w-8 h-8 rounded-full border-2 border-zinc-200 hover:border-emerald-500 bg-zinc-50 flex items-center justify-center transition-all active:scale-95 hover:bg-zinc-100"
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          }
+                              );
+                            }
 
-                          const complexTitle = item.items.map(te => {
-                            const v = te.exercise_variants?.name ?? "";
-                            return v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
-                          }).join(" + ");
+                            return blockItems.map(item => {
+                            if (item.type === "single") {
+                              const te = item.te;
+                              const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
+                                ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+                                : te.weight_target || undefined;
 
-                          const firstSuggestedKg = firstOneRM && cSets[0]?.percentage_1rm
-                            ? Math.round((firstOneRM * cSets[0].percentage_1rm / 100) / 2.5) * 2.5
-                            : cSets[0]?.weight_target || undefined;
+                              const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
 
-                          return (
-                            <div key={item.complexId} className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-4 hover:border-zinc-300 transition-colors">
-                              <div className="space-y-1">
-                                <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
-                                  {complexTitle}
-                                </h4>
-                                <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
-                                  <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700">
-                                    {item.items.length > 1 ? "Complex" : "Trepada"} ({cSets.length} series)
-                                  </span>
-                                  {firstSuggestedKg && (
-                                    <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
-                                      Sug: {firstSuggestedKg} kg
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {item.items.some(te => te.notes) && (
-                                <div className="space-y-1 mt-1 border-l border-zinc-200 pl-3">
-                                  {item.items.filter(te => te.notes).map(te => (
-                                    <p key={te.id} className="text-zinc-500 text-xs italic font-medium leading-relaxed">
-                                      * {te.exercises?.name}: {te.notes}
-                                    </p>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Lista de series para Complex */}
-                              <div className="space-y-2 pt-1 border-t border-zinc-100">
-                                {cSets.map((s, idx) => {
-                                  const isSetDone = checkedSeries.has(s.id);
-                                  const repsText = item.items.map(te => {
-                                    const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                    return ov ? ov.reps : te.reps;
-                                  }).join("+");
-
-                                  const pct = s.percentage_1rm;
-                                  const wt = s.weight_target;
-                                  const loggedWeight = seriesWeights[s.id];
-                                  const calcWeight = firstOneRM && pct
-                                    ? Math.round((firstOneRM * pct / 100) / 2.5) * 2.5
-                                    : wt || undefined;
-
-                                  return (
-                                    <div key={s.id} className="flex items-center justify-between py-1.5 border-b border-zinc-50 last:border-0 animate-in fade-in duration-200">
-                                      <div className="flex items-center gap-2 text-sm flex-wrap">
-                                        <span className="text-[#ff5252] font-black font-mono w-7 text-left">S{s.set_number || idx + 1}:</span>
-                                        <span className="text-slate-900 font-extrabold">{repsText}</span>
-                                        {s.rounds && s.rounds > 1 && (
-                                          <span className="text-[10px] bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm shrink-0">
-                                            {s.rounds} Rondas
+                              return (
+                                <div
+                                  key={te.id}
+                                  className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-4 hover:border-zinc-300 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="space-y-1">
+                                      <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                        {te.exercises?.name}
+                                        {te.exercise_variants?.name && (
+                                          <span className="text-emerald-600 font-bold ml-1.5">— {te.exercise_variants.name}</span>
+                                        )}
+                                      </h4>
+                                      <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                        <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700">
+                                          {te.sets} series × {te.reps} reps
+                                        </span>
+                                        {suggestedKg && (
+                                          <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
+                                            Sug: {suggestedKg} kg
                                           </span>
                                         )}
-                                        {(pct || wt) && (
-                                          <span className="text-zinc-500 font-semibold">
-                                            @ {pct ? `${pct}%` : `${wt} kg`}
-                                            {pct && calcWeight && (
-                                              <span className="text-primary font-bold ml-1">
-                                                → {calcWeight} kg
-                                              </span>
-                                            )}
-                                          </span>
-                                        )}
-                                        {isSetDone && (
-                                          <span className="ml-2 text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-                                            {loggedWeight !== undefined ? `${loggedWeight} kg` : "✓"}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {isSetDone ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setPendingSeriesConfirm({ set: s, items: item.items, calcWeight: calcWeight || null });
-                                              }}
-                                              className="text-xs text-zinc-400 hover:text-primary font-bold px-2 py-1"
-                                            >
-                                              Modificar
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const sId = s.id;
-                                                setCheckedSeries(prev => {
-                                                  const next = new Set(prev);
-                                                  next.delete(sId);
-                                                  return next;
-                                                });
-                                                setSeriesWeights(prev => {
-                                                  const next = { ...prev };
-                                                  delete next[sId];
-                                                  return next;
-                                                });
-                                              }}
-                                              className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-all active:scale-95 shadow-sm"
-                                            >
-                                              <Check className="w-4 h-4 stroke-[3]" />
-                                            </button>
-                                          </>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setPendingSeriesConfirm({ set: s, items: item.items, calcWeight: calcWeight || null });
-                                            }}
-                                            className="w-8 h-8 rounded-full border-2 border-zinc-200 hover:border-[#ff5252] bg-zinc-50 flex items-center justify-center transition-all active:scale-95 hover:bg-zinc-100"
-                                          />
+                                        {videoUrl && (
+                                          <a
+                                            href={videoUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold"
+                                          >
+                                            <Video className="w-3.5 h-3.5" /> Video
+                                          </a>
                                         )}
                                       </div>
                                     </div>
-                                  );
-                                })}
+                                  </div>
+
+                                  {te.notes && (
+                                    <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
+                                      * {te.notes}
+                                    </p>
+                                  )}
                               </div>
-                            </div>
                           );
                         }
                       })})()}
@@ -2326,8 +2095,10 @@ export default function EntrenarPage() {
                         * Notas: {block.wod_config.notes}
                       </div>
                     )}
-                  </div>
-                );
+                  </>
+                )}
+              </div>
+            );
               })}
             </div>
           </div>
