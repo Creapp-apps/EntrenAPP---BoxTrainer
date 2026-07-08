@@ -1519,97 +1519,224 @@ export default function EntrenarPage() {
                         </div>
                       )}
 
-                      <div className="space-y-4">
-                        {exercises.map((cfEx) => {
-                          const hasLevels = cfEx.cf_wod_levels && cfEx.cf_wod_levels.some(l => l.value.trim() !== "");
-                          const videoUrl = cfEx.cf_exercise_variants?.video_url || cfEx.cf_exercises?.video_url;
+                      {(() => {
+                        const isWarmUpOrMobility = block.type === "warm_up" || block.type === "mobility";
+                        const blockSets = block.wod_config?.sets 
+                          ? Number(block.wod_config.sets) 
+                          : (isWarmUpOrMobility 
+                            ? (exercises.find(e => e.sets)?.sets || 3)
+                            : (block.wod_type === "emom" && block.wod_config?.total_minutes && block.wod_config?.every_seconds
+                              ? Math.round(Number(block.wod_config.total_minutes) / (Number(block.wod_config.every_seconds) / 60))
+                              : undefined));
 
+                        if (blockSets) {
                           return (
-                            <div
-                              key={cfEx.id}
-                              className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="space-y-1">
-                                  <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
-                                    {cfEx.cf_exercises?.name || "Ejercicio"}
-                                    {cfEx.cf_exercise_variants?.name && (
-                                      <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.cf_exercise_variants.name}</span>
-                                    )}
-                                  </h4>
-
-                                  {!hasLevels ? (
-                                    (cfEx.reps || cfEx.sets) && (() => {
-                                      const repsStr = cfEx.reps || "—";
-                                      const isGenderSplit = repsStr.includes("/");
-                                      const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
-
-                                      return (
-                                        <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
-                                          <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono flex items-center gap-1">
-                                            {showSets && cfEx.sets ? `${cfEx.sets} series × ` : ""}
-                                            {isGenderSplit ? (
-                                              (() => {
-                                                const [male, female] = repsStr.split("/");
-                                                return (
-                                                  <span className="inline-flex items-center gap-1">
-                                                    <span className="text-blue-500 font-black">♂</span>
-                                                    <span className="text-zinc-700">{male || "—"}</span>
-                                                    <span className="text-zinc-400">/</span>
-                                                    <span className="text-rose-500 font-black">♀</span>
-                                                    <span className="text-zinc-700">{female || "—"}</span>
-                                                  </span>
-                                                );
-                                              })()
-                                            ) : (
-                                              repsStr
-                                            )}
-                                            {" "}{(() => {
-                                              const unit = cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps";
-                                              return unit === "reps" ? "repes" : unit;
-                                            })()}
-                                          </span>
-                                        </div>
-                                      );
-                                    })()
-                                  ) : (
-                                    <div className="grid grid-cols-2 gap-2 text-xs font-semibold mt-1">
-                                      {cfEx.cf_wod_levels!.filter(l => l.value.trim() !== "").map(lvl => (
-                                        <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
-                                          <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
-                                            {lvl.level}
-                                          </span>
-                                          <span className="font-mono text-zinc-700">
-                                            {lvl.value}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                            <div className="flex flex-col md:flex-row gap-4 items-stretch">
+                              {/* Left bracket indicating block sets */}
+                              <div className="flex flex-row md:flex-col justify-center items-center px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl md:min-w-[85px] shrink-0 text-center select-none shadow-sm gap-2 md:gap-0">
+                                <div className="flex flex-col items-center">
+                                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Total</span>
+                                  <span className="text-2xl font-black text-slate-900 leading-none">{blockSets}</span>
+                                  <span className="text-xs font-bold text-[#ff5252] leading-none mt-1">Series</span>
                                 </div>
-
-                                {videoUrl && (
-                                  <a
-                                    href={videoUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0 self-start"
-                                    title="Ver video"
-                                  >
-                                    <Video className="w-5 h-5" />
-                                  </a>
+                                
+                                {block.wod_config?.has_internal_loop && block.wod_config?.vueltas_por_serie && (
+                                  <div className="md:mt-3 md:pt-2 md:border-t border-zinc-200 w-full flex flex-row md:flex-col items-center gap-1 md:gap-0 justify-center">
+                                    <Repeat className="w-3.5 h-3.5 text-zinc-400 mb-0.5" />
+                                    <span className="text-[9px] font-bold text-zinc-500 uppercase leading-tight hidden md:inline">Circuito</span>
+                                    <span className="text-[10px] font-black text-emerald-600 leading-none">{block.wod_config.vueltas_por_serie} vueltas</span>
+                                  </div>
                                 )}
                               </div>
 
-                              {cfEx.notes && (
-                                <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
-                                  * {cfEx.notes}
-                                </p>
-                              )}
+                              {/* Exercises List */}
+                              <div className="flex-1 space-y-4">
+                                {exercises.map((cfEx) => {
+                                  const hasLevels = cfEx.cf_wod_levels && cfEx.cf_wod_levels.some(l => l.value.trim() !== "");
+                                  const videoUrl = cfEx.cf_exercise_variants?.video_url || cfEx.cf_exercises?.video_url;
+
+                                  return (
+                                    <div
+                                      key={cfEx.id}
+                                      className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
+                                    >
+                                      <div className="flex items-start justify-between gap-4">
+                                        <div className="space-y-1 flex-1 min-w-0">
+                                          <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                            {cfEx.cf_exercises?.name || "Ejercicio"}
+                                            {cfEx.cf_exercise_variants?.name && (
+                                              <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.cf_exercise_variants.name}</span>
+                                            )}
+                                          </h4>
+
+                                          {!hasLevels ? (
+                                            cfEx.reps && (() => {
+                                              const repsStr = cfEx.reps || "—";
+                                              const isGenderSplit = repsStr.includes("/");
+
+                                              return (
+                                                <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                                  <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono flex items-center gap-1">
+                                                    {isGenderSplit ? (
+                                                      (() => {
+                                                        const [male, female] = repsStr.split("/");
+                                                        return (
+                                                          <span className="inline-flex items-center gap-1">
+                                                            <span className="text-blue-500 font-black">♂</span>
+                                                            <span className="text-zinc-700">{male || "—"}</span>
+                                                            <span className="text-zinc-400">/</span>
+                                                            <span className="text-rose-500 font-black">♀</span>
+                                                            <span className="text-zinc-700">{female || "—"}</span>
+                                                          </span>
+                                                        );
+                                                      })()
+                                                    ) : (
+                                                      repsStr
+                                                    )}
+                                                    {" "}{(() => {
+                                                      const unit = cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps";
+                                                      return unit === "reps" ? "repes" : unit;
+                                                    })()}
+                                                  </span>
+                                                </div>
+                                              );
+                                            })()
+                                          ) : (
+                                            <div className="grid grid-cols-2 gap-2 text-xs font-semibold mt-1">
+                                              {cfEx.cf_wod_levels!.filter(l => l.value.trim() !== "").map(lvl => (
+                                                <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
+                                                  <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                                                    {lvl.level}
+                                                  </span>
+                                                  <span className="font-mono text-zinc-700">
+                                                    {lvl.value}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {videoUrl && (
+                                          <a
+                                            href={videoUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0 self-start"
+                                            title="Ver video"
+                                          >
+                                            <Video className="w-5 h-5" />
+                                          </a>
+                                        )}
+                                      </div>
+
+                                      {cfEx.notes && (
+                                        <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
+                                          * {cfEx.notes}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           );
-                        })}
-                      </div>
+                        }
+
+                        return (
+                          <div className="space-y-4">
+                            {exercises.map((cfEx) => {
+                              const hasLevels = cfEx.cf_wod_levels && cfEx.cf_wod_levels.some(l => l.value.trim() !== "");
+                              const videoUrl = cfEx.cf_exercise_variants?.video_url || cfEx.cf_exercises?.video_url;
+
+                              return (
+                                <div
+                                  key={cfEx.id}
+                                  className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="space-y-1">
+                                      <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                        {cfEx.cf_exercises?.name || "Ejercicio"}
+                                        {cfEx.cf_exercise_variants?.name && (
+                                          <span className="text-emerald-600 font-bold ml-1.5">— {cfEx.cf_exercise_variants.name}</span>
+                                        )}
+                                      </h4>
+
+                                      {!hasLevels ? (
+                                        (cfEx.reps || cfEx.sets) && (() => {
+                                          const repsStr = cfEx.reps || "—";
+                                          const isGenderSplit = repsStr.includes("/");
+                                          const showSets = block.type === "warm_up" || block.type === "mobility" || !block.wod_type || block.wod_type === "series";
+
+                                          return (
+                                            <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                              <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono flex items-center gap-1">
+                                                {showSets && cfEx.sets ? `${cfEx.sets} series × ` : ""}
+                                                {isGenderSplit ? (
+                                                  (() => {
+                                                    const [male, female] = repsStr.split("/");
+                                                    return (
+                                                      <span className="inline-flex items-center gap-1">
+                                                        <span className="text-blue-500 font-black">♂</span>
+                                                        <span className="text-zinc-700">{male || "—"}</span>
+                                                        <span className="text-zinc-400">/</span>
+                                                        <span className="text-rose-500 font-black">♀</span>
+                                                        <span className="text-zinc-700">{female || "—"}</span>
+                                                      </span>
+                                                    );
+                                                  })()
+                                                ) : (
+                                                  repsStr
+                                                )}
+                                                {" "}{(() => {
+                                                  const unit = cfEx.unit_override || cfEx.cf_exercises?.default_unit || "reps";
+                                                  return unit === "reps" ? "repes" : unit;
+                                                })()}
+                                              </span>
+                                            </div>
+                                          );
+                                        })()
+                                      ) : (
+                                        <div className="grid grid-cols-2 gap-2 text-xs font-semibold mt-1">
+                                          {cfEx.cf_wod_levels!.filter(l => l.value.trim() !== "").map(lvl => (
+                                            <div key={lvl.id} className="flex justify-between items-center bg-zinc-50 px-2.5 py-1 rounded border border-zinc-100">
+                                              <span className="text-[10px] font-black uppercase text-zinc-400 tracking-wider">
+                                                {lvl.level}
+                                              </span>
+                                              <span className="font-mono text-zinc-700">
+                                                {lvl.value}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {videoUrl && (
+                                      <a
+                                        href={videoUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors shrink-0 self-start"
+                                        title="Ver video"
+                                      >
+                                        <Video className="w-5 h-5" />
+                                      </a>
+                                    )}
+                                  </div>
+
+                                  {cfEx.notes && (
+                                    <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
+                                      * {cfEx.notes}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
 
                       {block.wod_config?.notes && (
                         <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs text-zinc-500 italic">
@@ -1646,12 +1773,122 @@ export default function EntrenarPage() {
 
                 return (
                   <div key={block.id} className="space-y-4 animate-in fade-in duration-300">
-                    <h3 className="text-2xl font-black text-[#ff5252] uppercase tracking-widest pt-2">
-                      {block.name}
-                    </h3>
+                    {(() => {
+                      const isWarmUp = block.type === "warm_up";
+                      const isMobility = block.type === "mobility";
+                      const isSkill = block.type === "skill";
+
+                      const typeColor = isWarmUp 
+                        ? "text-rose-500" 
+                        : isMobility 
+                        ? "text-emerald-500" 
+                        : isSkill 
+                        ? "text-blue-500" 
+                        : "text-[#ff5252]";
+
+                      return (
+                        <h3 className={`text-2xl font-black ${typeColor} uppercase tracking-widest pt-2`}>
+                          {block.name}
+                        </h3>
+                      );
+                    })()}
                     
                     <div className="space-y-4">
-                      {blockItems.map(item => {
+                      {(() => {
+                        const blockSets = (block.type === "warm_up" || block.type === "mobility") 
+                          ? (block.wod_config?.sets ? Number(block.wod_config.sets) : (block.training_exercises.find(e => e.sets)?.sets || 3)) 
+                          : (block.wod_config?.sets ? Number(block.wod_config.sets) : undefined);
+
+                        if (blockSets) {
+                          return (
+                            <div className="flex flex-col md:flex-row gap-4 items-stretch">
+                              {/* Left bracket indicating block sets */}
+                              <div className="flex flex-row md:flex-col justify-center items-center px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl md:min-w-[85px] shrink-0 text-center select-none shadow-sm gap-2 md:gap-0">
+                                <div className="flex flex-col items-center">
+                                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">Total</span>
+                                  <span className="text-2xl font-black text-slate-900 leading-none">{blockSets}</span>
+                                  <span className="text-xs font-bold text-[#ff5252] leading-none mt-1">Series</span>
+                                </div>
+                                
+                                {block.wod_config?.has_internal_loop && block.wod_config?.vueltas_por_serie && (
+                                  <div className="md:mt-3 md:pt-2 md:border-t border-zinc-200 w-full flex flex-row md:flex-col items-center gap-1 md:gap-0 justify-center">
+                                    <Repeat className="w-3.5 h-3.5 text-zinc-400 mb-0.5" />
+                                    <span className="text-[9px] font-bold text-zinc-500 uppercase leading-tight hidden md:inline">Circuito</span>
+                                    <span className="text-[10px] font-black text-emerald-600 leading-none">{block.wod_config.vueltas_por_serie} vueltas</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Exercises List */}
+                              <div className="flex-1 space-y-4">
+                                {block.training_exercises.sort((a,b) => (a.order ?? 0) - (b.order ?? 0)).map((te) => {
+                                  const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
+                                    ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
+                                    : te.weight_target || undefined;
+
+                                  const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
+                                  const { dropsets, actualNotes } = parseNotesAndDropsets(te.notes);
+
+                                  return (
+                                    <div
+                                      key={te.id}
+                                      className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-3 hover:border-zinc-300 transition-colors"
+                                    >
+                                      <div className="flex items-start justify-between gap-4">
+                                        <div className="space-y-1 flex-1 min-w-0">
+                                          <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                            {te.exercises?.name}
+                                            {te.exercise_variants?.name && (
+                                              <span className="text-emerald-600 font-bold ml-1.5">— {te.exercise_variants.name}</span>
+                                            )}
+                                          </h4>
+                                          <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                            <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-mono">
+                                              {te.reps} reps
+                                            </span>
+                                            {suggestedKg && (
+                                              <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-red-500 font-bold">
+                                                Sug: {suggestedKg} kg
+                                              </span>
+                                            )}
+                                            {te.rpe_target !== null && te.rpe_target !== undefined && (
+                                              <span className="px-2 py-0.5 bg-zinc-50 rounded-md border border-zinc-100 text-zinc-700 font-bold">
+                                                {te.rpe_target > 0 ? `RPE ${te.rpe_target}` : `RIR ${Math.abs(te.rpe_target) === 0.1 ? 0 : Math.abs(te.rpe_target)}`}
+                                              </span>
+                                            )}
+                                            {dropsets.map((ds, idx) => (
+                                              <span key={idx} className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded-md border border-orange-100 font-bold text-[10px] flex items-center gap-1">
+                                                <Repeat className="w-3.5 h-3.5 text-orange-500 shrink-0" /> Drop: {getDropsetText(ds, suggestedKg)}
+                                              </span>
+                                            ))}
+                                            {videoUrl && (
+                                              <a
+                                                href={videoUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold ml-1"
+                                              >
+                                                <Video className="w-3.5 h-3.5" /> Video
+                                              </a>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {actualNotes && (
+                                        <p className="text-zinc-500 text-xs italic font-medium leading-relaxed mt-1 border-l border-zinc-200 pl-3">
+                                          * {actualNotes}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return blockItems.map(item => {
                         if (item.type === "single") {
                           const te = item.te;
                           const suggestedKg = te.percentage_1rm && oneRMs[te.exercise_id]
@@ -1846,18 +2083,23 @@ export default function EntrenarPage() {
                                               const r = ov ? ov.reps : te.reps;
                                               const ovPct = ov?.percentage_1rm;
                                               const ovWt = ov?.weight_target;
+                                              const ovRpe = ov?.rpe_target;
                                               const basePct = te.percentage_1rm;
                                               const baseWt = te.weight_target;
+                                              const baseRpe = te.rpe_target;
 
                                               let pct = null;
                                               let wt = null;
+                                              let rpe = null;
 
-                                              if (ovPct !== undefined || ovWt !== undefined) {
+                                              if (ovPct !== undefined || ovWt !== undefined || ovRpe !== undefined) {
                                                 pct = ovPct ?? null;
                                                 wt = ovWt ?? null;
+                                                rpe = ovRpe ?? null;
                                               } else {
                                                 pct = basePct ?? null;
                                                 wt = baseWt ?? null;
+                                                rpe = baseRpe ?? null;
                                               }
 
                                               const exOneRM = te.exercise_id ? oneRMs[te.exercise_id] : undefined;
@@ -1868,11 +2110,25 @@ export default function EntrenarPage() {
                                               const v = te.exercise_variants?.name ?? "";
                                               const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
 
+                                              let intensityStr = "";
+                                              if (calcExWeight) {
+                                                intensityStr = `@ ${calcExWeight} kg`;
+                                              } else if (pct) {
+                                                intensityStr = `@ ${pct}%`;
+                                              } else if (rpe !== null && rpe !== undefined) {
+                                                if (rpe > 0) {
+                                                  intensityStr = `@ RPE ${rpe}`;
+                                                } else {
+                                                  const rirVal = rpe === -0.1 ? 0 : Math.abs(rpe);
+                                                  intensityStr = `@ RIR ${rirVal}`;
+                                                }
+                                              }
+
                                               return (
                                                 <div key={te.id} className="text-xs text-zinc-600 flex justify-between gap-4 py-0.5">
                                                   <span className={`${isSetDone ? "text-zinc-400 line-through font-normal" : "font-semibold text-slate-800"}`}>{displayName}</span>
                                                   <span className={`font-mono text-[11px] font-extrabold shrink-0 ${isSetDone ? "text-zinc-400" : "text-emerald-700"}`}>
-                                                    {r} reps {calcExWeight ? `@ ${calcExWeight} kg` : pct ? `@ ${pct}%` : ""}
+                                                    {r} reps {intensityStr}
                                                   </span>
                                                 </div>
                                               );
@@ -2063,7 +2319,7 @@ export default function EntrenarPage() {
                             </div>
                           );
                         }
-                      })}
+                      })})()}
                     </div>
                     {block.wod_config?.notes && (
                       <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl text-xs text-zinc-500 italic mt-4">

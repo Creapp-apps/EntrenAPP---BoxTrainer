@@ -8,7 +8,7 @@ import {
   ArrowLeft, Plus, Loader2, ChevronDown, ChevronRight,
   Dumbbell, Trash2, GripVertical, Search, X, Check, Copy,
   MoreVertical, BookMarked, Link2, UserPlus, Users, Moon,
-  ArrowRightLeft, UserMinus, Eye, Flame, Activity
+  ArrowRightLeft, UserMinus, Eye, Flame, Activity, Repeat
 } from "lucide-react";
 import Link from "next/link";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, getInitials } from "@/lib/utils";
@@ -862,12 +862,23 @@ function PrepFisicaBlock({
   const [repsInputs, setRepsInputs] = useState<Record<string, string>>({});
   const [weightInputs, setWeightInputs] = useState<Record<string, string>>({});
   const [pctInputs, setPctInputs] = useState<Record<string, string>>({});
+  const [rpeInputs, setRpeInputs] = useState<Record<string, string>>({});
   const [justSaved, setJustSaved] = useState(false);
+
+  const getExerciseChargeMode = (te: TrainingExercise) => {
+    if (te.percentage_1rm !== null && te.percentage_1rm !== undefined) return "percent";
+    if (te.weight_target !== null && te.weight_target !== undefined) return "weight";
+    if (te.rpe_target !== null && te.rpe_target !== undefined) {
+      return te.rpe_target < 0 ? "rir" : "rpe";
+    }
+    return "percent";
+  };
 
   useEffect(() => {
     const nextReps: Record<string, string> = {};
     const nextWeight: Record<string, string> = {};
     const nextPct: Record<string, string> = {};
+    const nextRpe: Record<string, string> = {};
 
     sets.forEach(s => {
       sortedExs.forEach(te => {
@@ -876,12 +887,24 @@ function PrepFisicaBlock({
         nextReps[key] = ov?.reps ?? te.reps ?? "";
         nextWeight[key] = ov?.weight_target?.toString() ?? te.weight_target?.toString() ?? "";
         nextPct[key] = ov?.percentage_1rm?.toString() ?? te.percentage_1rm?.toString() ?? "";
+        
+        const rpeVal = ov?.rpe_target ?? te.rpe_target;
+        if (rpeVal !== null && rpeVal !== undefined) {
+          if (rpeVal < 0) {
+            nextRpe[key] = rpeVal === -0.1 ? "0" : String(Math.abs(rpeVal));
+          } else {
+            nextRpe[key] = String(rpeVal);
+          }
+        } else {
+          nextRpe[key] = "";
+        }
       });
     });
 
     setRepsInputs(prev => ({ ...nextReps, ...prev }));
     setWeightInputs(prev => ({ ...nextWeight, ...prev }));
     setPctInputs(prev => ({ ...nextPct, ...prev }));
+    setRpeInputs(prev => ({ ...nextRpe, ...prev }));
   }, [sets, block.training_exercises]);
 
   const handleRepsChange = (setId: string, teId: string, val: string) => {
@@ -902,6 +925,12 @@ function PrepFisicaBlock({
     setJustSaved(false);
   };
 
+  const handleRpeChange = (setId: string, teId: string, val: string) => {
+    const key = `${setId}-${teId}`;
+    setRpeInputs(prev => ({ ...prev, [key]: val }));
+    setJustSaved(false);
+  };
+
   const [saving, setSaving] = useState(false);
 
   const handleSaveAll = async () => {
@@ -916,8 +945,9 @@ function PrepFisicaBlock({
           const repsVal = repsInputs[key] ?? te.reps ?? "";
           const wtVal = weightInputs[key] ?? "";
           const pctVal = pctInputs[key] ?? "";
+          const rpeVal = rpeInputs[key] ?? "";
 
-          const isPctMode = te.percentage_1rm !== null;
+          const mode = getExerciseChargeMode(te);
           
           const idx = overrides.findIndex(o => o.training_exercise_id === te.id);
           let ov = idx >= 0 ? overrides[idx] : null;
@@ -928,6 +958,7 @@ function PrepFisicaBlock({
               reps: te.reps ?? "",
               weight_target: te.weight_target ?? null,
               percentage_1rm: te.percentage_1rm ?? null,
+              rpe_target: te.rpe_target ?? null,
             };
             overrides.push(ov);
             hasChanges = true;
@@ -938,18 +969,37 @@ function PrepFisicaBlock({
             hasChanges = true;
           }
 
-          if (isPctMode) {
+          if (mode === "percent") {
             const pctNum = pctVal !== "" ? parseFloat(pctVal) : null;
-            if (ov.percentage_1rm !== pctNum || ov.weight_target !== null) {
+            if (ov.percentage_1rm !== pctNum || ov.weight_target !== null || ov.rpe_target !== null) {
               ov.percentage_1rm = pctNum;
+              ov.weight_target = null;
+              ov.rpe_target = null;
+              hasChanges = true;
+            }
+          } else if (mode === "weight") {
+            const wtNum = wtVal !== "" ? parseFloat(wtVal) : null;
+            if (ov.weight_target !== wtNum || ov.percentage_1rm !== null || ov.rpe_target !== null) {
+              ov.weight_target = wtNum;
+              ov.percentage_1rm = null;
+              ov.rpe_target = null;
+              hasChanges = true;
+            }
+          } else if (mode === "rpe") {
+            const rpeNum = rpeVal !== "" ? parseFloat(rpeVal) : null;
+            if (ov.rpe_target !== rpeNum || ov.percentage_1rm !== null || ov.weight_target !== null) {
+              ov.rpe_target = rpeNum;
+              ov.percentage_1rm = null;
               ov.weight_target = null;
               hasChanges = true;
             }
-          } else {
-            const wtNum = wtVal !== "" ? parseFloat(wtVal) : null;
-            if (ov.weight_target !== wtNum || ov.percentage_1rm !== null) {
-              ov.weight_target = wtNum;
+          } else if (mode === "rir") {
+            const rirNum = rpeVal !== "" ? parseFloat(rpeVal) : null;
+            const storedRpe = rirNum !== null ? (rirNum === 0 ? -0.1 : -Math.abs(rirNum)) : null;
+            if (ov.rpe_target !== storedRpe || ov.percentage_1rm !== null || ov.weight_target !== null) {
+              ov.rpe_target = storedRpe;
               ov.percentage_1rm = null;
+              ov.weight_target = null;
               hasChanges = true;
             }
           }
@@ -972,7 +1022,7 @@ function PrepFisicaBlock({
   const saveCell = (
     setId: string,
     teId: string,
-    field: "reps" | "weight_target" | "percentage_1rm",
+    field: "reps" | "weight_target" | "percentage_1rm" | "rpe_target",
     rawVal: string
   ) => {
     const currentSet = sets.find(s => s.id === setId);
@@ -985,6 +1035,7 @@ function PrepFisicaBlock({
     const baseReps = te?.reps ?? "";
     const baseWeight = te?.weight_target ?? null;
     const basePct = te?.percentage_1rm ?? null;
+    const baseRpe = te?.rpe_target ?? null;
 
     let ov = idx >= 0 ? overrides[idx] : null;
     if (!ov) {
@@ -993,6 +1044,7 @@ function PrepFisicaBlock({
         reps: baseReps,
         weight_target: baseWeight,
         percentage_1rm: basePct,
+        rpe_target: baseRpe,
       };
       overrides.push(ov);
     }
@@ -1005,10 +1057,26 @@ function PrepFisicaBlock({
       if (ov.weight_target === num) return;
       ov.weight_target = num;
       ov.percentage_1rm = null;
+      ov.rpe_target = null;
     } else if (field === "percentage_1rm") {
       const num = rawVal !== "" ? parseFloat(rawVal) : null;
       if (ov.percentage_1rm === num) return;
       ov.percentage_1rm = num;
+      ov.weight_target = null;
+      ov.rpe_target = null;
+    } else if (field === "rpe_target") {
+      const mode = getExerciseChargeMode(te!);
+      if (mode === "rpe") {
+        const num = rawVal !== "" ? parseFloat(rawVal) : null;
+        if (ov.rpe_target === num) return;
+        ov.rpe_target = num;
+      } else {
+        const rirNum = rawVal !== "" ? parseFloat(rawVal) : null;
+        const storedRpe = rirNum !== null ? (rirNum === 0 ? -0.1 : -Math.abs(rirNum)) : null;
+        if (ov.rpe_target === storedRpe) return;
+        ov.rpe_target = storedRpe;
+      }
+      ov.percentage_1rm = null;
       ov.weight_target = null;
     }
 
@@ -1100,32 +1168,49 @@ function PrepFisicaBlock({
                 <tr className="bg-emerald-500/5 border-b border-emerald-500/10 text-xs font-bold text-emerald-800">
                   <th className="p-3 w-24">Ronda</th>
                   {sortedExs.map(te => {
-                    const isPctMode = te.percentage_1rm !== null;
                     const name = te.exercise?.name ?? "";
                     return (
                       <th key={te.id} className="p-3 min-w-[140px] border-l border-emerald-500/10">
                         <div className="flex flex-col gap-0.5">
                           <span className="truncate max-w-[150px]" title={name}>{name}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isPctMode) {
+                          <select
+                            value={getExerciseChargeMode(te)}
+                            onChange={(e) => {
+                              const mode = e.target.value;
+                              if (mode === "percent") {
+                                onUpdateExerciseField(block.id, te.id, {
+                                  percentage_1rm: 0,
+                                  weight_target: null,
+                                  rpe_target: null
+                                });
+                              } else if (mode === "weight") {
                                 onUpdateExerciseField(block.id, te.id, {
                                   percentage_1rm: null,
-                                  weight_target: 0
+                                  weight_target: 0,
+                                  rpe_target: null
                                 });
-                              } else {
+                              } else if (mode === "rpe") {
                                 onUpdateExerciseField(block.id, te.id, {
+                                  percentage_1rm: null,
                                   weight_target: null,
-                                  percentage_1rm: 0
+                                  rpe_target: 8
+                                });
+                              } else if (mode === "rir") {
+                                onUpdateExerciseField(block.id, te.id, {
+                                  percentage_1rm: null,
+                                  weight_target: null,
+                                  rpe_target: -2
                                 });
                               }
                               setJustSaved(false);
                             }}
-                            className="text-[9px] text-emerald-600 hover:underline text-left font-semibold uppercase tracking-wider"
+                            className="text-[10px] font-bold text-emerald-600 bg-transparent hover:underline cursor-pointer outline-none border-none py-0 px-0.5 leading-none w-full"
                           >
-                            {isPctMode ? "Usar peso (kg)" : "Usar % 1RM"}
-                          </button>
+                            <option value="percent">% 1RM</option>
+                            <option value="weight">Peso (kg)</option>
+                            <option value="rpe">RPE</option>
+                            <option value="rir">RIR</option>
+                          </select>
                         </div>
                       </th>
                     );
@@ -1140,12 +1225,35 @@ function PrepFisicaBlock({
                       Ronda {s.set_number || sIdx + 1}
                     </td>
                     {sortedExs.map(te => {
-                      const isPctMode = te.percentage_1rm !== null;
+                      const mode = getExerciseChargeMode(te);
                       const cellKey = `${s.id}-${te.id}`;
                       
                       const repsVal = repsInputs[cellKey] ?? "";
                       const wtVal = weightInputs[cellKey] ?? "";
                       const pctVal = pctInputs[cellKey] ?? "";
+                      const rpeVal = rpeInputs[cellKey] ?? "";
+
+                      let displayPlaceholder = "kg";
+                      let displayValue = wtVal;
+                      let fieldName: "weight_target" | "percentage_1rm" | "rpe_target" = "weight_target";
+
+                      if (mode === "percent") {
+                        displayPlaceholder = "%";
+                        displayValue = pctVal;
+                        fieldName = "percentage_1rm";
+                      } else if (mode === "weight") {
+                        displayPlaceholder = "kg";
+                        displayValue = wtVal;
+                        fieldName = "weight_target";
+                      } else if (mode === "rpe") {
+                        displayPlaceholder = "RPE";
+                        displayValue = rpeVal;
+                        fieldName = "rpe_target";
+                      } else if (mode === "rir") {
+                        displayPlaceholder = "RIR";
+                        displayValue = rpeVal;
+                        fieldName = "rpe_target";
+                      }
 
                       return (
                         <td key={te.id} className="p-3 border-l border-emerald-500/10">
@@ -1159,20 +1267,24 @@ function PrepFisicaBlock({
                                 onChange={e => handleRepsChange(s.id, te.id, e.target.value)}
                                 onBlur={() => saveCell(s.id, te.id, "reps", repsVal)}
                                 onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
                               />
                             </div>
                             <span className="text-[10px] text-muted-foreground select-none">@</span>
-                            {/* Load (Weight or % 1RM) */}
+                            {/* Load */}
                             <div className="flex-1 min-w-[50px]">
                               <input
-                                type="number"
-                                value={isPctMode ? pctVal : wtVal}
-                                placeholder={isPctMode ? "%" : "kg"}
-                                onChange={e => isPctMode ? handlePctChange(s.id, te.id, e.target.value) : handleWeightChange(s.id, te.id, e.target.value)}
-                                onBlur={() => saveCell(s.id, te.id, isPctMode ? "percentage_1rm" : "weight_target", isPctMode ? pctVal : wtVal)}
+                                type="text"
+                                value={displayValue}
+                                placeholder={displayPlaceholder}
+                                onChange={e => {
+                                  if (mode === "percent") handlePctChange(s.id, te.id, e.target.value);
+                                  else if (mode === "weight") handleWeightChange(s.id, te.id, e.target.value);
+                                  else handleRpeChange(s.id, te.id, e.target.value);
+                                }}
+                                onBlur={() => saveCell(s.id, te.id, fieldName, displayValue)}
                                 onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
                               />
                             </div>
                           </div>
@@ -1245,7 +1357,7 @@ function PrepFisicaBlock({
                   </>
                 ) : (
                   <>
-                    <Check className="w-3.5 h-3.5" /> Guardar
+                    <Check className="w-3.5 h-3.5" /> Guardar Cambios
                   </>
                 )}
               </button>
@@ -1264,11 +1376,13 @@ function WarmUpBlock({
   onAddExercise,
   onDeleteExercise,
   onUpdateExerciseField,
+  onUpdateWodConfig,
 }: {
   block: Block;
   onAddExercise: () => void;
   onDeleteExercise: (blockId: string, exId: string) => void;
   onUpdateExerciseField: (blockId: string, exId: string, fieldOrFields: string | Record<string, any>, value?: unknown) => void;
+  onUpdateWodConfig: (config: Record<string, any>) => void;
 }) {
   const sortedExs = [...block.training_exercises].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const isMobility = block.type === "mobility";
@@ -1291,6 +1405,61 @@ function WarmUpBlock({
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Block level series and circuit config */}
+        <div className="flex items-center gap-4 bg-muted/20 p-3 rounded-xl border border-border/40 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Series del bloque</span>
+            <input
+              type="number"
+              min="1"
+              value={block.wod_config?.sets ? String(block.wod_config.sets) : "3"}
+              onChange={e => onUpdateWodConfig({ ...block.wod_config, sets: parseInt(e.target.value) || 3 })}
+              className={`w-12 text-center text-xs font-semibold px-1.5 py-1 rounded-lg border border-border focus:outline-none focus:ring-2 ${
+                isMobility ? "focus:ring-emerald-500" : "focus:ring-orange-500"
+              }`}
+            />
+          </div>
+
+          <div className="h-4 w-px bg-border" />
+
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!block.wod_config?.has_internal_loop}
+                onChange={e => {
+                  onUpdateWodConfig({
+                    ...block.wod_config,
+                    has_internal_loop: e.target.checked,
+                    vueltas_por_serie: e.target.checked ? (block.wod_config?.vueltas_por_serie || 2) : undefined
+                  });
+                }}
+                className={`rounded border-border text-orange-600 focus:ring-0 cursor-pointer`}
+              />
+              <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px] flex items-center gap-1">
+                <Repeat className="w-3 h-3 text-muted-foreground/60" /> Circuito continuo (vueltas)
+              </span>
+            </label>
+
+            {block.wod_config?.has_internal_loop && (
+              <div className="flex items-center gap-1 ml-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                <span className="text-muted-foreground/60">→</span>
+                <input
+                  type="number"
+                  min="2"
+                  value={block.wod_config?.vueltas_por_serie ? String(block.wod_config.vueltas_por_serie) : "2"}
+                  onChange={e => onUpdateWodConfig({ ...block.wod_config, vueltas_por_serie: parseInt(e.target.value) || 2 })}
+                  className={`w-10 text-center text-xs font-semibold px-1 py-1 rounded-lg border border-border focus:outline-none focus:ring-2 ${
+                    isMobility ? "focus:ring-emerald-500" : "focus:ring-orange-500"
+                  }`}
+                  title="Vueltas de los ejercicios elegidos dentro de una misma serie"
+                />
+                <span className="text-[10px] font-bold text-muted-foreground">vueltas</span>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className={`divide-y ${isMobility ? "divide-emerald-500/10" : "divide-orange-500/10"}`}>
           {sortedExs.length === 0 ? (
             <p className="text-xs text-muted-foreground italic py-4 text-center">
@@ -1313,17 +1482,6 @@ function WarmUpBlock({
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
-                    {/* Series */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase">Series</span>
-                      <SetsInput
-                        initialValue={te.sets ?? 3}
-                        onChange={val => onUpdateExerciseField(block.id, te.id, "sets", val)}
-                        className="w-12 text-xs px-2 py-1.5"
-                        focusRingColor={isMobility ? "focus:ring-2 focus:ring-emerald-500" : "focus:ring-2 focus:ring-orange-500"}
-                      />
-                    </div>
-
                     {/* Reps */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className="text-[10px] font-bold text-zinc-400 uppercase">Reps</span>
@@ -1375,6 +1533,27 @@ function WarmUpBlock({
   );
 }
 
+type DropsetItem = { reps: string; drop: string };
+
+const parseNotesAndDropsets = (notesStr?: string): { dropsets: DropsetItem[]; actualNotes: string } => {
+  if (!notesStr) return { dropsets: [], actualNotes: "" };
+  const match = notesStr.match(/^__dropset__:(\[.*?\])__(.*)$/s);
+  if (match) {
+    try {
+      const dropsets = JSON.parse(match[1]) as DropsetItem[];
+      return { dropsets, actualNotes: match[2] || "" };
+    } catch (e) {
+      console.error("Error parsing dropset notes:", e);
+    }
+  }
+  return { dropsets: [], actualNotes: notesStr };
+};
+
+const serializeNotesAndDropsets = (dropsets: DropsetItem[], actualNotes: string): string => {
+  if (dropsets.length === 0) return actualNotes;
+  return `__dropset__:${JSON.stringify(dropsets)}__${actualNotes}`;
+};
+
 // ─── Exercise Row ─────────────────────────────────────────────
 function ExerciseRow({
   ex, blockId, onUpdate, onDelete, oneRM
@@ -1389,13 +1568,55 @@ function ExerciseRow({
   const variantName = ex.variant?.name ?? "";
   const displayName = variantName ? `${name} — ${variantName}` : name;
 
-  const [chargeMode, setChargeMode] = useState<"percent" | "weight">(
-    ex.weight_target !== null && ex.weight_target !== undefined ? "weight" : "percent"
-  );
+  const [chargeMode, setChargeMode] = useState<"percent" | "weight" | "rpe" | "rir">(() => {
+    if (ex.percentage_1rm !== null && ex.percentage_1rm !== undefined) return "percent";
+    if (ex.weight_target !== null && ex.weight_target !== undefined) return "weight";
+    if (ex.rpe_target !== null && ex.rpe_target !== undefined) {
+      return ex.rpe_target < 0 ? "rir" : "rpe";
+    }
+    return "percent";
+  });
 
-  const calculatedWeight = oneRM && ex.percentage_1rm
-    ? Math.round((oneRM * ex.percentage_1rm / 100) / 2.5) * 2.5
-    : null;
+  const { dropsets, actualNotes } = parseNotesAndDropsets(ex.notes);
+
+  const handleActualNotesChange = (newNotes: string) => {
+    onUpdate(blockId, ex.id, "notes", serializeNotesAndDropsets(dropsets, newNotes));
+  };
+
+  const handleAddDrop = () => {
+    const newDrops = [...dropsets, { reps: "8", drop: "-20%" }];
+    onUpdate(blockId, ex.id, "notes", serializeNotesAndDropsets(newDrops, actualNotes));
+  };
+
+  const handleRemoveDrop = (index: number) => {
+    const newDrops = dropsets.filter((_, i) => i !== index);
+    onUpdate(blockId, ex.id, "notes", serializeNotesAndDropsets(newDrops, actualNotes));
+  };
+
+  const handleDropChange = (index: number, field: keyof DropsetItem, value: string) => {
+    const newDrops = dropsets.map((d, i) => i === index ? { ...d, [field]: value } : d);
+    onUpdate(blockId, ex.id, "notes", serializeNotesAndDropsets(newDrops, actualNotes));
+  };
+
+  const getRirValue = (storedVal?: number) => {
+    if (storedVal === undefined || storedVal === null) return "";
+    if (storedVal === -0.1) return "0";
+    return String(Math.abs(storedVal));
+  };
+
+  const handleRirChange = (valStr: string) => {
+    if (!valStr) {
+      onUpdate(blockId, ex.id, "rpe_target", null);
+      return;
+    }
+    const val = parseFloat(valStr);
+    if (isNaN(val)) return;
+    if (val === 0) {
+      onUpdate(blockId, ex.id, "rpe_target", -0.1);
+    } else {
+      onUpdate(blockId, ex.id, "rpe_target", -Math.abs(val));
+    }
+  };
 
   return (
     <div className="flex items-start gap-2 p-3 bg-muted/20 rounded-xl group">
@@ -1417,39 +1638,50 @@ function ExerciseRow({
             <input type="text" value={ex.reps}
               onChange={e => onUpdate(blockId, ex.id, "reps", e.target.value)}
               placeholder="5 / 3-5"
-              className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
+              className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
           </div>
           <div>
             <div className="flex items-center justify-between mb-0.5">
-              <label className="text-xs text-muted-foreground">
-                {chargeMode === "percent" ? "% 1RM" : "Peso (kg)"}
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  const newMode = chargeMode === "percent" ? "weight" : "percent";
-                  setChargeMode(newMode);
-                  if (newMode === "percent") {
-                    onUpdate(blockId, ex.id, "weight_target", null);
-                  } else {
-                    onUpdate(blockId, ex.id, "percentage_1rm", null);
-                  }
+              <select
+                value={chargeMode}
+                onChange={e => {
+                  const mode = e.target.value as "percent" | "weight" | "rpe" | "rir";
+                  setChargeMode(mode);
+                  onUpdate(blockId, ex.id, "percentage_1rm", null);
+                  onUpdate(blockId, ex.id, "weight_target", null);
+                  onUpdate(blockId, ex.id, "rpe_target", null);
                 }}
-                className="text-[9px] text-primary hover:underline font-bold"
+                className="text-[10px] font-bold text-primary bg-transparent hover:underline cursor-pointer outline-none border-none py-0 px-0.5 leading-none"
               >
-                {chargeMode === "percent" ? "usar kg" : "usar %"}
-              </button>
+                <option value="percent">% 1RM</option>
+                <option value="weight">Peso (kg)</option>
+                <option value="rpe">RPE</option>
+                <option value="rir">RIR</option>
+              </select>
             </div>
-            {chargeMode === "percent" ? (
+            {chargeMode === "percent" && (
               <input type="number" min="0" max="110" value={ex.percentage_1rm ?? ""}
                 onChange={e => onUpdate(blockId, ex.id, "percentage_1rm", e.target.value ? parseFloat(e.target.value) : null)}
                 placeholder="75"
-                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
-            ) : (
+                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
+            )}
+            {chargeMode === "weight" && (
               <input type="number" min="0" value={ex.weight_target ?? ""}
                 onChange={e => onUpdate(blockId, ex.id, "weight_target", e.target.value ? parseFloat(e.target.value) : null)}
                 placeholder="kg"
-                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary" />
+                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
+            )}
+            {chargeMode === "rpe" && (
+              <input type="number" min="1" max="10" step="0.5" value={ex.rpe_target ?? ""}
+                onChange={e => onUpdate(blockId, ex.id, "rpe_target", e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="RPE (8.5)"
+                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
+            )}
+            {chargeMode === "rir" && (
+              <input type="number" min="0" max="5" step="0.5" value={getRirValue(ex.rpe_target)}
+                onChange={e => handleRirChange(e.target.value)}
+                placeholder="RIR (2)"
+                className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
             )}
           </div>
           <div>
@@ -1457,13 +1689,72 @@ function ExerciseRow({
             <input type="number" min="0" value={ex.rest_seconds ?? ""}
               onChange={e => onUpdate(blockId, ex.id, "rest_seconds", e.target.value ? parseInt(e.target.value) : null)}
               placeholder="180"
-              className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary" />
+              className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
           </div>
         </div>
-        <input type="text" value={ex.notes ?? ""}
-          onChange={e => onUpdate(blockId, ex.id, "notes", e.target.value)}
-          placeholder="Notas para el alumno (opcional)..."
-          className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+        
+        <div className="flex items-center gap-2 mt-1">
+          <input type="text" value={actualNotes}
+            onChange={e => handleActualNotesChange(e.target.value)}
+            placeholder="Notas para el alumno (opcional)..."
+            className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
+          {dropsets.length === 0 && (
+            <button
+              type="button"
+              onClick={handleAddDrop}
+              className="px-2 py-1.5 text-[10px] font-bold text-primary hover:text-white border border-primary/20 hover:bg-primary rounded-lg transition-all shrink-0"
+            >
+              + Dropset
+            </button>
+          )}
+        </div>
+
+        {dropsets.length > 0 && (
+          <div className="mt-2 space-y-2 bg-zinc-50 border border-zinc-250 p-2.5 rounded-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">Dropsets Configurados</span>
+              <button
+                type="button"
+                onClick={handleAddDrop}
+                className="text-[10px] text-primary hover:underline font-bold flex items-center gap-0.5"
+              >
+                <Plus className="w-3 h-3" /> Agregar Drop
+              </button>
+            </div>
+
+            {dropsets.map((d, idx) => (
+              <div key={idx} className="flex items-center gap-3 text-xs bg-white border border-border p-1.5 rounded-md animate-in fade-in slide-in-from-top-1 duration-150">
+                <span className="font-bold text-muted-foreground">Drop {idx + 1}:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase font-semibold">Reps</span>
+                  <input
+                    type="text"
+                    value={d.reps}
+                    onChange={e => handleDropChange(idx, "reps", e.target.value)}
+                    className="w-12 text-center text-xs px-1.5 py-0.5 border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground font-semibold"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase font-semibold">Bajar peso / %</span>
+                  <input
+                    type="text"
+                    value={d.drop}
+                    onChange={e => handleDropChange(idx, "drop", e.target.value)}
+                    placeholder="-20%"
+                    className="w-16 text-center text-xs px-1.5 py-0.5 border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground font-semibold"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveDrop(idx)}
+                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive ml-auto"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <button onClick={() => onDelete(blockId, ex.id)}
         className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors md:opacity-0 md:group-hover:opacity-100 mt-1 shrink-0"
@@ -2908,6 +3199,7 @@ export default function CicloDetailPage() {
                                   onAddExercise={() => setPickerBlock(block.id)}
                                   onDeleteExercise={deleteExercise}
                                   onUpdateExerciseField={updateExercise}
+                                  onUpdateWodConfig={(config) => updateWodConfig(week.id, day.id, block.id, config)}
                                 />
                               ) : block.type === "prep_fisica" ? (
                                 <PrepFisicaBlock
