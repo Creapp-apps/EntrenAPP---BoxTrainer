@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Check, Dumbbell, Loader2,
   Send, StickyNote, X, Video, Link2, Layers,
-  ChevronDown, ChevronUp, Pencil,
+  ChevronDown, ChevronUp, ChevronRight, Repeat, Pencil,
   Table, Tv, Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -353,6 +353,61 @@ function WeightPrompt({
     </div>
   );
 }
+
+// ─── Dropset Types & Helpers ──────────────────────────────────
+type DropsetItem = { reps: string; drop: string };
+
+const parseNotesAndDropsets = (notesStr?: string): { dropsets: DropsetItem[]; actualNotes: string } => {
+  if (!notesStr) return { dropsets: [], actualNotes: "" };
+  const match = notesStr.match(/^__dropset__:(\[.*?\])__(.*)$/s);
+  if (match) {
+    try {
+      const dropsets = JSON.parse(match[1]) as DropsetItem[];
+      return { dropsets, actualNotes: match[2] || "" };
+    } catch (e) {
+      console.error("Error parsing dropset notes:", e);
+    }
+  }
+  return { dropsets: [], actualNotes: notesStr };
+};
+
+const getDropsetText = (ds: DropsetItem, baseWeight?: number) => {
+  if (!baseWeight) return `${ds.reps} reps @ ${ds.drop}`;
+  const cleanDrop = ds.drop.trim();
+  if (cleanDrop.endsWith("%")) {
+    const pct = parseFloat(cleanDrop.replace("%", ""));
+    if (!isNaN(pct)) {
+      if (pct < 0) {
+        const dropWeight = Math.round((baseWeight * (1 + pct / 100)) / 2.5) * 2.5;
+        return `${ds.reps} reps @ ${dropWeight} kg (${cleanDrop})`;
+      } else {
+        const dropWeight = Math.round((baseWeight * pct / 100) / 2.5) * 2.5;
+        return `${ds.reps} reps @ ${dropWeight} kg (${cleanDrop})`;
+      }
+    }
+  } else if (cleanDrop.toLowerCase().endsWith("kg")) {
+    const kg = parseFloat(cleanDrop.replace(/kg/i, ""));
+    if (!isNaN(kg)) {
+      if (kg < 0) {
+        const dropWeight = baseWeight + kg;
+        return `${ds.reps} reps @ ${dropWeight} kg (${cleanDrop})`;
+      } else {
+        return `${ds.reps} reps @ ${kg} kg`;
+      }
+    }
+  } else {
+    const val = parseFloat(cleanDrop);
+    if (!isNaN(val)) {
+      if (val < 0) {
+        const dropWeight = baseWeight + val;
+        return `${ds.reps} reps @ ${dropWeight} kg (${val > 0 ? "+" : ""}${val}kg)`;
+      } else {
+        return `${ds.reps} reps @ ${val} kg`;
+      }
+    }
+  }
+  return `${ds.reps} reps @ ${ds.drop}`;
+};
 
 // ─── Main Page ────────────────────────────────────────────────
 export default function EntrenarPage() {
