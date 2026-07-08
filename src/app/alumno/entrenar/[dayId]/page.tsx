@@ -2142,6 +2142,174 @@ export default function EntrenarPage() {
                                   )}
                               </div>
                           );
+                        } else if (item.type === "complex") {
+                          const { complexId, items } = item;
+                          const cSets = [...(complexSets[complexId] || [])].sort((a, b) => a.set_number - b.set_number);
+                          const isPrep = block.type === "prep_fisica";
+                          const isComplex = items.length > 1;
+                          const firstEx = items[0];
+                          const firstOneRM = firstEx?.exercise_id ? oneRMs[firstEx.exercise_id] : undefined;
+                          const allSeriesDone = cSets.length > 0 && cSets.every(s => checkedSeries.has(s.id));
+
+                          const complexTitle = isPrep
+                            ? "Circuito de Preparación Física"
+                            : items.map(te => {
+                                const v = te.exercise_variants?.name ?? "";
+                                return v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
+                              }).join(" + ");
+
+                          const videoUrl = items.find(te => te.exercise_variants?.video_url || te.exercises?.video_url);
+                          const videoLink = videoUrl
+                            ? videoUrl.exercise_variants?.video_url || videoUrl.exercises?.video_url
+                            : null;
+
+                          return (
+                            <div
+                              key={complexId}
+                              className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-4 hover:border-zinc-300 transition-colors"
+                            >
+                              {/* Complex Header */}
+                              <div>
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="space-y-1">
+                                    <h4 className="text-slate-900 font-extrabold text-lg sm:text-xl leading-tight">
+                                      {complexTitle}
+                                    </h4>
+                                    <div className="text-zinc-500 text-xs font-semibold flex flex-wrap items-center gap-2 mt-1">
+                                      <span className={`px-2 py-0.5 rounded-md border text-xs font-bold ${
+                                        allSeriesDone 
+                                          ? "bg-zinc-100 border-zinc-200 text-zinc-500" 
+                                          : "bg-emerald-50 border-emerald-100 text-emerald-700"
+                                      }`}>
+                                        {isComplex ? "Complex" : "Trepada"} · {cSets.length} series
+                                      </span>
+                                      {videoLink && (
+                                        <a
+                                          href={videoLink}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold"
+                                        >
+                                          <Video className="w-3.5 h-3.5" /> Video
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {items.some(te => te.notes) && (
+                                  <div className="mt-2 space-y-1 pl-3 border-l border-zinc-200">
+                                    {items.filter(te => te.notes).map(te => (
+                                      <p key={te.id} className="text-zinc-500 text-xs italic font-medium leading-relaxed">
+                                        * {te.exercises?.name}: {te.notes}
+                                      </p>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Series Breakdown / Checklist */}
+                              <div className="border-t border-zinc-100 pt-3 space-y-2">
+                                {cSets.map(s => {
+                                  const seriesDone = checkedSeries.has(s.id);
+                                  const loggedWeight = seriesWeights[s.id];
+                                  const isEditing = editingSeriesWeight === s.id;
+
+                                  return (
+                                    <div key={s.id} className={`p-3 rounded-xl border transition-all ${
+                                      seriesDone 
+                                        ? "bg-green-50/40 border-green-100" 
+                                        : "bg-zinc-50/50 border-zinc-100 hover:border-zinc-200"
+                                    }`}>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                          {/* Check button */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSeriesTap(s, items)}
+                                            className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                              seriesDone 
+                                                ? "bg-emerald-500 border-emerald-500" 
+                                                : "bg-white border-zinc-300 hover:border-emerald-500"
+                                            }`}
+                                          >
+                                            {seriesDone && <Check className="w-4 h-4 text-white" />}
+                                          </button>
+
+                                          {/* Series Label & Details */}
+                                          <div>
+                                            <span className={`text-xs font-black ${
+                                              seriesDone ? "text-zinc-400" : "text-emerald-700"
+                                            }`}>
+                                              Serie {s.set_number}
+                                            </span>
+                                            <p className={`text-xs font-bold leading-tight ${
+                                              seriesDone ? "text-zinc-400 line-through font-medium" : "text-zinc-800"
+                                            }`}>
+                                              {items.map(te => {
+                                                const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                                const r = ov ? ov.reps : te.reps;
+                                                const v = te.exercise_variants?.name ?? "";
+                                                const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
+                                                return `${r}× ${displayName}`;
+                                              }).join(" + ")}
+                                              {s.percentage_1rm ? (
+                                                <span className="ml-1.5 text-red-500">
+                                                  @{s.percentage_1rm}%
+                                                  {firstOneRM && (
+                                                    <span className="font-bold">
+                                                      {" "}→ {Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5} kg
+                                                    </span>
+                                                  )}
+                                                </span>
+                                              ) : s.weight_target ? (
+                                                <span className="ml-1.5 text-red-500 font-bold">
+                                                  @{s.weight_target} kg
+                                                </span>
+                                              ) : null}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* Weight logged / edit */}
+                                        <div className="flex items-center gap-1.5">
+                                          {seriesDone && !isEditing && (
+                                            <>
+                                              {loggedWeight !== undefined && (
+                                                <span className="text-sm font-black text-emerald-600">{loggedWeight} kg</span>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); setEditingSeriesWeight(s.id); }}
+                                                className="p-1 rounded-md text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                                title="Editar peso"
+                                              >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                              </button>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Inline weight editor */}
+                                      {isEditing && (
+                                        <div className="mt-2 pt-2 border-t border-zinc-100">
+                                          <InlineWeightEdit
+                                            currentKg={loggedWeight}
+                                            onSave={(kg) => {
+                                              setSeriesWeights(prev => ({ ...prev, [s.id]: kg }));
+                                              setEditingSeriesWeight(null);
+                                            }}
+                                            onCancel={() => setEditingSeriesWeight(null)}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
                         }
                       })})()}
                     </div>
