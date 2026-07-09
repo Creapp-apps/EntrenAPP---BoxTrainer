@@ -8,7 +8,8 @@ import {
   ArrowLeft, Plus, Loader2, ChevronDown, ChevronRight,
   Dumbbell, Trash2, GripVertical, Search, X, Check, Copy,
   MoreVertical, BookMarked, Link2, UserPlus, Users, Moon,
-  ArrowRightLeft, UserMinus, Eye, Flame, Activity, Repeat
+  ArrowRightLeft, UserMinus, Eye, Flame, Activity, Repeat,
+  Sliders, Weight, ChevronLeft
 } from "lucide-react";
 import Link from "next/link";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, getInitials } from "@/lib/utils";
@@ -28,6 +29,27 @@ type Day = { id: string; day_of_week: number; label: string; order: number; is_r
 type Week = { id: string; week_number: number; type: string; days: Day[]; expanded: boolean };
 type Cycle = { id: string; name: string; total_weeks: number; student_id: string; student_name: string; is_template: boolean };
 type Student = { id: string; full_name: string; activeCycle?: { id: string; name: string } };
+
+// ─── Override types ───────────────────────────────────────────
+type StudentOverride = {
+  id?: string;
+  enrollment_id: string;
+  training_exercise_id: string;
+  weight_target: number | null;
+  percentage_1rm: number | null;
+  rpe_target: number | null;
+  reps_override: string | null;
+  sets_override: number | null;
+  notes: string | null;
+};
+
+type EnrolledStudent = {
+  enrollment_id: string;
+  student_id: string;
+  full_name: string;
+  sync_mode: string;
+  enrolled_at: string;
+};
 
 type ComplexSet = {
   id: string;
@@ -1940,6 +1962,326 @@ function AssignStudentsModal({
   );
 }
 
+// ─── Student Weights Panel ─────────────────────────────────────
+// Panel que muestra todos los ejercicios del ciclo con pesos editables
+// por alumno. Solo aplica a ejercicios individuales (no complexes, que
+// ya trabajan con % 1RM).
+function StudentWeightsPanel({
+  weeks,
+  enrolledStudent,
+  overrides,
+  complexSets,
+  onSave,
+  onClear,
+}: {
+  weeks: Week[];
+  enrolledStudent: EnrolledStudent;
+  overrides: Record<string, StudentOverride>;
+  complexSets: Record<string, ComplexSet[]>;
+  onSave: (trainingExerciseId: string, weightKg: number | null) => void;
+  onClear: (trainingExerciseId: string) => void;
+}) {
+  // Recopilar todos los ejercicios individuales del ciclo (no complejos)
+  const exerciseGroups: {
+    weekNumber: number;
+    weekType: string;
+    dayLabel: string;
+    dayOfWeek: number;
+    blockName: string;
+    blockType: string;
+    blockId: string;
+    ex: TrainingExercise;
+  }[] = [];
+
+  for (const week of weeks) {
+    for (const day of week.days) {
+      if (day.is_rest) continue;
+      for (const block of day.blocks) {
+        for (const ex of block.training_exercises) {
+          // En bloques de fuerza, excluir ejercicios que forman parte de un complex (tienen UUID propio)
+          // En prep_fisica el complex_id == block.id, esos SÍ se incluyen porque pueden usar kg por ronda
+          if (ex.complex_id && block.type !== "prep_fisica") continue;
+          exerciseGroups.push({
+            weekNumber: week.week_number,
+            weekType: week.type,
+            dayLabel: day.label,
+            dayOfWeek: day.day_of_week,
+            blockName: block.type === "prep_fisica" ? `Circuito Prep. Física` : block.name,
+            blockType: block.type,
+            blockId: block.id,
+            ex,
+          });
+        }
+      }
+    }
+  }
+
+  // Contar cuántos overrides tiene este alumno
+  const overrideCount = Object.keys(overrides).filter(
+    teId => overrides[teId]?.weight_target !== null && overrides[teId]?.weight_target !== undefined
+  ).length;
+
+  // Agrupar por semana para el display
+  const byWeek = exerciseGroups.reduce<Record<number, typeof exerciseGroups>>((acc, item) => {
+    if (!acc[item.weekNumber]) acc[item.weekNumber] = [];
+    acc[item.weekNumber].push(item);
+    return acc;
+  }, {});
+
+  if (exerciseGroups.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-border p-8 text-center">
+        <Weight className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+        <p className="text-sm font-medium text-muted-foreground">
+          No hay ejercicios configurados en este ciclo.
+        </p>
+        <p className="text-xs text-muted-foreground/70 mt-1">
+          Los complexes del bloque de Fuerza (con series compartidas) se editan directamente en el template.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Info banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start gap-3">
+        <Sliders className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-blue-800">
+            Pesos personalizados para {enrolledStudent.full_name}
+          </p>
+          <p className="text-xs text-blue-600 mt-0.5">
+            Estos pesos solo aplican a este alumno. Si un campo está vacío, se usa el peso base del ciclo.
+            {overrideCount > 0 && (
+              <span className="ml-1 font-semibold">{overrideCount} ejercicio{overrideCount !== 1 ? "s" : ""} con peso personalizado.</span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Tabla por semana */}
+      {Object.keys(byWeek).sort((a, b) => Number(a) - Number(b)).map(weekNumStr => {
+        const weekNum = Number(weekNumStr);
+        const items = byWeek[weekNum];
+        const weekType = items[0]?.weekType;
+
+        // Agrupar por día dentro de la semana
+        const byDay = items.reduce<Record<string, typeof items>>((acc, item) => {
+          const key = `${item.dayOfWeek}-${item.dayLabel}`;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(item);
+          return acc;
+        }, {});
+
+        return (
+          <div key={weekNum} className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
+            {/* Semana header */}
+            <div className="px-5 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
+              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${WEEK_TYPE_COLORS[weekType] || "bg-gray-100 text-gray-700"}`}>
+                S{weekNum} — {WEEK_TYPE_LABELS[weekType] || weekType}
+              </span>
+            </div>
+
+            {Object.entries(byDay).map(([dayKey, dayItems]) => {
+              const firstItem = dayItems[0];
+              return (
+                <div key={dayKey} className="border-b border-border/50 last:border-0">
+                  {/* Día header */}
+                  <div className="px-5 py-2.5 bg-muted/10 flex items-center gap-2">
+                    <Dumbbell className="w-3.5 h-3.5 text-primary/60" />
+                    <span className="text-sm font-semibold text-foreground">
+                      {DAY_NAMES[firstItem.dayOfWeek]} — {firstItem.dayLabel}
+                    </span>
+                  </div>
+
+                  {/* Tabla de ejercicios del día */}
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/30">
+                        <th className="px-5 py-2 text-left text-xs font-semibold text-muted-foreground w-1/2">Ejercicio</th>
+                        <th className="px-4 py-2 text-center text-xs font-semibold text-muted-foreground">Series × Reps</th>
+                        <th className="px-4 py-2 text-center text-xs font-semibold text-muted-foreground">Peso base</th>
+                        <th className="px-4 py-2 text-center text-xs font-semibold text-blue-600">
+                          <div className="flex items-center justify-center gap-1">
+                            <Sliders className="w-3 h-3" />
+                            Peso personalizado
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/20">
+                      {dayItems.map(({ ex, blockName, blockType, blockId }) => {
+                        const override = overrides[ex.id];
+                        const hasCustomWeight = override?.weight_target !== null && override?.weight_target !== undefined;
+                        const displayName = ex.variant?.name
+                          ? `${ex.exercise?.name} — ${ex.variant.name}`
+                          : ex.exercise?.name || "Ejercicio";
+
+                        // Peso base del template
+                        // Para prep_fisica: los pesos están en complexSets[blockId].reps_overrides
+                        // Para ejercicios de fuerza simples: están en ex.weight_target / ex.percentage_1rm
+                        let baseDisplay = "—";
+                        if (blockType === "prep_fisica" && ex.complex_id) {
+                          // Buscar las rondas de este ejercicio en complexSets
+                          const rounds = complexSets[blockId] || [];
+                          const weightValues = rounds
+                            .map(s => {
+                              const ov = s.reps_overrides?.find((o: any) => o.training_exercise_id === ex.id);
+                              return ov?.weight_target ?? null;
+                            })
+                            .filter((v): v is number => v !== null && v !== undefined);
+                          const pctValues = rounds
+                            .map(s => {
+                              const ov = s.reps_overrides?.find((o: any) => o.training_exercise_id === ex.id);
+                              return ov?.percentage_1rm ?? null;
+                            })
+                            .filter((v): v is number => v !== null && v !== undefined);
+
+                          if (weightValues.length > 0) {
+                            const unique = [...new Set(weightValues)];
+                            baseDisplay = unique.length === 1
+                              ? `${unique[0]} kg`
+                              : `${Math.min(...unique)}–${Math.max(...unique)} kg`;
+                          } else if (pctValues.length > 0) {
+                            const unique = [...new Set(pctValues)];
+                            baseDisplay = unique.length === 1
+                              ? `${unique[0]}% 1RM`
+                              : `${Math.min(...unique)}–${Math.max(...unique)}% 1RM`;
+                          }
+                        } else {
+                          const baseWeight = ex.weight_target;
+                          const basePct = ex.percentage_1rm;
+                          baseDisplay = baseWeight != null && baseWeight !== 0
+                            ? `${baseWeight} kg`
+                            : basePct != null && basePct !== 0
+                            ? `${basePct}% 1RM`
+                            : "—";
+                        }
+                        return (
+                          <WeightOverrideRow
+                            key={ex.id}
+                            exId={ex.id}
+                            displayName={displayName}
+                            blockName={blockName}
+                            sets={ex.sets}
+                            reps={ex.reps}
+                            baseDisplay={baseDisplay}
+                            customWeight={hasCustomWeight ? override.weight_target! : null}
+                            hasOverride={hasCustomWeight}
+                            onSave={onSave}
+                            onClear={onClear}
+                          />
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Weight Override Row ───────────────────────────────────────
+function WeightOverrideRow({
+  exId, displayName, blockName, sets, reps,
+  baseDisplay, customWeight, hasOverride,
+  onSave, onClear,
+}: {
+  exId: string;
+  displayName: string;
+  blockName: string;
+  sets: number;
+  reps: string;
+  baseDisplay: string;
+  customWeight: number | null;
+  hasOverride: boolean;
+  onSave: (exId: string, kg: number | null) => void;
+  onClear: (exId: string) => void;
+}) {
+  const [inputVal, setInputVal] = useState(customWeight != null ? String(customWeight) : "");
+  const [justSaved, setJustSaved] = useState(false);
+
+  // Sync cuando cambia el prop desde afuera
+  useEffect(() => {
+    setInputVal(customWeight != null ? String(customWeight) : "");
+  }, [customWeight]);
+
+  const handleBlur = () => {
+    const parsed = inputVal.trim() === "" ? null : parseFloat(inputVal);
+    if (inputVal.trim() === "" && hasOverride) {
+      // Limpiar override
+      onClear(exId);
+      setJustSaved(false);
+      return;
+    }
+    if (parsed !== null && !isNaN(parsed)) {
+      onSave(exId, parsed);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 1800);
+    }
+  };
+
+  return (
+    <tr className={`transition-colors ${hasOverride ? "bg-blue-50/40" : "hover:bg-muted/20"}`}>
+      <td className="px-5 py-2.5">
+        <p className="font-semibold text-foreground text-sm truncate">{displayName}</p>
+        <p className="text-xs text-muted-foreground/70">{blockName}</p>
+      </td>
+      <td className="px-4 py-2.5 text-center">
+        <span className="text-xs font-mono text-foreground/70">
+          {sets} × {reps}
+        </span>
+      </td>
+      <td className="px-4 py-2.5 text-center">
+        <span className="text-xs text-muted-foreground font-medium">{baseDisplay}</span>
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex items-center justify-center gap-1.5">
+          <div className="relative">
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={inputVal}
+              onChange={e => { setInputVal(e.target.value); setJustSaved(false); }}
+              onBlur={handleBlur}
+              onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+              placeholder="kg"
+              className={`w-20 px-2 py-1.5 rounded-lg border text-sm text-center font-semibold focus:outline-none transition-all ${
+                hasOverride
+                  ? "border-blue-400 bg-blue-50 text-blue-800 focus:ring-2 focus:ring-blue-400"
+                  : "border-border bg-white focus:ring-2 focus:ring-primary"
+              }`}
+            />
+            {justSaved && (
+              <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs text-green-600 font-bold whitespace-nowrap animate-bounce">
+                ✓ guardado
+              </span>
+            )}
+          </div>
+          {hasOverride && (
+            <button
+              onClick={() => { onClear(exId); setInputVal(""); }}
+              className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              title="Quitar peso personalizado"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {hasOverride && (
+            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold shrink-0">✎</span>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────
 export default function CicloDetailPage() {
   const params = useParams();
@@ -1969,6 +2311,16 @@ export default function CicloDetailPage() {
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [previewDay, setPreviewDay] = useState<Day | null>(null);
 
+  // ─── Pesos personalizados por alumno (nuevos) ─────────────────────────
+  // "template" = vista del ciclo general | enrollment_id = vista de alumno
+  const [selectedStudentTab, setSelectedStudentTab] = useState<"template" | string>("template");
+  // Lista de alumnos enrolados activos en este ciclo
+  const [enrolledStudents, setEnrolledStudents] = useState<EnrolledStudent[]>([]);
+  // Mapa: enrollment_id -> training_exercise_id -> override
+  const [studentOverrides, setStudentOverrides] = useState<Record<string, Record<string, StudentOverride>>>({});
+  // Guardando override (para feedback visual)
+  const [savingOverride, setSavingOverride] = useState(false);
+
   const toggleBlock = (blockId: string) => {
     setExpandedBlocks(prev => {
       const next = new Set(prev);
@@ -1986,7 +2338,7 @@ export default function CicloDetailPage() {
 
     const [{ data: cycleData }, { data: weeksData }, { data: exData }, { data: studentsData }] = await Promise.all([
       supabase.from("training_cycles")
-        .select("*, training_cycle_enrollments(active, student_id, users(full_name))")
+        .select("*, training_cycle_enrollments(id, active, student_id, sync_mode, enrolled_at, users(full_name))")
         .eq("id", id).single(),
       supabase.from("training_weeks")
         .select(`*, training_days(*, training_blocks(*, training_exercises(*, exercises(*, exercise_variants(*)), exercise_variants(*))))`)
@@ -2151,10 +2503,119 @@ export default function CicloDetailPage() {
       .order("name");
     if (allCyclesData) setAllCycles(allCyclesData as any);
 
+    // ─── Cargar alumnos enrolados activos con sus overrides ─────────────
+    if (cycleData) {
+      const allEnrolls = (cycleData.training_cycle_enrollments || []) as any[];
+      const activeEnrolls = allEnrolls.filter((e: any) => e.active);
+
+      // Construir lista de enrolled students
+      const enrolledList: EnrolledStudent[] = activeEnrolls.map((e: any) => ({
+        enrollment_id: e.id,
+        student_id: e.student_id,
+        full_name: e.users?.full_name || "Alumno",
+        sync_mode: e.sync_mode || "SYNC",
+        enrolled_at: e.enrolled_at || "",
+      }));
+      setEnrolledStudents(enrolledList);
+
+      // Cargar overrides de todos los alumnos
+      if (enrolledList.length > 0) {
+        const enrollmentIds = enrolledList.map(e => e.enrollment_id).filter(Boolean);
+        if (enrollmentIds.length > 0) {
+          const { data: overridesData } = await supabase
+            .from("student_exercise_overrides")
+            .select("*")
+            .in("enrollment_id", enrollmentIds);
+
+          if (overridesData) {
+            // Agrupar: enrollment_id -> training_exercise_id -> override
+            const overridesMap: Record<string, Record<string, StudentOverride>> = {};
+            for (const ov of overridesData as StudentOverride[]) {
+              if (!overridesMap[ov.enrollment_id]) overridesMap[ov.enrollment_id] = {};
+              overridesMap[ov.enrollment_id][ov.training_exercise_id] = ov;
+            }
+            setStudentOverrides(overridesMap);
+          }
+        }
+      }
+    }
+
     setLoading(false);
   }, [id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // ─── Guardar override de ejercicio para un alumno ───────────────────────
+  const saveStudentOverride = async (
+    enrollmentId: string,
+    trainingExerciseId: string,
+    field: keyof Pick<StudentOverride, "weight_target" | "percentage_1rm" | "rpe_target" | "reps_override" | "sets_override" | "notes">,
+    value: number | string | null
+  ) => {
+    const supabase = createClient();
+    setSavingOverride(true);
+    try {
+      // Get existing override if any
+      const existing = studentOverrides[enrollmentId]?.[trainingExerciseId];
+      const upsertData: Partial<StudentOverride> & { enrollment_id: string; training_exercise_id: string } = {
+        enrollment_id: enrollmentId,
+        training_exercise_id: trainingExerciseId,
+        weight_target: existing?.weight_target ?? null,
+        percentage_1rm: existing?.percentage_1rm ?? null,
+        rpe_target: existing?.rpe_target ?? null,
+        reps_override: existing?.reps_override ?? null,
+        sets_override: existing?.sets_override ?? null,
+        notes: existing?.notes ?? null,
+        [field]: value,
+      };
+
+      const { data: savedData, error } = await supabase
+        .from("student_exercise_overrides")
+        .upsert(upsertData, { onConflict: "enrollment_id,training_exercise_id" })
+        .select()
+        .single();
+
+      if (error) {
+        toast.error("Error al guardar peso personalizado");
+        return;
+      }
+
+      // Update local state
+      setStudentOverrides(prev => ({
+        ...prev,
+        [enrollmentId]: {
+          ...prev[enrollmentId],
+          [trainingExerciseId]: savedData as StudentOverride,
+        },
+      }));
+    } finally {
+      setSavingOverride(false);
+    }
+  };
+
+  // ─── Limpiar override de ejercicio para un alumno ──────────────────────
+  const clearStudentOverride = async (enrollmentId: string, trainingExerciseId: string) => {
+    const supabase = createClient();
+    const existing = studentOverrides[enrollmentId]?.[trainingExerciseId];
+    if (!existing?.id) return;
+
+    const { error } = await supabase
+      .from("student_exercise_overrides")
+      .delete()
+      .eq("id", existing.id);
+
+    if (error) { toast.error("Error al limpiar override"); return; }
+
+    setStudentOverrides(prev => {
+      const next = { ...prev };
+      if (next[enrollmentId]) {
+        const inner = { ...next[enrollmentId] };
+        delete inner[trainingExerciseId];
+        next[enrollmentId] = inner;
+      }
+      return next;
+    });
+  };
 
   // Students enrolled in this cycle
   const managedStudents = students
@@ -2970,30 +3431,101 @@ export default function CicloDetailPage() {
         </div>
       </div>
 
-      {/* Alumnos activos — collapsible */}
-      {managedStudents.length > 0 && (
+
+      {/* ─── Barra de pestañas por alumno (si hay alumnos enrolados) ─── */}
+      {enrolledStudents.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
-          <button
-            onClick={() => setShowStudents(!showStudents)}
-            className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left"
-          >
-            <Users className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground flex-1">
-              {managedStudents.length} alumno{managedStudents.length !== 1 ? "s" : ""} activo{managedStudents.length !== 1 ? "s" : ""}
-            </span>
-            {showStudents ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-          </button>
-          {showStudents && (
-            <div className="border-t border-border divide-y divide-border">
+          {/* Header con tabs */}
+          <div className="flex items-center gap-0 overflow-x-auto scrollbar-hide border-b border-border">
+            {/* Tab: Plantilla General */}
+            <button
+              onClick={() => setSelectedStudentTab("template")}
+              className={`flex items-center gap-2 px-4 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-all shrink-0 ${
+                selectedStudentTab === "template"
+                  ? "border-primary text-primary bg-primary/5"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+              }`}
+            >
+              <BookMarked className="w-4 h-4" />
+              Plantilla General
+            </button>
+
+            {/* Divisor */}
+            <div className="w-px h-8 bg-border shrink-0" />
+
+            {/* Tabs por alumno */}
+            {enrolledStudents.map(enrolled => {
+              const overrideMap = studentOverrides[enrolled.enrollment_id] || {};
+              const customCount = Object.values(overrideMap).filter(
+                ov => ov.weight_target !== null && ov.weight_target !== undefined
+              ).length;
+              const isActive = selectedStudentTab === enrolled.enrollment_id;
+
+              return (
+                <button
+                  key={enrolled.enrollment_id}
+                  onClick={() => setSelectedStudentTab(enrolled.enrollment_id)}
+                  className={`flex items-center gap-2 px-4 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-all shrink-0 ${
+                    isActive
+                      ? "border-blue-500 text-blue-700 bg-blue-50/60"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                    isActive ? "bg-blue-600 text-white" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {getInitials(enrolled.full_name)}
+                  </div>
+                  <span className="hidden sm:inline">{enrolled.full_name}</span>
+                  {customCount > 0 && (
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                      isActive ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {customCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Botón agregar alumno al ciclo */}
+            <div className="ml-auto px-3 py-2.5 shrink-0">
+              <button
+                onClick={() => setShowAssignModal(true)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors font-medium"
+                title="Agregar alumno al ciclo"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Agregar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Alumnos list (solo visible cuando está en template) */}
+          {selectedStudentTab === "template" && (
+            <div className="divide-y divide-border/50">
               {managedStudents.map(student => (
-                <div key={student.id} className="px-5 py-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                <div key={student.id} className="px-5 py-3 flex items-center gap-3 hover:bg-muted/10 transition-colors">
+                  <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
                     {getInitials(student.full_name)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{student.full_name}</p>
                     <p className="text-xs text-muted-foreground truncate">{student.cycleName}</p>
                   </div>
+
+                  {/* Botón ir a pesos */}
+                  <button
+                    onClick={() => {
+                      const enrollment = enrolledStudents.find(e => e.student_id === student.id);
+                      if (enrollment) setSelectedStudentTab(enrollment.enrollment_id);
+                    }}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-semibold shrink-0"
+                    title="Editar pesos de este alumno"
+                  >
+                    <Sliders className="w-3 h-3" />
+                    <span className="hidden sm:inline">Pesos</span>
+                  </button>
 
                   {/* Transfer button */}
                   {transferTarget?.studentId === student.id ? (
@@ -3043,11 +3575,31 @@ export default function CicloDetailPage() {
               ))}
             </div>
           )}
+
+          {/* Vista de pesos de un alumno específico */}
+          {selectedStudentTab !== "template" && (() => {
+            const enrolled = enrolledStudents.find(e => e.enrollment_id === selectedStudentTab);
+            if (!enrolled) return null;
+            const overrides = studentOverrides[enrolled.enrollment_id] || {};
+            return (
+              <div className="p-5">
+                <StudentWeightsPanel
+                  weeks={weeks}
+                  enrolledStudent={enrolled}
+                  overrides={overrides}
+                  complexSets={complexSets}
+                  onSave={(teId, kg) => saveStudentOverride(enrolled.enrollment_id, teId, "weight_target", kg)}
+                  onClear={(teId) => clearStudentOverride(enrolled.enrollment_id, teId)}
+                />
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      {/* Semanas */}
-      {weeks.map(week => (
+      {/* Semanas — solo mostrar en vista de plantilla general */}
+      {selectedStudentTab === "template" && weeks.map(week => (
+
         <div key={week.id} className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
           {/* Header semana */}
           <div className="flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors">
