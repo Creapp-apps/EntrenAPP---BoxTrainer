@@ -16,6 +16,9 @@ import {
   PartyPopper,
 } from "lucide-react";
 import type { Booking, AvailableSlot, StudentPlanSubscription } from "@/types";
+import { motion, AnimatePresence } from "framer-motion";
+import LoadingScreen from "@/components/ui/loading-screen";
+
 
 const DAY_LABELS_SHORT: Record<number, string> = {
   0: "Dom", 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb",
@@ -155,13 +158,7 @@ export default function TurnosAlumnoPage() {
   const futureDays = Array.from({ length: 14 }, (_, i) => addDays(today, i));
 
   if (loading) {
-    return (
-      <div className="p-4 space-y-4">
-        <div className="h-8 w-32 bg-muted animate-pulse rounded-lg" />
-        <div className="h-24 bg-white rounded-2xl animate-pulse border border-border" />
-        <div className="h-48 bg-white rounded-2xl animate-pulse border border-border" />
-      </div>
-    );
+    return <LoadingScreen message="Obteniendo turnos disponibles..." />;
   }
 
   return (
@@ -292,260 +289,280 @@ export default function TurnosAlumnoPage() {
         </button>
       </div>
 
-      {/* ═══ TAB: Reservar ═══ */}
-      {tab === "reservar" && (
-        <div className="space-y-4">
-          {/* Date picker horizontal */}
-          <div className="overflow-x-auto -mx-4 px-4">
-            <div className="flex gap-2 min-w-max">
-              {futureDays.map(day => {
-                const isSelected = formatDateISO(day) === formatDateISO(selectedDate);
-                const isToday = formatDateISO(day) === formatDateISO(today);
-                return (
-                  <button
-                    key={formatDateISO(day)}
-                    onClick={() => setSelectedDate(day)}
-                    className={`flex flex-col items-center w-14 py-2.5 rounded-xl transition-colors ${
-                      isSelected
-                        ? "bg-primary text-white"
-                        : isToday
-                        ? "bg-primary/10 text-primary"
-                        : "bg-white border border-border text-foreground"
-                    }`}
-                  >
-                    <span className="text-xs font-medium">
-                      {DAY_LABELS_SHORT[day.getDay()]}
-                    </span>
-                    <span className="text-lg font-bold">{day.getDate()}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Available slots */}
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-3">
-              {selectedDate.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
-            </p>
-
-            {availableSlots.length > 0 ? (
-              <div className="space-y-2">
-                {availableSlots.map(slot => {
-                  const isFull = slot.spots_available <= 0;
-                  const hasBookedThisSlot = myBookings.some(b => 
-                    b.slot_id === slot.slot_id && 
-                    b.booking_date === formatDateISO(selectedDate)
-                  );
-
+      <AnimatePresence mode="wait">
+        {tab === "reservar" && (
+          <motion.div
+            key="reservar"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="space-y-4"
+          >
+            {/* Date picker horizontal */}
+            <div className="overflow-x-auto -mx-4 px-4">
+              <div className="flex gap-2 min-w-max">
+                {futureDays.map(day => {
+                  const isSelected = formatDateISO(day) === formatDateISO(selectedDate);
+                  const isToday = formatDateISO(day) === formatDateISO(today);
                   return (
-                    <div
-                      key={slot.slot_id}
-                      className={`bg-white rounded-2xl p-4 border transition-colors ${
-                        isFull ? "border-border opacity-60" : "border-border hover:border-primary/30"
+                    <button
+                      key={formatDateISO(day)}
+                      onClick={() => setSelectedDate(day)}
+                      className={`flex flex-col items-center w-14 py-2.5 rounded-xl transition-colors ${
+                        isSelected
+                          ? "bg-primary text-white"
+                          : isToday
+                          ? "bg-primary/10 text-primary"
+                          : "bg-white border border-border text-foreground"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-blue-50 p-2 rounded-xl">
-                            <Clock className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-foreground text-sm">
-                              {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{slot.label}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            isFull
-                              ? "bg-red-100 text-red-700"
-                              : slot.spots_available <= 2
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-green-100 text-green-700"
-                          }`}>
-                            {isFull ? "Completo" : `${slot.spots_available} lugares`}
-                          </span>
-                          
-                          {hasBookedThisSlot ? (
-                            <button
-                              disabled
-                              className="bg-green-100 text-green-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-1.5"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              Reservado
-                            </button>
-                          ) : (
-                            !isFull && subscription && subscription.credits_remaining > 0 && (
-                              (() => {
-                                const slotDate = new Date(`${formatDateISO(selectedDate)}T${slot.start_time}`);
-                                const now = new Date();
-                                const minutesUntil = (slotDate.getTime() - now.getTime()) / 60000;
-                                const isPastDeadline = minutesUntil < bookingDeadlineMinutes;
-
-                                return (
-                                  <button
-                                    onClick={() => makeBooking(slot.slot_id, slot)}
-                                    disabled={booking || isPastDeadline}
-                                    title={isPastDeadline ? `Las reservas cierran ${bookingDeadlineMinutes} min antes` : ""}
-                                    className={`${isPastDeadline ? "bg-slate-100 text-slate-400" : "bg-primary text-white hover:bg-primary/90"} px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50`}
-                                  >
-                                    {booking ? "..." : isPastDeadline ? "Cerrado" : "Reservar"}
-                                  </button>
-                                );
-                              })()
-                            )
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                      <span className="text-xs font-medium">
+                        {DAY_LABELS_SHORT[day.getDay()]}
+                      </span>
+                      <span className="text-lg font-bold">{day.getDate()}</span>
+                    </button>
                   );
                 })}
               </div>
+            </div>
+
+            {/* Available slots */}
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-3">
+                {selectedDate.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+              </p>
+
+              {availableSlots.length > 0 ? (
+                <div className="space-y-2">
+                  {availableSlots.map(slot => {
+                    const isFull = slot.spots_available <= 0;
+                    const hasBookedThisSlot = myBookings.some(b => 
+                      b.slot_id === slot.slot_id && 
+                      b.booking_date === formatDateISO(selectedDate)
+                    );
+
+                    return (
+                      <div
+                        key={slot.slot_id}
+                        className={`bg-white rounded-2xl p-4 border transition-colors ${
+                          isFull ? "border-border opacity-60" : "border-border hover:border-primary/30"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-blue-50 p-2 rounded-xl">
+                              <Clock className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-foreground text-sm">
+                                {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{slot.label}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              isFull
+                                ? "bg-red-100 text-red-700"
+                                : slot.spots_available <= 2
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-green-100 text-green-700"
+                            }`}>
+                              {isFull ? "Completo" : `${slot.spots_available} lugares`}
+                            </span>
+                            
+                            {hasBookedThisSlot ? (
+                              <button
+                                disabled
+                                className="bg-green-100 text-green-700 px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-1.5"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                Reservado
+                              </button>
+                            ) : (
+                              !isFull && subscription && subscription.credits_remaining > 0 && (
+                                (() => {
+                                  const slotDate = new Date(`${formatDateISO(selectedDate)}T${slot.start_time}`);
+                                  const now = new Date();
+                                  const minutesUntil = (slotDate.getTime() - now.getTime()) / 60000;
+                                  const isPastDeadline = minutesUntil < bookingDeadlineMinutes;
+
+                                  return (
+                                    <button
+                                      onClick={() => makeBooking(slot.slot_id, slot)}
+                                      disabled={booking || isPastDeadline}
+                                      title={isPastDeadline ? `Las reservas cierran ${bookingDeadlineMinutes} min antes` : ""}
+                                      className={`${isPastDeadline ? "bg-slate-100 text-slate-400" : "bg-primary text-white hover:bg-primary/90"} px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50`}
+                                    >
+                                      {booking ? "..." : isPastDeadline ? "Cerrado" : "Reservar"}
+                                    </button>
+                                  );
+                                })()
+                              )
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-white rounded-2xl border border-border">
+                  <CalendarOff className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    No hay turnos disponibles para este día
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {tab === "mis-turnos" && (
+          <motion.div
+            key="mis-turnos"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="space-y-2"
+          >
+            {myBookings.length > 0 ? (
+              myBookings.map((b: any) => {
+                const bookDate = new Date(b.booking_date + "T00:00:00");
+                const isToday = formatDateISO(bookDate) === formatDateISO(new Date());
+                const isTomorrow = formatDateISO(bookDate) === formatDateISO(addDays(new Date(), 1));
+
+                return (
+                  <div
+                    key={b.id}
+                    className={`bg-white rounded-2xl p-4 border transition-colors ${
+                      isToday ? "border-primary/30 bg-primary/5" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${isToday ? "bg-primary/10" : "bg-muted"}`}>
+                          <CalendarCheck className={`w-4 h-4 ${isToday ? "text-primary" : "text-muted-foreground"}`} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-foreground text-sm">
+                              {bookDate.toLocaleDateString("es-AR", {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "short",
+                              })}
+                            </p>
+                            {isToday && (
+                              <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded-full font-bold">
+                                HOY
+                              </span>
+                            )}
+                            {isTomorrow && (
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
+                                MAÑANA
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {b.box_schedule_slots?.start_time?.slice(0, 5)} – {b.box_schedule_slots?.end_time?.slice(0, 5)} · {b.box_schedule_slots?.label}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => cancelBooking(b.id)}
+                        className="p-2 rounded-xl text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Cancelar turno"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {/* Confirmed badge */}
+                    <div className="mt-3 flex items-center gap-1.5 bg-green-50 rounded-lg px-2.5 py-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                      <span className="text-[11px] font-medium text-green-700">Turno confirmado</span>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <div className="text-center py-12 bg-white rounded-2xl border border-border">
-                <CalendarOff className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  No hay turnos disponibles para este día
+                <CalendarCheck className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">Sin turnos reservados</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Andá a la pestaña "Reservar" para elegir un horario.
+                </p>
+                <button
+                  onClick={() => setTab("reservar")}
+                  className="mt-3 text-sm text-primary font-medium hover:underline"
+                >
+                  Reservar turno →
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {tab === "historial" && (
+          <motion.div
+            key="historial"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="space-y-2"
+          >
+            {pastBookings.length > 0 ? (
+              pastBookings.map((b: any) => {
+                const config = STATUS_CONFIG[b.status] || STATUS_CONFIG.confirmada;
+                const StatusIcon = config.icon;
+                const bookDate = new Date(b.booking_date + "T00:00:00");
+
+                return (
+                  <div
+                    key={b.id}
+                    className="bg-white rounded-2xl p-4 border border-border"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-muted p-2 rounded-xl">
+                          <StatusIcon className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground text-sm">
+                            {bookDate.toLocaleDateString("es-AR", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                              year: bookDate.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+                            })}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {b.box_schedule_slots?.start_time?.slice(0, 5)} – {b.box_schedule_slots?.end_time?.slice(0, 5)} · {b.box_schedule_slots?.label}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${config.color}`}>
+                        {config.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-12 bg-white rounded-2xl border border-border">
+                <History className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground">Sin historial</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Acá vas a ver el registro de tus turnos anteriores.
                 </p>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ TAB: Próximos turnos ═══ */}
-      {tab === "mis-turnos" && (
-        <div className="space-y-2">
-          {myBookings.length > 0 ? (
-            myBookings.map((b: any) => {
-              const bookDate = new Date(b.booking_date + "T00:00:00");
-              const isToday = formatDateISO(bookDate) === formatDateISO(new Date());
-              const isTomorrow = formatDateISO(bookDate) === formatDateISO(addDays(new Date(), 1));
-
-              return (
-                <div
-                  key={b.id}
-                  className={`bg-white rounded-2xl p-4 border transition-colors ${
-                    isToday ? "border-primary/30 bg-primary/5" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl ${isToday ? "bg-primary/10" : "bg-muted"}`}>
-                        <CalendarCheck className={`w-4 h-4 ${isToday ? "text-primary" : "text-muted-foreground"}`} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-foreground text-sm">
-                            {bookDate.toLocaleDateString("es-AR", {
-                              weekday: "long",
-                              day: "numeric",
-                              month: "short",
-                            })}
-                          </p>
-                          {isToday && (
-                            <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded-full font-bold">
-                              HOY
-                            </span>
-                          )}
-                          {isTomorrow && (
-                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
-                              MAÑANA
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {b.box_schedule_slots?.start_time?.slice(0, 5)} – {b.box_schedule_slots?.end_time?.slice(0, 5)} · {b.box_schedule_slots?.label}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => cancelBooking(b.id)}
-                      className="p-2 rounded-xl text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
-                      title="Cancelar turno"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {/* Confirmed badge */}
-                  <div className="mt-3 flex items-center gap-1.5 bg-green-50 rounded-lg px-2.5 py-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                    <span className="text-[11px] font-medium text-green-700">Turno confirmado</span>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-center py-12 bg-white rounded-2xl border border-border">
-              <CalendarCheck className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm font-medium text-foreground">Sin turnos reservados</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Andá a la pestaña "Reservar" para elegir un horario.
-              </p>
-              <button
-                onClick={() => setTab("reservar")}
-                className="mt-3 text-sm text-primary font-medium hover:underline"
-              >
-                Reservar turno →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ TAB: Historial ═══ */}
-      {tab === "historial" && (
-        <div className="space-y-2">
-          {pastBookings.length > 0 ? (
-            pastBookings.map((b: any) => {
-              const config = STATUS_CONFIG[b.status] || STATUS_CONFIG.confirmada;
-              const StatusIcon = config.icon;
-              const bookDate = new Date(b.booking_date + "T00:00:00");
-
-              return (
-                <div
-                  key={b.id}
-                  className="bg-white rounded-2xl p-4 border border-border"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-muted p-2 rounded-xl">
-                        <StatusIcon className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground text-sm">
-                          {bookDate.toLocaleDateString("es-AR", {
-                            weekday: "short",
-                            day: "numeric",
-                            month: "short",
-                            year: bookDate.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
-                          })}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {b.box_schedule_slots?.start_time?.slice(0, 5)} – {b.box_schedule_slots?.end_time?.slice(0, 5)} · {b.box_schedule_slots?.label}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${config.color}`}>
-                      {config.label}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-center py-12 bg-white rounded-2xl border border-border">
-              <History className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm font-medium text-foreground">Sin historial</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Acá vas a ver el registro de tus turnos anteriores.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

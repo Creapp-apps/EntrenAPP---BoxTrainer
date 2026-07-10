@@ -118,13 +118,16 @@ export default async function StudentLayout({ children }: { children: React.Reac
   const activeTheme = boxData?.theme || "default";
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50/50" data-theme={activeTheme !== "default" ? activeTheme : undefined}>
+    <div className="flex flex-col min-h-screen bg-slate-50/50 light-theme-forced" data-theme={activeTheme !== "default" ? activeTheme : undefined}>
       {/* Inyectar el color del Tenant directamente en las variables primarias de Tailwind */}
       <style dangerouslySetInnerHTML={{ __html: `
         :root {
           --primary: ${hslString} !important;
           --sidebar-primary: ${hslString} !important;
           --ring: ${hslString} !important;
+        }
+        body {
+          background-color: #f8fafc !important;
         }
       `}} />
 

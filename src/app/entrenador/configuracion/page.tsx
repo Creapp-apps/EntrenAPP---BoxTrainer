@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, X, Settings, RotateCcw, Loader2, Check, Shield, Users, Trophy, Search, GraduationCap, Trash2, DownloadCloud, Edit2, Clock } from "lucide-react";
 import { toast } from "sonner";
+import LoadingScreen from "@/components/ui/loading-screen";
 
 const DEFAULT_VARIANTS = [
   "S1", "S2", "S3", "S4",
@@ -304,11 +305,7 @@ export default function ConfiguracionPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingScreen message="Cargando configuración del box..." className="py-24" />;
   }
 
   const enabledCount = students.filter(s => s.can_edit_own_rms).length;

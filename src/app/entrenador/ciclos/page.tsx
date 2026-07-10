@@ -7,6 +7,9 @@ import Link from "next/link";
 import { WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { motion, AnimatePresence } from "framer-motion";
+import LoadingScreen from "@/components/ui/loading-screen";
+
 
 type Cycle = {
   id: string;
@@ -115,130 +118,136 @@ export default function CiclosPage() {
       </div>
 
       {/* Content */}
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl p-5 h-24 animate-pulse border border-border" />
-          ))}
-        </div>
-      ) : shown.length > 0 ? (
-        <div className="space-y-3">
-          {shown.map(cycle => {
-            const phases = cycle.phase_structure || [];
-            const enrollments = cycle.training_cycle_enrollments || [];
-            const activeEnrollments = enrollments.filter(e => e.active);
-            const studentLabel = cycle.is_template
-              ? `Plantilla · ${cycle.total_weeks} semanas`
-              : activeEnrollments.length === 0
-              ? "Sin alumno"
-              : activeEnrollments.length === 1
-              ? activeEnrollments[0].users?.full_name || "Alumno"
-              : `${activeEnrollments.length} alumnos`;
-            const isDeleting = deletingId === cycle.id;
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={loading ? "loading" : tab}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          {loading ? (
+            <LoadingScreen message="Cargando ciclos y plantillas..." />
+          ) : shown.length > 0 ? (
+            <div className="space-y-3">
+              {shown.map(cycle => {
+                const phases = cycle.phase_structure || [];
+                const enrollments = cycle.training_cycle_enrollments || [];
+                const activeEnrollments = enrollments.filter(e => e.active);
+                const studentLabel = cycle.is_template
+                  ? `Plantilla · ${cycle.total_weeks} semanas`
+                  : activeEnrollments.length === 0
+                  ? "Sin alumno"
+                  : activeEnrollments.length === 1
+                  ? activeEnrollments[0].users?.full_name || "Alumno"
+                  : `${activeEnrollments.length} alumnos`;
+                const isDeleting = deletingId === cycle.id;
 
-            return (
-              <div key={cycle.id}
-                className="relative bg-white rounded-2xl shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all group">
-                {/* Main link area */}
-                <Link href={cycle.cycle_type === "crossfit" ? `/entrenador/crossfit/${cycle.id}` : `/entrenador/ciclos/${cycle.id}`} className="block p-5">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex items-start gap-3">
-                      {cycle.is_template && (
-                        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0 mt-0.5">
-                          <Copy className="w-4 h-4 text-purple-600" />
+                return (
+                  <div key={cycle.id}
+                    className="relative bg-white rounded-2xl shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all group">
+                    {/* Main link area */}
+                    <Link href={cycle.cycle_type === "crossfit" ? `/entrenador/crossfit/${cycle.id}` : `/entrenador/ciclos/${cycle.id}`} className="block p-5">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex items-start gap-3">
+                          {cycle.is_template && (
+                            <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0 mt-0.5">
+                              <Copy className="w-4 h-4 text-purple-600" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-semibold text-foreground pr-10">{cycle.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {studentLabel}
+                            </p>
+                          </div>
                         </div>
-                      )}
-                      <div>
-                        <p className="font-semibold text-foreground pr-10">{cycle.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {studentLabel}
-                        </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {cycle.cycle_type === "crossfit" ? (
+                            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-orange-100 text-orange-700">
+                              CF
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-700">
+                              Fuerza
+                            </span>
+                          )}
+                          {cycle.is_template ? (
+                            <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-purple-100 text-purple-700">
+                              Plantilla
+                            </span>
+                          ) : (
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                              cycle.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                            }`}>
+                              {cycle.active ? "Activo" : "Finalizado"}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {cycle.cycle_type === "crossfit" ? (
-                        <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-orange-100 text-orange-700">
-                          CF
-                        </span>
-                      ) : (
-                        <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-700">
-                          Fuerza
-                        </span>
+
+                      <div className="flex gap-1.5 flex-wrap mb-2">
+                        {phases.map(p => (
+                          <span key={p.week_number}
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${WEEK_TYPE_COLORS[p.type]}`}>
+                            S{p.week_number}: {WEEK_TYPE_LABELS[p.type]}
+                          </span>
+                        ))}
+                      </div>
+
+                      {!cycle.is_template && cycle.start_date && (
+                        <p className="text-xs text-muted-foreground">
+                          Inicio: {formatDate(cycle.start_date)} · {cycle.total_weeks} semanas
+                        </p>
                       )}
-                      {cycle.is_template ? (
-                        <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-purple-100 text-purple-700">
-                          Plantilla
-                        </span>
-                      ) : (
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                          cycle.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                        }`}>
-                          {cycle.active ? "Activo" : "Finalizado"}
-                        </span>
-                      )}
-                    </div>
+                    </Link>
+
+                    {/* Delete button — bottom right */}
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmTarget(cycle); }}
+                      disabled={isDeleting}
+                      className="absolute bottom-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 z-10"
+                      title={`Eliminar ${cycle.is_template ? "plantilla" : "ciclo"}`}>
+                      {isDeleting
+                        ? <span className="w-4 h-4 block animate-spin border-2 border-destructive border-t-transparent rounded-full" />
+                        : <Trash2 className="w-4 h-4" />
+                      }
+                    </button>
                   </div>
-
-                  <div className="flex gap-1.5 flex-wrap mb-2">
-                    {phases.map(p => (
-                      <span key={p.week_number}
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${WEEK_TYPE_COLORS[p.type]}`}>
-                        S{p.week_number}: {WEEK_TYPE_LABELS[p.type]}
-                      </span>
-                    ))}
-                  </div>
-
-                  {!cycle.is_template && cycle.start_date && (
-                    <p className="text-xs text-muted-foreground">
-                      Inicio: {formatDate(cycle.start_date)} · {cycle.total_weeks} semanas
-                    </p>
-                  )}
-                </Link>
-
-                {/* Delete button — bottom right */}
-                <button
-                  onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmTarget(cycle); }}
-                  disabled={isDeleting}
-                  className="absolute bottom-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 z-10"
-                  title={`Eliminar ${cycle.is_template ? "plantilla" : "ciclo"}`}>
-                  {isDeleting
-                    ? <span className="w-4 h-4 block animate-spin border-2 border-destructive border-t-transparent rounded-full" />
-                    : <Trash2 className="w-4 h-4" />
-                  }
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-16 bg-white rounded-2xl border border-border">
-          {tab === "ciclos" ? (
-            <>
-              <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <h3 className="font-semibold text-foreground">Sin ciclos todavía</h3>
-              <p className="text-sm text-muted-foreground mt-1 mb-4">
-                Creá el primer ciclo para un alumno.
-              </p>
-              <Link href="/entrenador/ciclos/nuevo"
-                className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-                <Plus className="w-4 h-4" /> Crear ciclo
-              </Link>
-            </>
+                );
+              })}
+            </div>
           ) : (
-            <>
-              <Copy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <h3 className="font-semibold text-foreground">Sin plantillas todavía</h3>
-              <p className="text-sm text-muted-foreground mt-1 mb-4">
-                Guardá un ciclo como plantilla desde el editor para reutilizarlo con otros alumnos.
-              </p>
-              <Link href="/entrenador/ciclos/nuevo?template=true"
-                className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
-                <Plus className="w-4 h-4" /> Crear plantilla
-              </Link>
-            </>
+            <div className="text-center py-16 bg-white rounded-2xl border border-border">
+              {tab === "ciclos" ? (
+                <>
+                  <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="font-semibold text-foreground">Sin ciclos todavía</h3>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
+                    Creá el primer ciclo para un alumno.
+                  </p>
+                  <Link href="/entrenador/ciclos/nuevo"
+                    className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
+                    <Plus className="w-4 h-4" /> Crear ciclo
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="font-semibold text-foreground">Sin plantillas todavía</h3>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
+                    Guardá un ciclo como plantilla desde el editor para reutilizarlo con otros alumnos.
+                  </p>
+                  <Link href="/entrenador/ciclos/nuevo?template=true"
+                    className="inline-flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition">
+                    <Plus className="w-4 h-4" /> Crear plantilla
+                  </Link>
+                </>
+              )}
+            </div>
           )}
-        </div>
-      )}
+        </motion.div>
+      </AnimatePresence>
     </div>
 
     <ConfirmDialog

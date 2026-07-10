@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { calculateWeight } from "@/lib/utils";
+import LoadingScreen from "@/components/ui/loading-screen";
 
 // ─── Types ────────────────────────────────────────────────────
 type ExerciseData = { id: string; name: string; video_url?: string; category: string };
@@ -1065,11 +1066,7 @@ export default function EntrenarPage() {
     }
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-    </div>
-  );
+  if (loading) return <LoadingScreen message="Preparando tu entrenamiento..." />;
 
   // ─── Done screen ───────────────────────────────────────────
   if (phase === "done") {

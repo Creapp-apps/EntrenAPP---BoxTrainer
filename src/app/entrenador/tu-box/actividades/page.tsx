@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, Pencil, X, Check, Palette, Loader2 } from "lucide-react";
+import LoadingScreen from "@/components/ui/loading-screen";
 
 const PRESET_COLORS = [
   "#3b82f6", "#ea580c", "#16a34a", "#8b5cf6",
@@ -87,11 +88,7 @@ export default function ActividadesPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingScreen message="Cargando actividades..." className="py-24" />;
   }
 
   return (

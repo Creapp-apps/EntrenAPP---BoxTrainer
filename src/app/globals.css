@@ -79,6 +79,9 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   html, body {
     overflow-x: hidden;
   }
@@ -86,6 +89,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Page load entrance transition */
+.page-transition {
+  animation: pageEntrance 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pageEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 
 /* PWA safe area support */
 .pb-safe {
@@ -156,4 +176,124 @@
 .animate-pulse-fast {
   animation: pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* ─── Premium UX/UI Custom Animations ─── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  .animate-slide-in-left {
+    animation: slideInLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  
+  .animate-shake {
+    animation: shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  }
+  
+  .animate-shimmer {
+    background: linear-gradient(90deg, hsl(var(--muted)/0.5) 25%, hsl(var(--muted-foreground)/0.15) 50%, hsl(var(--muted)/0.5) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+  }
+  
+  /* Stagger delays for grid lists and charts */
+  .animation-delay-75 {
+    animation-delay: 75ms;
+  }
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+  .animation-delay-150 {
+    animation-delay: 150ms;
+  }
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+  
+  /* Spring curves for custom hover and state transitions */
+  .transition-spring {
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+}
+
+.light-theme-forced {
+  --background: 0 0% 100% !important;
+  --foreground: 224 71.4% 4.1% !important;
+  --card: 0 0% 100% !important;
+  --card-foreground: 224 71.4% 4.1% !important;
+  --popover: 0 0% 100% !important;
+  --popover-foreground: 224 71.4% 4.1% !important;
+  --secondary: 220 14.3% 95.9% !important;
+  --secondary-foreground: 220.9 39.3% 11% !important;
+  --muted: 220 14.3% 95.9% !important;
+  --muted-foreground: 220 8.9% 46.1% !important;
+  --accent: 220 14.3% 95.9% !important;
+  --accent-foreground: 220.9 39.3% 11% !important;
+  --border: 220 13% 91% !important;
+  --input: 220 13% 91% !important;
+}
+
+
 

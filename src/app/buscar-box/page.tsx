@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, MapPin, Dumbbell, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import LoadingScreen from "@/components/ui/loading-screen";
 
 interface BoxResult {
   id: string;
@@ -80,17 +81,15 @@ export default function BuscarBoxPage() {
         {/* Resultados */}
         <div className="bg-white/[0.02] border border-white/[0.05] rounded-3xl p-3 sm:p-4 min-h-[300px] max-h-[500px] overflow-y-auto custom-scrollbar shadow-2xl relative">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 py-20 opacity-50">
-              <Dumbbell className="w-8 h-8 animate-spin" />
-              <p className="text-sm font-semibold">Buscando centros...</p>
-            </div>
+            <LoadingScreen message="Buscando centros..." className="py-12" />
           ) : results.length > 0 ? (
             <div className="space-y-2">
-              {results.map((box) => (
+              {results.map((box, idx) => (
                 <Link
                   href={`/box/${box.id}`}
                   key={box.id}
-                  className="flex items-center justify-between p-4 rounded-2xl hover:bg-white/[0.06] border border-transparent hover:border-white/10 transition-all group"
+                  className="flex items-center justify-between p-4 rounded-2xl hover:bg-white/[0.06] border border-transparent hover:border-white/10 transition-all group animate-slide-in-left opacity-0"
+                  style={{ animationDelay: `${idx * 40}ms` }}
                 >
                   <div className="flex items-center gap-4">
                     <div

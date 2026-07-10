@@ -167,6 +167,11 @@ function SignupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 select-none relative" style={{ backgroundColor: branding ? "#060608" : "#f1f5f9" }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        body {
+          background-color: ${branding ? "#060608" : "#f1f5f9"} !important;
+        }
+      `}} />
       {/* Background glow if branded */}
       {branding && (
         <div 

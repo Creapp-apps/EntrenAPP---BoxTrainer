@@ -40,3 +40,8 @@ next-env.d.ts
 
 # db backups (sensitive data)
 /backups/
+
+# agent & transition temp files
+/.agent/
+*transition*.png
+

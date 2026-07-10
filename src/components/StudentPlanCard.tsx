@@ -11,6 +11,7 @@ import {
   Check,
   CalendarCheck,
 } from "lucide-react";
+import Select from "@/components/ui/Select";
 import type { Plan, StudentPlanSubscription, StudentModality } from "@/types";
 
 const MODALITY_LABELS: Record<string, string> = {
@@ -214,18 +215,19 @@ export default function StudentPlanCard({ studentId, modality }: { studentId: st
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             {subscription ? "Renovar" : "Asignar"} plan
           </p>
-          <select
+          <Select
             value={selectedPlanId}
-            onChange={e => setSelectedPlanId(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl border border-border text-sm bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-          >
-            <option value="">Seleccionar plan...</option>
-            {plans.map(plan => (
-              <option key={plan.id} value={plan.id}>
-                {plan.name} — {plan.sessions_per_week}x/sem · {plan.total_credits} créditos · ${plan.price}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setSelectedPlanId(val)}
+            options={[
+              { value: "", label: "Seleccionar plan..." },
+              ...plans.map((plan) => ({
+                value: plan.id,
+                label: `${plan.name} — ${plan.sessions_per_week}x/sem · ${plan.total_credits} créditos · $${plan.price}`,
+              })),
+            ]}
+            placeholder="Seleccionar plan..."
+            triggerClassName="py-2.5 px-3 text-sm bg-white h-[42px] flex items-center justify-between"
+          />
           <div className="flex gap-2">
             <button
               onClick={assignPlan}

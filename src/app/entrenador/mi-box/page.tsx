@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Building2, Save, MapPin, Phone, Image, Loader2, Users, GraduationCap, Shield, Upload, X, Check, Palette } from "lucide-react";
+import LoadingScreen from "@/components/ui/loading-screen";
 
 const THEMES = [
   { id: "default", label: "Naranja", color: "#f97316" },
@@ -127,11 +128,7 @@ export default function MiBoxPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingScreen message="Cargando información del box..." className="py-24" />;
   }
 
   if (!box) {

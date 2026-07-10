@@ -23,19 +23,22 @@ export default function TrainerBottomNav({ onMenuClick }: { onMenuClick: () => v
           return (
             <Link key={href} href={href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors",
-                active ? "text-primary" : "text-muted-foreground"
+                "relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-spring active:scale-95 group min-w-[64px]",
+                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}>
-              <Icon className={cn("w-5 h-5", active && "stroke-[2.5]")} />
-              <span className={cn("text-[10px] font-medium", active && "font-semibold")}>{label}</span>
+              <Icon className={cn("w-5 h-5 transition-transform duration-300 group-hover:scale-110", active && "scale-105 stroke-[2.5]")} />
+              <span className={cn("text-[9px] font-medium transition-colors", active && "font-semibold")}>{label}</span>
+              {active && (
+                <span className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-primary animate-scale-in shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+              )}
             </Link>
           );
         })}
         {/* Menu button to open sidebar for other options like Pagos, Crossfit, Metrics, Config */}
         <button onClick={onMenuClick}
-          className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground transition-colors">
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] font-medium">Menú</span>
+          className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-muted-foreground hover:text-foreground transition-spring active:scale-95 group min-w-[64px]">
+          <Menu className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+          <span className="text-[9px] font-medium">Menú</span>
         </button>
       </div>
     </nav>

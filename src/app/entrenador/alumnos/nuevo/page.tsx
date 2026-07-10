@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
 import Link from "next/link";
+import Select from "@/components/ui/Select";
 
 export default function NuevoAlumnoPage() {
   const router = useRouter();
@@ -109,15 +110,16 @@ export default function NuevoAlumnoPage() {
           {field("Teléfono", "phone", { type: "tel", placeholder: "+54 9 11 1234-5678" })}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Modalidad</label>
-            <select
+            <Select
               value={form.modality}
-              onChange={e => setForm({ ...form, modality: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="presencial">Presencial</option>
-              <option value="a_distancia">A distancia</option>
-              <option value="mixto">Mixto</option>
-            </select>
+              onChange={(val) => setForm({ ...form, modality: val })}
+              options={[
+                { value: "presencial", label: "Presencial" },
+                { value: "a_distancia", label: "A distancia" },
+                { value: "mixto", label: "Mixto" }
+              ]}
+              triggerClassName="py-3 px-4 text-sm bg-background text-foreground h-[46px] flex items-center justify-between"
+            />
             <p className="text-xs text-muted-foreground mt-1">Define si el alumno entrena en el box o a distancia</p>
           </div>
         </div>

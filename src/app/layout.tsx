@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   title: "EntrenAPP",
   description: "Plataforma de gestión para entrenadores de halterofilia y fuerza",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -32,8 +37,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="es" className="dark" suppressHydrationWarning>
+      <body className={`${inter.className} bg-[#060608]`}>
         <ServiceWorkerRegistrar />
         {children}
         <Toaster richColors position="top-right" />
