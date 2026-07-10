@@ -32,6 +32,11 @@ export default function TrainerLayoutClient({
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        body {
+          background-color: #f8fafc !important;
+        }
+      `}} />
       {showOnboarding && boxData && (
         <BoxOnboarding
           boxId={boxData.id}
@@ -39,7 +44,7 @@ export default function TrainerLayoutClient({
           onComplete={() => { setShowOnboarding(false); router.refresh(); }}
         />
       )}
-      <div className="flex flex-col lg:flex-row min-h-[100dvh] bg-muted/30 overflow-x-hidden">
+      <div className="flex flex-col lg:flex-row min-h-[100dvh] bg-muted/30 overflow-x-hidden light-theme-forced">
 
       {/* Mobile backdrop */}
       {sidebarOpen && (

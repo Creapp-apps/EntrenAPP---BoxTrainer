@@ -6,6 +6,7 @@ import {
   Check, Loader2, ArrowRight, Settings, SlidersHorizontal, 
   DollarSign, RefreshCw, X, Receipt, Clock, Ban, Phone
 } from "lucide-react";
+import Select from "@/components/ui/Select";
 
 interface Product {
   id: string;
@@ -708,20 +709,23 @@ export default function TrainerTiendaClient({
 
                       {sale.status === "pendiente" && (
                         <div className="flex gap-2">
-                          <select 
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleCompleteOrder(sale.id, e.target.value);
+                          <Select
+                            value=""
+                            onChange={(val) => {
+                              if (val) {
+                                handleCompleteOrder(sale.id, val);
                               }
                             }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg border-0 focus:outline-none cursor-pointer"
-                          >
-                            <option value="">Cobrar...</option>
-                            <option value="efectivo">Cobrar Efectivo</option>
-                            <option value="transferencia">Cobrar Transferencia</option>
-                            <option value="tarjeta">Cobrar Tarjeta</option>
-                            <option value="debito">Cobrar Débito</option>
-                          </select>
+                            options={[
+                              { value: "efectivo", label: "Cobrar Efectivo" },
+                              { value: "transferencia", label: "Cobrar Transferencia" },
+                              { value: "tarjeta", label: "Cobrar Tarjeta" },
+                              { value: "debito", label: "Cobrar Débito" }
+                            ]}
+                            placeholder="Cobrar..."
+                            className="w-28 text-left"
+                            triggerClassName="bg-emerald-600 hover:bg-emerald-700 hover:border-emerald-600 text-white text-[9px] font-black uppercase tracking-wider px-2 py-1 h-[28px] rounded-lg border-0"
+                          />
                           <button
                             onClick={() => handleCancelOrder(sale.id)}
                             className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/20 transition-all"
@@ -809,24 +813,27 @@ export default function TrainerTiendaClient({
                 <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1">
                   <User className="w-3 h-3" /> Asociar a Alumno
                 </label>
-                <select
+                <Select
                   value={selectedStudentId}
-                  onChange={(e) => {
-                    setSelectedStudentId(e.target.value);
-                    if (e.target.value) {
+                  onChange={(val) => {
+                    setSelectedStudentId(val);
+                    if (val) {
                       setBuyerName("");
                       setBuyerContact("");
                     }
                   }}
-                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-ring cursor-pointer"
-                >
-                  <option value="">Invitado / Consumidor Final</option>
-                  {students.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.name} {student.email ? `(${student.email})` : ""}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "Invitado / Consumidor Final" },
+                    ...students.map((s) => ({
+                      value: s.id,
+                      label: `${s.name} ${s.email ? `(${s.email})` : ""}`,
+                    })),
+                  ]}
+                  placeholder="Invitado / Consumidor Final"
+                  searchable={true}
+                  searchPlaceholder="Buscar alumno..."
+                  triggerClassName="py-2 px-3 text-xs bg-background"
+                />
               </div>
 
               {/* Guest Details (Conditional) */}
@@ -986,16 +993,18 @@ export default function TrainerTiendaClient({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Categoría</label>
-                  <select
+                  <Select
                     value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full bg-background border border-input rounded-xl px-4 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                  >
-                    <option value="drinks">Bebidas / Canteen</option>
-                    <option value="supplements">Suplementos</option>
-                    <option value="clothing">Indumentaria / Ropa</option>
-                    <option value="other">Otros</option>
-                  </select>
+                    onChange={(val) => setFormCategory(val)}
+                    options={[
+                      { value: "drinks", label: "Bebidas / Canteen" },
+                      { value: "supplements", label: "Suplementos" },
+                      { value: "clothing", label: "Indumentaria / Ropa" },
+                      { value: "other", label: "Otros" }
+                    ]}
+                    placeholder="Seleccionar categoría"
+                    triggerClassName="py-2.5 px-4 text-xs bg-background"
+                  />
                 </div>
 
                 <div className="space-y-1 flex flex-col justify-end">

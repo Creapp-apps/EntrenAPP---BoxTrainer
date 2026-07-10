@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { formatCurrency, formatDate, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS } from "@/lib/utils";
 import TrainerFinanzasClient from "@/components/TrainerFinanzasClient";
+import Select from "@/components/ui/Select";
 
 type Payment = {
   id: string;
@@ -133,12 +134,16 @@ function EditModal({ payment, onSave, onClose, saving }: {
 
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Estado</label>
-            <select value={status} onChange={e => setStatus(e.target.value as Payment["status"])}
-              className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
-              <option value="pendiente">Pendiente</option>
-              <option value="vencido">Vencido</option>
-              <option value="pagado">Pagado</option>
-            </select>
+            <Select
+              value={status}
+              onChange={(val) => setStatus(val as Payment["status"])}
+              options={[
+                { value: "pendiente", label: "Pendiente" },
+                { value: "vencido", label: "Vencido" },
+                { value: "pagado", label: "Pagado" }
+              ]}
+              triggerClassName="py-2.5 px-3 text-sm bg-white h-[42px] flex items-center justify-between"
+            />
           </div>
 
           <div>

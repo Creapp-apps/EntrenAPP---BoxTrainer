@@ -19,6 +19,9 @@ import {
   Percent,
   TrendingUp,
 } from "lucide-react";
+import Select from "@/components/ui/Select";
+import { motion, AnimatePresence } from "framer-motion";
+import LoadingScreen from "@/components/ui/loading-screen";
 
 type Exercise = {
   id: string;
@@ -285,8 +288,16 @@ export default function StudentPRsPage() {
           </button>
         </div>
 
-        {activeTab === "records" ? (
-          <div className="space-y-5">
+        <AnimatePresence mode="wait">
+          {activeTab === "records" ? (
+            <motion.div
+              key="records"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-5"
+            >
             {/* Search and Filters */}
             <div className="space-y-3">
               <div className="relative">
@@ -352,12 +363,8 @@ export default function StudentPRsPage() {
               </div>
             </div>
 
-            {/* List */}
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-16 space-y-3">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <span className="text-xs text-slate-400 font-medium">Cargando tus registros...</span>
-              </div>
+              <LoadingScreen message="Cargando tus registros..." />
             ) : Object.keys(groupedExercises).length > 0 ? (
               <div className="space-y-4">
                 {Object.entries(groupedExercises).map(([cat, exs]) => (
@@ -484,10 +491,16 @@ export default function StudentPRsPage() {
                 </p>
               </div>
             )}
-          </div>
+          </motion.div>
         ) : (
-          /* Calculator view */
-          <div className="space-y-5">
+          <motion.div
+            key="calculator"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="space-y-5"
+          >
             {/* Calculator Inputs Card */}
             <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
@@ -515,19 +528,15 @@ export default function StudentPRsPage() {
                   <label className="text-[10px] font-black uppercase text-slate-500 tracking-wide">
                     Repeticiones hechas
                   </label>
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-3">
-                    <select
-                      value={calcReps}
-                      onChange={(e) => setCalcReps(e.target.value)}
-                      className="w-full bg-transparent text-sm font-bold text-slate-900 focus:outline-none cursor-pointer"
-                    >
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map((num) => (
-                        <option key={num} value={num} className="bg-white text-slate-800 font-bold">
-                          {num} rep{num !== 1 ? "s" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    value={calcReps}
+                    onChange={(val) => setCalcReps(val)}
+                    options={Array.from({ length: 12 }, (_, i) => i + 1).map((num) => ({
+                      value: num.toString(),
+                      label: `${num} rep${num !== 1 ? "s" : ""}`
+                    }))}
+                    triggerClassName="bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-3 text-sm font-bold text-slate-900 h-[46px] flex items-center justify-between"
+                  />
                 </div>
               </div>
 
@@ -563,26 +572,21 @@ export default function StudentPRsPage() {
                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-wide">
                       Seleccionar Ejercicio
                     </label>
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-3">
-                      <select
-                        value={calcExerciseId}
-                        onChange={(e) => setCalcExerciseId(e.target.value)}
-                        className="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer"
-                      >
-                        <option value="" className="text-slate-400">
-                          Elegí un ejercicio...
-                        </option>
-                        {exercises.map((ex) => (
-                          <option
-                            key={ex.id}
-                            value={ex.id}
-                            className="bg-white text-slate-800 font-bold"
-                          >
-                            {ex.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <Select
+                      value={calcExerciseId}
+                      onChange={(val) => setCalcExerciseId(val)}
+                      options={[
+                        { value: "", label: "Elegí un ejercicio..." },
+                        ...exercises.map((ex) => ({
+                          value: ex.id,
+                          label: ex.name
+                        }))
+                      ]}
+                      placeholder="Elegí un ejercicio..."
+                      searchable={true}
+                      searchPlaceholder="Buscar ejercicio..."
+                      triggerClassName="bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-3 text-xs font-bold text-slate-900 h-[46px] flex items-center justify-between"
+                    />
                   </div>
 
                   <button
@@ -626,8 +630,9 @@ export default function StudentPRsPage() {
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
+      </AnimatePresence>
       </div>
 
       {/* Footer Branding */}

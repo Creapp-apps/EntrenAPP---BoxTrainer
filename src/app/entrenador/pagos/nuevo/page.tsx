@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, CreditCard, Search, X, Check, User } from "lucide-react";
 import Link from "next/link";
+import Select from "@/components/ui/Select";
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
@@ -257,10 +258,12 @@ export default function NuevoPagoPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Mes</label>
-            <select value={form.month} onChange={e => setForm({ ...form, month: parseInt(e.target.value) })}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
-              {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
-            </select>
+            <Select
+              value={String(form.month)}
+              onChange={(val) => setForm({ ...form, month: parseInt(val) })}
+              options={MONTHS.map((m, i) => ({ value: String(i), label: m }))}
+              triggerClassName="py-3 px-4 text-sm bg-background text-foreground h-[46px] flex items-center justify-between"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Año</label>
@@ -302,13 +305,17 @@ export default function NuevoPagoPage() {
         {/* Método de pago */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">Método de pago</label>
-          <select value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="efectivo">Efectivo</option>
-            <option value="transferencia">Transferencia</option>
-            <option value="mercadopago">MercadoPago</option>
-            <option value="otro">Otro</option>
-          </select>
+          <Select
+            value={form.payment_method}
+            onChange={(val) => setForm({ ...form, payment_method: val })}
+            options={[
+              { value: "efectivo", label: "Efectivo" },
+              { value: "transferencia", label: "Transferencia" },
+              { value: "mercadopago", label: "MercadoPago" },
+              { value: "otro", label: "Otro" }
+            ]}
+            triggerClassName="py-3 px-4 text-sm bg-background text-foreground h-[46px] flex items-center justify-between"
+          />
         </div>
 
         {/* Notas */}

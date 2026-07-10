@@ -4,8 +4,28 @@ import { useEffect } from "react";
 
 export default function ServiceWorkerRegistrar() {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      // Registrar (o actualizar) el SW en cada carga
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const isLocalhost =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname.startsWith("192.168.");
+
+      if (isLocalhost) {
+        // Desregistrar cualquier service worker activo en localhost para evitar problemas de caché en desarrollo
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister().then((success) => {
+              if (success) {
+                console.log("[SW] Desregistrado SW activo de localhost para desarrollo");
+                window.location.reload();
+              }
+            });
+          }
+        });
+        return;
+      }
+
+      // Registrar (o actualizar) el SW en cada carga en producción
       navigator.serviceWorker
         .register("/sw.js", { updateViaCache: "none" })
         .then((reg) => {

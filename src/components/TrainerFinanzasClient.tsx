@@ -20,6 +20,7 @@ import {
   Layers
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import Select from "@/components/ui/Select";
 
 type Transaction = {
   id: string;
@@ -587,38 +588,44 @@ export default function TrainerFinanzasClient({ boxId, activeTab }: TrainerFinan
             <form onSubmit={handleAddTransaction} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Tipo</label>
-                <select
+                <Select
                   value={txForm.type}
-                  onChange={e => setTxForm({ ...txForm, type: e.target.value as any, category: e.target.value === "income" ? "membership" : "rent" })}
-                  className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white"
-                >
-                  <option value="expense">Egreso (Gasto)</option>
-                  <option value="income">Ingreso (Caja)</option>
-                </select>
+                  onChange={(val) =>
+                    setTxForm({
+                      ...txForm,
+                      type: val as any,
+                      category: val === "income" ? "membership" : "rent",
+                    })
+                  }
+                  options={[
+                    { value: "expense", label: "Egreso (Gasto)" },
+                    { value: "income", label: "Ingreso (Caja)" },
+                  ]}
+                  triggerClassName="py-2 px-3 text-xs bg-white h-[38px] flex items-center justify-between"
+                />
               </div>
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Categoría</label>
-                <select
+                <Select
                   value={txForm.category}
-                  onChange={e => setTxForm({ ...txForm, category: e.target.value as any })}
-                  className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white"
-                >
-                  {txForm.type === "income" ? (
-                    <>
-                      <option value="membership">Cuotas</option>
-                      <option value="pos_sale">Venta POS</option>
-                      <option value="other">Otros Ingresos</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="rent">Alquiler</option>
-                      <option value="services">Servicios (Luz/Gas/Net)</option>
-                      <option value="salary">Sueldos</option>
-                      <option value="provider_payment">Proveedores</option>
-                      <option value="other">Otros Gastos</option>
-                    </>
-                  )}
-                </select>
+                  onChange={(val) => setTxForm({ ...txForm, category: val as any })}
+                  options={
+                    txForm.type === "income"
+                      ? [
+                          { value: "membership", label: "Cuotas" },
+                          { value: "pos_sale", label: "Venta POS" },
+                          { value: "other", label: "Otros Ingresos" },
+                        ]
+                      : [
+                          { value: "rent", label: "Alquiler" },
+                          { value: "services", label: "Servicios (Luz/Gas/Net)" },
+                          { value: "salary", label: "Sueldos" },
+                          { value: "provider_payment", label: "Proveedores" },
+                          { value: "other", label: "Otros Gastos" },
+                        ]
+                  }
+                  triggerClassName="py-2 px-3 text-xs bg-white h-[38px] flex items-center justify-between"
+                />
               </div>
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Monto (ARS)</label>
@@ -771,15 +778,16 @@ export default function TrainerFinanzasClient({ boxId, activeTab }: TrainerFinan
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Modalidad de Pago</label>
-                          <select
+                          <Select
                             value={profConfigForm.payment_type}
-                            onChange={e => setProfConfigForm({ ...profConfigForm, payment_type: e.target.value as any })}
-                            className="w-full mt-1 px-3 py-1.5 rounded-lg border border-border text-xs bg-white"
-                          >
-                            <option value="fixed">Sueldo Fijo Mensual</option>
-                            <option value="per_class">Pago por Clase Dictada</option>
-                            <option value="per_hour">Pago por Hora de Clase</option>
-                          </select>
+                            onChange={(val) => setProfConfigForm({ ...profConfigForm, payment_type: val as any })}
+                            options={[
+                              { value: "fixed", label: "Sueldo Fijo Mensual" },
+                              { value: "per_class", label: "Pago por Clase Dictada" },
+                              { value: "per_hour", label: "Pago por Hora de Clase" }
+                            ]}
+                            triggerClassName="mt-1 py-1.5 px-3 text-xs bg-white"
+                          />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Tarifa (ARS)</label>
@@ -914,14 +922,15 @@ export default function TrainerFinanzasClient({ boxId, activeTab }: TrainerFinan
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Estado de Pago</label>
-              <select
+              <Select
                 value={providerForm.status}
-                onChange={e => setProviderForm({ ...providerForm, status: e.target.value as any })}
-                className="w-full px-3 py-2.5 rounded-xl border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white"
-              >
-                <option value="pending">Pendiente de Pago</option>
-                <option value="paid">Pagado</option>
-              </select>
+                onChange={(val) => setProviderForm({ ...providerForm, status: val as any })}
+                options={[
+                  { value: "pending", label: "Pendiente de Pago" },
+                  { value: "paid", label: "Pagado" }
+                ]}
+                triggerClassName="py-2.5 px-3 text-xs bg-white h-[38px] flex items-center justify-between"
+              />
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Notas / Detalle</label>
@@ -1060,14 +1069,15 @@ export default function TrainerFinanzasClient({ boxId, activeTab }: TrainerFinan
               </div>
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Tipo de Cuenta</label>
-                <select
+                <Select
                   value={assetForm.type}
-                  onChange={e => setAssetForm({ ...assetForm, type: e.target.value as any })}
-                  className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white"
-                >
-                  <option value="asset">Activo (Bien / Valor)</option>
-                  <option value="liability">Pasivo (Deuda / Obligación)</option>
-                </select>
+                  onChange={(val) => setAssetForm({ ...assetForm, type: val as any })}
+                  options={[
+                    { value: "asset", label: "Activo (Bien / Valor)" },
+                    { value: "liability", label: "Pasivo (Deuda / Obligación)" }
+                  ]}
+                  triggerClassName="py-2 px-3 text-xs bg-white h-[38px] flex items-center justify-between"
+                />
               </div>
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Valor Estimado (ARS)</label>

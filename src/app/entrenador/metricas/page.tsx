@@ -11,6 +11,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie,
 } from "recharts";
+import LoadingScreen from "@/components/ui/loading-screen";
 
 type DashboardStats = {
   active_students: number;
@@ -103,11 +104,7 @@ export default function MetricasPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingScreen message="Cargando métricas de rendimiento..." />;
   }
 
   if (!stats) {

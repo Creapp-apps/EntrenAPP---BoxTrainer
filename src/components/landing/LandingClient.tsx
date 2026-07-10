@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence, useInView } from "framer-motion";
+import ScrollReveal from "@/components/ui/ScrollReveal";
+import { CinematicHero } from "@/components/ui/cinematic-landing-hero";
+import { LandingAccordionItem } from "@/components/ui/interactive-image-accordion";
+import { Menu, MenuItem } from "@/components/ui/navbar-menu";
+import { BlurIn } from "@/components/ui/blur-in";
+import { FlipText } from "@/components/ui/flip-text";
 import {
   Dumbbell, ArrowRight, CheckCircle2, BarChart3,
   Users, Calendar, ChevronDown, Sparkles, Zap, CreditCard,
@@ -145,9 +152,14 @@ const FAQS = [
 // ─── Componente Principal ─────────────────────────────────────────
 export default function LandingClient() {
   const [activeTab, setActiveTab] = useState(0);
+  const [activeNavbarItem, setActiveNavbarItem] = useState<string | null>("crossfit");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const disciplinesRef = useRef(null);
+  const isDisciplinesInView = useInView(disciplinesRef, { once: true, margin: "-10% 0px -10% 0px" });
 
   useEffect(() => {
     setMounted(true);
@@ -208,7 +220,7 @@ export default function LandingClient() {
               </Link>
               <span className="text-white/20 text-xs sm:hidden">|</span>
               <Link
-                href="/buscar-box"
+                href="/auth/login"
                 className="text-xs sm:text-sm font-bold text-slate-400 hover:text-white transition px-1.5 sm:px-3 py-1.5 rounded-lg hover:bg-white/5 whitespace-nowrap"
               >
                 <span className="hidden min-[480px]:inline">Soy </span>Entrenador
@@ -228,388 +240,124 @@ export default function LandingClient() {
       {/* ══════════════════════════════════════════════════
           HERO SECTION
       ══════════════════════════════════════════════════ */}
-      <section className="relative min-h-screen flex flex-col justify-center pt-24 pb-16 px-5 sm:px-8 overflow-hidden z-10">
-
-        {/* Grid decorativo de fondo */}
-        <div
-          className="absolute inset-0 opacity-[0.025]"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
-            backgroundSize: "60px 60px",
-          }}
-        />
-
-        <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-
-          {/* ── Copy principal ── */}
-          <div className="flex flex-col items-start text-left">
-
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-8 backdrop-blur-sm">
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs font-black tracking-widest text-primary uppercase">
-                La plataforma #1 para centros de entrenamiento
-              </span>
-            </div>
-
-            {/* H1 con palabra rotante */}
-            <h1 className="text-5xl sm:text-6xl xl:text-7xl font-black tracking-tight leading-[1.03] text-white mb-6">
-              Gestiona tu<br />
-              <RotatingWord />
-            </h1>
-
-            <p className="text-lg sm:text-xl text-white/50 leading-relaxed max-w-lg mb-10">
-              EntrenAPP centraliza la planificación deportiva, reservas, cobros y métricas en un solo ecosistema premium diseñado para entrenadores serios.
-            </p>
-
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              <Link
-                href="/auth/signup"
-                className="bg-gradient-to-r from-primary to-orange-500 text-white font-black px-8 py-4 rounded-2xl shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5 transition-all duration-300 text-base flex items-center justify-center gap-2.5 group"
-              >
-                Crear cuenta gratis
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <a
-                href="https://wa.me/541165234769/?text=Hola!%20Quiero%20una%20demo%20de%20EntrenAPP"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 text-base flex items-center justify-center gap-2"
-              >
-                <MessageCircle className="w-5 h-5 text-[#25d366]" />
-                Ver demo
-              </a>
-            </div>
-
-            {/* Mini Stats */}
-            <div className="flex items-center gap-8 mt-12 pt-8 border-t border-white/5 w-full">
-              {[
-                { value: "+200", label: "Centros activos" },
-                { value: "99.9%", label: "Uptime garantizado" },
-                { value: "24/7", label: "Soporte WhatsApp" },
-              ].map((s) => (
-                <div key={s.label}>
-                  <div className="text-2xl font-black text-white">{s.value}</div>
-                  <div className="text-xs text-white/35 font-semibold uppercase tracking-wider mt-0.5">{s.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── 3D Spline Scene ── */}
-          <div className="relative h-[400px] sm:h-[520px] lg:h-[620px] flex items-center justify-center mt-8 lg:mt-0">
-            {/* Glow detrás de la escena */}
-            <div className="absolute w-[80%] h-[80%] rounded-full bg-primary/20 blur-[100px]" />
-
-            {/* Floating badge — ingresos */}
-            <div
-              className="absolute top-10 right-4 z-20 bg-black/50 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-none"
-              style={{ animation: "float1 5s ease-in-out infinite" }}
-            >
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                <BarChart3 className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <div className="text-[10px] text-white/40 font-semibold uppercase">Ingresos este mes</div>
-                <div className="text-sm font-black text-white">$1.240.000</div>
-              </div>
-            </div>
-
-            {/* Floating badge — alumnos */}
-            <div
-              className="absolute bottom-16 left-2 z-20 bg-black/50 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-none"
-              style={{ animation: "float2 6s ease-in-out infinite" }}
-            >
-              <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
-                <Users className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <div className="text-[10px] text-white/40 font-semibold uppercase">Alumnos activos</div>
-                <div className="text-sm font-black text-white">148 atletas</div>
-              </div>
-            </div>
-
-            {/* Floating badge — clase llena */}
-            <div
-              className="absolute top-[42%] -left-4 z-20 bg-black/50 backdrop-blur-xl border border-white/10 px-4 py-3 rounded-2xl flex items-center gap-3 shadow-2xl pointer-events-none"
-              style={{ animation: "float3 7s ease-in-out infinite" }}
-            >
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-                <Activity className="w-4 h-4 text-indigo-400" />
-              </div>
-              <div>
-                <div className="text-[10px] text-white/40 font-semibold uppercase">Clase 19:00hs</div>
-                <div className="text-sm font-black text-white">18/20 cupos</div>
-              </div>
-            </div>
-
-            {mounted ? (
-              <div 
-                className="w-full h-full z-10 flex items-center justify-center pointer-events-none"
-                style={{ perspective: "1000px" }}
-              >
-                <div 
-                  className="w-full max-w-[500px] aspect-video bg-[#0a0a0f]/80 backdrop-blur-xl rounded-2xl border border-white/10 flex flex-col overflow-hidden relative"
-                  style={{ 
-                    transform: "rotateY(-15deg) rotateX(10deg) rotateZ(2deg)",
-                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7), -20px 20px 40px rgba(234, 88, 12, 0.15)"
-                  }}
-                >
-                  {/* Dashboard top bar */}
-                  <div className="h-10 border-b border-white/10 bg-white/5 flex items-center px-4 gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                  </div>
-                  {/* Dashboard content */}
-                  <div className="flex-1 p-5 flex gap-5">
-                    {/* Sidebar */}
-                    <div className="w-1/4 border-r border-white/5 pr-4 space-y-4">
-                      <div className="h-4 w-full bg-white/20 rounded-md" />
-                      <div className="h-3 w-3/4 bg-white/10 rounded-md" />
-                      <div className="h-3 w-5/6 bg-white/10 rounded-md" />
-                      <div className="h-3 w-2/3 bg-white/10 rounded-md" />
-                    </div>
-                    {/* Main Area */}
-                    <div className="flex-1 flex flex-col gap-4">
-                      {/* Graph */}
-                      <div className="h-32 rounded-xl bg-gradient-to-t from-primary/20 to-transparent border border-primary/20 relative overflow-hidden flex items-end">
-                        <svg className="w-full h-full text-primary opacity-60 drop-shadow-[0_0_8px_rgba(234,88,12,0.8)]" viewBox="0 0 100 100" preserveAspectRatio="none">
-                          <path d="M0,100 L0,60 C20,80 40,30 60,50 C80,70 90,20 100,30 L100,100 Z" fill="currentColor" />
-                        </svg>
-                      </div>
-                      {/* Cards */}
-                      <div className="flex gap-4">
-                         <div className="flex-1 h-12 bg-white/5 rounded-lg border border-white/5" />
-                         <div className="flex-1 h-12 bg-white/5 rounded-lg border border-white/5" />
-                      </div>
-                    </div>
-                  </div>
-                  {/* Glow overlay effect */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-white/10 animate-pulse z-10">
-                <Dumbbell className="w-24 h-24" />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Scroll hint */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/20">
-          <div className="w-px h-12 bg-gradient-to-b from-transparent to-white/20" />
-          <ChevronDown className="w-4 h-4 animate-bounce" />
-        </div>
-      </section>
+      <CinematicHero />
 
       {/* ══════════════════════════════════════════════════
-          FEATURES — BENTO GRID
+          FEATURES — INTERACTIVE ACCORDION
       ══════════════════════════════════════════════════ */}
-      <section id="features" className="relative py-28 px-5 sm:px-8 z-10">
-        <div className="max-w-7xl mx-auto">
-
-          {/* Header */}
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <p className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Funcionalidades</p>
-            <h2 className="text-4xl sm:text-5xl font-black text-white leading-tight">
-              Todo lo que necesitás,<br />
-              <span className="text-white/40">en un solo lugar</span>
-            </h2>
-          </div>
-
-          {/* Grid Bento */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-
-            {/* Card 1 — Reservas (grande, span 2) */}
-            <div className="lg:col-span-2 group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
-              <div className="absolute -top-20 -right-20 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/15 transition duration-500" />
-              <div className="relative z-10">
-                <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center mb-5">
-                  <Calendar className="w-5 h-5 text-indigo-400" />
-                </div>
-                <h3 className="text-xl font-black text-white mb-2">Agenda y Reservas en Tiempo Real</h3>
-                <p className="text-white/45 text-sm leading-relaxed max-w-md">
-                  Clases con límite de capacidad, tiempos de cancelación configurables, turnos fijos y lista de espera automática por WhatsApp. Tu agenda siempre bajo control.
-                </p>
-                {/* Mock UI */}
-                <div className="mt-6 bg-black/40 border border-white/5 rounded-2xl p-4 text-xs space-y-2">
-                  <div className="flex justify-between text-white/25 uppercase font-bold tracking-wider border-b border-white/5 pb-2">
-                    <span>CrossFit — 19:00hs</span>
-                    <span className="text-emerald-400">18/20 cupos</span>
-                  </div>
-                  {["Martín G.", "Valentina R.", "Lucas P."].map((name) => (
-                    <div key={name} className="flex items-center gap-3 py-0.5">
-                      <div className="w-7 h-7 rounded-full bg-slate-700 shrink-0" />
-                      <div className="flex-1">
-                        <div className="h-2.5 bg-slate-600 rounded w-24" />
-                      </div>
-                      <div className="bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-md font-bold">✓</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2 — Cobros */}
-            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
-              <div className="absolute -bottom-16 -right-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
-              <div className="relative z-10 h-full flex flex-col justify-between">
-                <div>
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center mb-5">
-                    <CreditCard className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <h3 className="text-xl font-black text-white mb-2">Cobros y Finanzas</h3>
-                  <p className="text-white/45 text-sm leading-relaxed">
-                    Planes modulares, vencimientos automáticos y métricas financieras en tiempo real. Nunca más perseguir deudores.
-                  </p>
-                </div>
-                <div className="mt-6 bg-black/40 border border-white/5 rounded-2xl p-4 flex items-center justify-between group-hover:-translate-y-1 transition-transform duration-500">
-                  <div>
-                    <div className="text-[10px] text-white/30 uppercase font-bold tracking-wider">MRR Proyectado</div>
-                    <div className="text-xl font-black text-white mt-0.5">$1.240.000</div>
-                  </div>
-                  <Zap className="w-6 h-6 text-emerald-400 animate-pulse" />
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3 — Planificación */}
-            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
-              <div className="absolute -top-16 -left-16 w-48 h-48 bg-primary/10 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <div className="w-11 h-11 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center mb-5">
-                  <Trophy className="w-5 h-5 text-primary" />
-                </div>
-                <h3 className="text-xl font-black text-white mb-2">Planificación de Ciclos</h3>
-                <p className="text-white/45 text-sm leading-relaxed">
-                  Diseñá ciclos de fuerza, CrossFit o prep física con % de 1RM, complexes y asignación masiva. Tus atletas lo ven directamente en su app.
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {["Fuerza", "CrossFit", "Prep Física", "WODs", "Complexes"].map(tag => (
-                    <span key={tag} className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-white/8 text-white/50 font-semibold">{tag}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4 — App Atletas */}
-            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 cursor-default shadow-xl shadow-black/30">
-              <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <div className="w-11 h-11 rounded-2xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center mb-5">
-                  <Sparkles className="w-5 h-5 text-violet-400" />
-                </div>
-                <h3 className="text-xl font-black text-white mb-2">App Móvil para Atletas</h3>
-                <p className="text-white/45 text-sm leading-relaxed">
-                  Tus alumnos instalan la WebApp en 2 clics. Ven sus rutinas, registran pesos, y ven su progreso histórico en gráficos hermosos.
-                </p>
-                <div className="mt-5 flex gap-3">
-                  <div className="flex-1 bg-black/40 border border-white/5 rounded-xl p-3 flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center text-[9px] font-black text-primary">RM</div>
-                    <div>
-                      <div className="text-[11px] font-bold text-white">Back Squat</div>
-                      <div className="text-[10px] text-white/35">145 kg (+5kg) 🔥</div>
-                    </div>
-                  </div>
-                  <div className="flex-1 bg-black/40 border border-white/5 rounded-xl p-3 flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-sm">🏆</div>
-                    <div>
-                      <div className="text-[11px] font-bold text-white">Fran WOD</div>
-                      <div className="text-[10px] text-white/35">3:45 min ⚡</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 5 — Soporte */}
-            <div className="group relative bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/[0.12] rounded-3xl p-8 overflow-hidden transition-all duration-500 shadow-xl shadow-black/30">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#25d366]/5 to-transparent rounded-3xl" />
-              <div className="relative z-10 h-full flex flex-col justify-between">
-                <div>
-                  <div className="w-11 h-11 rounded-2xl bg-[#25d366]/15 border border-[#25d366]/20 flex items-center justify-center mb-5">
-                    <MessageCircle className="w-5 h-5 text-[#25d366]" />
-                  </div>
-                  <h3 className="text-xl font-black text-white mb-2">Soporte Real por WhatsApp</h3>
-                  <p className="text-white/45 text-sm leading-relaxed">
-                    Sin bots. Un canal directo con el equipo de ingeniería para configurar tu Box en menos de 24 horas.
-                  </p>
-                </div>
-                <a
-                  href="https://wa.me/541165234769"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-6 w-full flex items-center justify-center gap-2 py-3 bg-[#25d366]/10 hover:bg-[#25d366]/20 border border-[#25d366]/20 hover:border-[#25d366]/40 text-[#25d366] font-black rounded-2xl transition-all duration-300 text-sm"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Consultar ahora
-                </a>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
+      <LandingAccordionItem />
 
       {/* ══════════════════════════════════════════════════
-          DISCIPLINAS
+          DISCIPLINAS (Hecho para múltiples tipos de centros)
       ══════════════════════════════════════════════════ */}
-      <section id="disciplines" className="relative py-28 px-5 sm:px-8 z-10">
-        <div className="max-w-5xl mx-auto">
+      <section id="disciplines" className="relative py-28 px-5 sm:px-8 z-30 min-h-[580px]">
+        <div className="max-w-5xl mx-auto relative">
           <div className="text-center mb-14">
             <p className="text-xs font-black text-orange-400 uppercase tracking-[0.2em] mb-4">Adaptado a tu disciplina</p>
-            <h2 className="text-4xl sm:text-5xl font-black text-white">
-              Hecho para múltiples<br />
-              <span className="text-white/40">tipos de centros</span>
+            <h2 ref={disciplinesRef} className="text-4xl sm:text-5xl font-black text-white flex flex-col items-center gap-1">
+              <BlurIn
+                word="Hecho para múltiples"
+                animate={isDisciplinesInView}
+                duration={0.6}
+                className="text-4xl sm:text-5xl font-black text-white tracking-tighter"
+              />
+              <BlurIn
+                word="tipos de centros"
+                animate={isDisciplinesInView}
+                duration={0.6}
+                variant={{
+                  hidden: { filter: "blur(10px)", opacity: 0 },
+                  visible: { filter: "blur(0px)", opacity: 0.4 },
+                }}
+                className="text-4xl sm:text-5xl font-black text-white tracking-tighter"
+              />
             </h2>
           </div>
 
-          {/* Tabs */}
-          <div className="flex flex-wrap justify-center gap-2.5 mb-10">
-            {DISCIPLINES.map((d, i) => (
-              <button
-                key={d.key}
-                onClick={() => setActiveTab(i)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all duration-300 ${
-                  activeTab === i
-                    ? "bg-white text-black shadow-xl scale-[1.04]"
-                    : "bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5"
-                }`}
+          {/* Dynamic Dropdown Navbar Menu */}
+          <div className="flex flex-col items-center w-full relative">
+            <div className="flex justify-center w-full relative z-40">
+              <Menu 
+                setActive={setActiveNavbarItem} 
+                closeOnMouseLeave={false} 
+                className="border border-white/5 bg-black/40 backdrop-blur-md px-6 py-4 rounded-full"
               >
-                <span>{d.emoji}</span>
-                {d.label}
-              </button>
-            ))}
-          </div>
+                {DISCIPLINES.map((d) => (
+                  <MenuItem
+                    key={d.key}
+                    setActive={setActiveNavbarItem}
+                    active={activeNavbarItem}
+                    item={d.key}
+                    label={d.label}
+                    emoji={d.emoji}
+                  />
+                ))}
+              </Menu>
+            </div>
 
-          {/* Contenido de tab */}
-          <div className="relative bg-white/[0.02] border border-white/[0.06] rounded-3xl p-8 md:p-12 overflow-hidden">
-            <div className={`absolute inset-0 rounded-3xl ${disc.glow} blur-3xl opacity-60`} />
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-              <div>
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${disc.color} bg-opacity-10 mb-5`}>
-                  <span className="text-lg">{disc.emoji}</span>
-                  <span className="text-xs font-black text-white uppercase tracking-widest">{disc.label}</span>
-                </div>
-                <h3 className="text-2xl sm:text-3xl font-black text-white mb-4">{disc.title}</h3>
-                <p className="text-white/50 leading-relaxed mb-7 text-base">{disc.desc}</p>
-                <ul className="space-y-2.5">
-                  {disc.features.map(f => (
-                    <li key={f} className="flex items-center gap-3 text-sm text-white/70 font-semibold">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="flex justify-center">
-                <div className={`w-36 h-36 rounded-[40px] bg-gradient-to-br ${disc.color} flex items-center justify-center shadow-2xl`}>
-                  <span className="text-6xl">{disc.emoji}</span>
-                </div>
-              </div>
+            {/* Dropdown Content Rendered Below to Avoid Clipping/Overflow Constraints */}
+            <div className="w-full relative z-30 min-h-[380px] sm:min-h-[320px]">
+              <AnimatePresence mode="wait">
+                {activeNavbarItem && (() => {
+                  const d = DISCIPLINES.find(item => item.key === activeNavbarItem);
+                  if (!d) return null;
+                  return (
+                    <motion.div
+                      key={d.key}
+                      initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                      className="mt-8 w-full max-w-4xl mx-auto"
+                    >
+                      <div className="relative bg-white/[0.02] border border-white/[0.06] rounded-[28px] p-6 sm:p-8 md:p-10 overflow-hidden shadow-2xl backdrop-blur-md text-left">
+                        {/* Glow effect matching active discipline color */}
+                        <div className={`absolute -inset-1 blur-3xl opacity-20 bg-gradient-to-br ${d.color} transition-all duration-500`} />
+                        
+                        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                          <div className="flex-1">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${d.color} bg-opacity-10 border border-white/5 mb-4`}>
+                              <span className="text-sm">{d.emoji}</span>
+                              <span className="text-[10px] font-black text-white uppercase tracking-widest">{d.label}</span>
+                            </div>
+                            
+                            <h3 className="text-2xl sm:text-3xl font-black text-white mb-3 tracking-tight">
+                              {d.title}
+                            </h3>
+                            
+                            <p className="text-white/60 leading-relaxed text-sm sm:text-base max-w-2xl mb-6">
+                              {d.desc}
+                            </p>
+                            
+                            <div className="border-t border-white/5 pt-4">
+                              <p className="text-[10px] uppercase tracking-[0.2em] font-black text-white/30 mb-3">Funcionalidades Clave</p>
+                              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {d.features.map(f => (
+                                  <li key={f} className="flex items-center gap-2.5 text-xs sm:text-sm text-white/80 font-bold">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                    <span>{f}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                          
+                          <div className="hidden md:flex justify-center items-center shrink-0">
+                            <motion.div
+                              initial={{ scale: 0.9, rotate: -2 }}
+                              animate={{ scale: 1, rotate: 0 }}
+                              transition={{ type: "spring", stiffness: 100 }}
+                              className={`w-32 h-32 md:w-40 md:h-40 rounded-[32px] bg-gradient-to-br ${d.color} flex items-center justify-center shadow-xl relative group`}
+                            >
+                              <span className="text-6xl select-none filter drop-shadow-md">{d.emoji}</span>
+                            </motion.div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -618,155 +366,387 @@ export default function LandingClient() {
       {/* ══════════════════════════════════════════════════
           PRICING
       ══════════════════════════════════════════════════ */}
-      <section id="pricing" className="relative py-28 px-5 sm:px-8 z-10">
+      <section id="pricing" className="relative py-28 px-5 sm:px-8 z-10 overflow-hidden">
         <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <p className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Planes</p>
-            <h2 className="text-4xl sm:text-5xl font-black text-white">
-              Precios simples y transparentes
+            <h2 className="text-4xl sm:text-5xl font-black text-white flex justify-center">
+              <FlipText
+                word="Precios simples y transparentes"
+                className="text-white text-4xl sm:text-5xl font-black tracking-tight"
+                duration={0.4}
+                delayMultiple={0.03}
+              />
             </h2>
             <p className="text-white/40 mt-4 max-w-lg mx-auto text-base">
               Las mismas funcionalidades en todos los planes. El precio escala con la cantidad de alumnos de tu centro.
             </p>
           </div>
 
-          {/* Cards de Pricing */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Cards de Pricing adaptadas de 21st.dev */}
+          <div className="flex flex-col lg:flex-row items-stretch justify-center gap-8 lg:gap-5 pt-12 pb-8">
 
             {/* Plan 50 */}
-            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-6 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
-              <div className="mb-6">
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Plan 50</p>
-                <div className="flex items-end gap-1.5 mb-2">
-                  <span className="text-3xl font-black text-white">$45k</span>
-                  <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
-                </div>
-                <p className="text-xs text-white/40 font-semibold">Hasta 50 alumnos</p>
-              </div>
-
-              <Link
-                href="/auth/signup"
-                className="w-full py-3 rounded-2xl bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-6"
+            <ScrollReveal direction="up" delay={100} duration={600} className="w-full max-w-sm lg:w-72 flex flex-col">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ type: "spring", duration: 0.5 }}
+                className="w-full flex flex-col h-full"
               >
-                Empezar gratis
-              </Link>
+                <motion.div
+                  layout
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{
+                    y: {
+                      repeat: Infinity,
+                      duration: 5,
+                      ease: "easeInOut",
+                    }
+                  }}
+                  whileHover={{ scale: 1.05, rotate: 0, zIndex: 30 }}
+                  style={{ rotate: -2 }}
+                  className="relative z-10 w-full rounded-3xl border border-white/10 bg-black/40 px-6 py-8 text-foreground shadow-[0_0_0_1px_rgba(255,255,255,.03)_inset] backdrop-blur-md flex flex-col h-full cursor-default"
+                >
+                  <div className="mb-6">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Plan 50</p>
+                    <div className="flex items-end gap-1.5 mb-2">
+                      <span className="text-4xl font-black text-white">$45k</span>
+                      <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
+                    </div>
+                    <p className="text-xs text-white/40 font-semibold">Hasta 50 alumnos</p>
+                  </div>
 
-              <ul className="space-y-3 flex-1">
-                {PLAN_FEATURES.slice(0, 6).map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
+                  <Link
+                    href="/auth/signup"
+                    className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-6"
+                  >
+                    Empezar gratis
+                  </Link>
+
+                  <ul className="space-y-3 flex-1 text-left text-xs text-white/70">
+                    {PLAN_FEATURES.slice(0, 3).map(f => (
+                      <li key={f} className="flex items-center gap-2 font-semibold">
+                        <span className="text-emerald-400 font-bold shrink-0">✔</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <AnimatePresence initial={false}>
+                    {expandedPlan === "plan50" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <ul className="space-y-3 pt-3 mt-3 border-t border-white/5 text-left text-xs text-white/70">
+                          {PLAN_FEATURES.slice(3, 6).map(f => (
+                            <li key={f} className="flex items-center gap-2 font-semibold">
+                              <span className="text-emerald-400 font-bold shrink-0">✔</span>
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedPlan(expandedPlan === "plan50" ? null : "plan50");
+                    }}
+                    className="mt-5 w-full py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-white/50 hover:text-white flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200"
+                  >
+                    <span>{expandedPlan === "plan50" ? "Ocultar Detalles" : "Ver Detalles"}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expandedPlan === "plan50" ? "rotate-180" : ""}`} />
+                  </button>
+                </motion.div>
+              </motion.div>
+            </ScrollReveal>
 
             {/* Plan 100 */}
-            <div className="relative bg-white/[0.03] border border-white/[0.07] rounded-3xl p-6 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.05] shadow-xl shadow-black/30">
-              <div className="mb-6">
-                <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Plan 100</p>
-                <div className="flex items-end gap-1.5 mb-2">
-                  <span className="text-3xl font-black text-white">$75k</span>
-                  <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
-                </div>
-                <p className="text-xs text-white/40 font-semibold">Hasta 100 alumnos</p>
-              </div>
-
-              <Link
-                href="/auth/signup"
-                className="w-full py-3 rounded-2xl bg-white/8 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-6"
+            <ScrollReveal direction="up" delay={200} duration={600} className="w-full max-w-sm lg:w-72 flex flex-col">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ type: "spring", duration: 0.5 }}
+                className="w-full flex flex-col h-full"
               >
-                Empezar gratis
-              </Link>
+                <motion.div
+                  layout
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{
+                    y: {
+                      repeat: Infinity,
+                      duration: 4.5,
+                      ease: "easeInOut",
+                      delay: 0.4
+                    }
+                  }}
+                  whileHover={{ scale: 1.05, rotate: 0, zIndex: 30 }}
+                  style={{ rotate: -1 }}
+                  className="relative z-10 w-full rounded-3xl border border-white/10 bg-black/40 px-6 py-8 text-foreground shadow-[0_0_0_1px_rgba(255,255,255,.03)_inset] backdrop-blur-md flex flex-col h-full cursor-default"
+                >
+                  <div className="mb-6">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Plan 100</p>
+                    <div className="flex items-end gap-1.5 mb-2">
+                      <span className="text-4xl font-black text-white">$75k</span>
+                      <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
+                    </div>
+                    <p className="text-xs text-white/40 font-semibold">Hasta 100 alumnos</p>
+                  </div>
 
-              <ul className="space-y-3 flex-1">
-                {PLAN_FEATURES.slice(0, 8).map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
+                  <Link
+                    href="/auth/signup"
+                    className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 hover:border-white/20 text-white font-black text-sm transition-all duration-300 text-center mb-6"
+                  >
+                    Empezar gratis
+                  </Link>
 
-            {/* Plan 150 — DESTACADO */}
-            <div className="relative bg-gradient-to-b from-primary/[0.08] to-orange-500/[0.04] border-2 border-primary/40 rounded-3xl p-6 flex flex-col shadow-2xl shadow-primary/15 scale-[1.05] z-10">
-              {/* Badge popular */}
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                <div className="bg-gradient-to-r from-primary to-orange-500 text-white text-[10px] font-black px-4 py-1.5 rounded-full shadow-lg shadow-primary/30 uppercase tracking-wide">
-                  Más popular
-                </div>
-              </div>
+                  <ul className="space-y-3 flex-1 text-left text-xs text-white/70">
+                    {PLAN_FEATURES.slice(0, 3).map(f => (
+                      <li key={f} className="flex items-center gap-2 font-semibold">
+                        <span className="text-emerald-400 font-bold shrink-0">✔</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
 
-              <div className="mb-6 mt-1">
-                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-3">Plan 150</p>
-                <div className="flex items-end gap-1.5 mb-2">
-                  <span className="text-3xl font-black text-white">$95k</span>
-                  <span className="text-white/40 text-sm font-semibold mb-1">/ mes</span>
-                </div>
-                <p className="text-xs text-white/40 font-semibold">Hasta 150 alumnos</p>
-              </div>
+                  <AnimatePresence initial={false}>
+                    {expandedPlan === "plan100" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <ul className="space-y-3 pt-3 mt-3 border-t border-white/5 text-left text-xs text-white/70">
+                          {PLAN_FEATURES.slice(3, 8).map(f => (
+                            <li key={f} className="flex items-center gap-2 font-semibold">
+                              <span className="text-emerald-400 font-bold shrink-0">✔</span>
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-              <Link
-                href="/auth/signup"
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-400 text-white font-black text-sm transition-all duration-300 text-center shadow-lg shadow-primary/25 hover:shadow-primary/40 mb-6"
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedPlan(expandedPlan === "plan100" ? null : "plan100");
+                    }}
+                    className="mt-5 w-full py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-white/50 hover:text-white flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200"
+                  >
+                    <span>{expandedPlan === "plan100" ? "Ocultar Detalles" : "Ver Detalles"}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expandedPlan === "plan100" ? "rotate-180" : ""}`} />
+                  </button>
+                </motion.div>
+              </motion.div>
+            </ScrollReveal>
+
+            {/* Plan 150 — DESTACADO (Best Deal / Floating) */}
+            <ScrollReveal direction="up" delay={300} duration={650} className="w-full max-w-sm lg:w-80 flex flex-col z-10">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ type: "spring", duration: 0.7 }}
+                className="w-full flex flex-col h-full"
               >
-                Empezar ahora
-              </Link>
+                <motion.div
+                  layout
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{
+                    y: {
+                      repeat: Infinity,
+                      duration: 4.8,
+                      ease: "easeInOut",
+                      delay: 0.2
+                    }
+                  }}
+                  whileHover={{ scale: 1.08, rotate: 0, zIndex: 30 }}
+                  style={{ rotate: 0 }}
+                  className="relative z-20 w-full rounded-3xl border-4 border-primary/50 bg-gradient-to-b from-primary to-orange-600 px-7 py-10 text-neutral-950 shadow-2xl shadow-primary/20 flex flex-col h-full cursor-default"
+                >
+                  {/* Floating "Más Popular" Badge */}
+                  <motion.div
+                    animate={{ y: [8, 4, 8] }}
+                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                    className="absolute -top-5.5 left-1/2 -translate-x-1/2 rounded-full border border-black/20 bg-primary px-5 py-1 text-[10px] font-black uppercase text-neutral-950 shadow-lg tracking-wider pointer-events-none"
+                  >
+                    Más popular
+                  </motion.div>
 
-              <ul className="space-y-3 flex-1">
-                {PLAN_FEATURES.map(f => (
-                  <li key={f} className="flex items-start gap-2.5 text-xs text-white/70 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
+                  <div className="mb-6 mt-1">
+                    <p className="text-[10px] font-black text-neutral-950/60 uppercase tracking-widest mb-3">Plan 150</p>
+                    <div className="flex items-end gap-1.5 mb-2">
+                      <span className="text-5xl font-black">$95k</span>
+                      <span className="text-neutral-950/60 text-sm font-semibold mb-1">/ mes</span>
+                    </div>
+                    <p className="text-xs text-neutral-950/60 font-semibold">Hasta 150 alumnos</p>
+                  </div>
+
+                  <Link
+                    href="/auth/signup"
+                    className="w-full py-3 rounded-2xl bg-neutral-950 hover:bg-neutral-900 text-white font-black text-sm transition-all duration-300 text-center mb-6 shadow-md shadow-black/20"
+                  >
+                    Empezar ahora
+                  </Link>
+
+                  <ul className="space-y-3 flex-1 text-left text-xs text-neutral-950/90 font-bold">
+                    {PLAN_FEATURES.slice(0, 3).map(f => (
+                      <li key={f} className="flex items-center gap-2">
+                        <span className="text-emerald-800 font-black shrink-0">✔</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <AnimatePresence initial={false}>
+                    {expandedPlan === "plan150" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <ul className="space-y-3 pt-3 mt-3 border-t border-black/10 text-left text-xs text-neutral-950/90 font-bold">
+                          {PLAN_FEATURES.slice(3).map(f => (
+                            <li key={f} className="flex items-center gap-2">
+                              <span className="text-emerald-800 font-black shrink-0">✔</span>
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedPlan(expandedPlan === "plan150" ? null : "plan150");
+                    }}
+                    className="mt-5 w-full py-2 rounded-xl bg-black/10 hover:bg-black/15 border border-black/5 text-neutral-900/60 hover:text-neutral-900 flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200"
+                  >
+                    <span>{expandedPlan === "plan150" ? "Ocultar Detalles" : "Ver Detalles"}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expandedPlan === "plan150" ? "rotate-180" : ""}`} />
+                  </button>
+                </motion.div>
+              </motion.div>
+            </ScrollReveal>
 
             {/* Plan Premium */}
-            <div className="relative bg-[#0f0f13] border border-white/[0.1] rounded-3xl p-6 flex flex-col transition-all duration-300 shadow-xl shadow-black/50 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent pointer-events-none" />
-              <div className="mb-6 relative z-10">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3" />
-                  Premium
-                </p>
-                <div className="flex items-end gap-1.5 mb-2">
-                  <span className="text-2xl font-black text-white leading-none">Personalizado</span>
-                </div>
-                <p className="text-xs text-white/40 font-semibold mt-2">+200 alumnos / Múltiples sedes</p>
-              </div>
-
-              <a
-                href="https://wa.me/541165234769/?text=Hola!%20Quiero%20información%20sobre%20el%20plan%20Premium%20Enterprise"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="relative w-full py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 font-black text-sm transition-all duration-300 text-center mb-6 flex items-center justify-center gap-2 z-10"
+            <ScrollReveal direction="up" delay={400} duration={600} className="w-full max-w-sm lg:w-72 flex flex-col">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ type: "spring", duration: 0.6 }}
+                className="w-full flex flex-col h-full"
               >
-                Hablar con ventas
-              </a>
+                <motion.div
+                  layout
+                  animate={{ y: [0, -7, 0] }}
+                  transition={{
+                    y: {
+                      repeat: Infinity,
+                      duration: 5.2,
+                      ease: "easeInOut",
+                      delay: 0.6
+                    }
+                  }}
+                  whileHover={{ scale: 1.05, rotate: 0, zIndex: 30 }}
+                  style={{ rotate: 2 }}
+                  className="relative z-10 w-full rounded-3xl border border-indigo-500/30 bg-[#0c0c12]/60 px-6 py-8 text-foreground shadow-[0_0_0_1px_rgba(99,102,241,.1)_inset] backdrop-blur-md flex flex-col h-full overflow-hidden cursor-default"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent pointer-events-none" />
+                  <div className="mb-6 relative z-10">
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3" />
+                      Premium
+                    </p>
+                    <div className="flex items-end gap-1.5 mb-2">
+                      <span className="text-3xl font-black text-white leading-none">Personalizado</span>
+                    </div>
+                    <p className="text-xs text-white/40 font-semibold mt-2">+200 alumnos / Múltiples sedes</p>
+                  </div>
 
-              <ul className="space-y-3 flex-1 relative z-10">
-                <li className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                  Alumnos ilimitados
-                </li>
-                <li className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                  Staff y roles avanzados
-                </li>
-                <li className="flex items-start gap-2.5 text-xs text-white/55 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                  Analíticas avanzadas
-                </li>
-                <li className="flex items-start gap-2.5 text-xs text-indigo-300 font-black mt-2 pt-3 border-t border-white/10">
-                  <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  Soporte VIP 24/7
-                </li>
-              </ul>
-            </div>
+                  <a
+                    href="https://wa.me/541165234769/?text=Hola!%20Quiero%20información%20sobre%20el%20plan%20Premium%20Enterprise"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm transition-all duration-300 text-center mb-6 flex items-center justify-center gap-2 z-10 shadow-lg shadow-indigo-600/20"
+                  >
+                    Hablar con ventas
+                  </a>
+
+                  <ul className="space-y-3 flex-1 relative z-10 text-left text-xs text-white/70">
+                    <li className="flex items-center gap-2 font-semibold">
+                      <span className="text-indigo-400 font-bold shrink-0">✔</span>
+                      Alumnos ilimitados
+                    </li>
+                    <li className="flex items-center gap-2 font-semibold">
+                      <span className="text-indigo-400 font-bold shrink-0">✔</span>
+                      Staff y roles avanzados
+                    </li>
+                    <li className="flex items-center gap-2 font-semibold">
+                      <span className="text-indigo-400 font-bold shrink-0">✔</span>
+                      Analíticas avanzadas
+                    </li>
+                  </ul>
+
+                  <AnimatePresence initial={false}>
+                    {expandedPlan === "premium" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden relative z-10"
+                      >
+                        <ul className="space-y-3 pt-3 mt-3 border-t border-white/10 text-left text-xs text-white/70">
+                          <li className="flex items-center gap-2 text-indigo-300 font-black pt-1">
+                            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                            Soporte VIP 24/7
+                          </li>
+                          <li className="flex items-center gap-2 font-semibold">
+                            <span className="text-indigo-400 font-bold shrink-0">✔</span>
+                            Multi-sede y reportes unificados
+                          </li>
+                          <li className="flex items-center gap-2 font-semibold">
+                            <span className="text-indigo-400 font-bold shrink-0">✔</span>
+                            Integración de API personalizada
+                          </li>
+                        </ul>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedPlan(expandedPlan === "premium" ? null : "premium");
+                    }}
+                    className="relative mt-5 w-full py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] text-white/50 hover:text-white flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200 z-10"
+                  >
+                    <span>{expandedPlan === "premium" ? "Ocultar Detalles" : "Ver Detalles"}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${expandedPlan === "premium" ? "rotate-180" : ""}`} />
+                  </button>
+                </motion.div>
+              </motion.div>
+            </ScrollReveal>
 
           </div>
 

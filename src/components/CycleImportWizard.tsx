@@ -17,6 +17,7 @@ import {
   type ParsedExercise
 } from "@/lib/cycleImporter";
 import { WEEK_TYPE_LABELS, WEEK_TYPE_COLORS } from "@/lib/utils";
+import Select from "@/components/ui/Select";
 
 type WizardStep = "upload" | "map" | "preview" | "importing";
 type FormatType = "wolfpack" | "david" | "vuur";
@@ -906,14 +907,15 @@ export default function CycleImportWizard({
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-zinc-500 uppercase">Tipo de Ciclo</label>
-              <select
+              <Select
                 value={cycleType}
-                onChange={e => setCycleType(e.target.value as "strength" | "crossfit")}
-                className="w-full px-4 py-2.5 rounded-xl border border-border text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:outline-none bg-white"
-              >
-                <option value="strength">Fuerza / Levantamientos</option>
-                <option value="crossfit">Cross / Funcional (EMOM/AMRAP)</option>
-              </select>
+                onChange={(val) => setCycleType(val as "strength" | "crossfit")}
+                options={[
+                  { value: "strength", label: "Fuerza / Levantamientos" },
+                  { value: "crossfit", label: "Cross / Funcional (EMOM/AMRAP)" }
+                ]}
+                triggerClassName="py-2.5 px-4 text-sm bg-white h-[42px] flex items-center justify-between"
+              />
             </div>
 
             <div className="space-y-2">
@@ -937,16 +939,18 @@ export default function CycleImportWizard({
             {!isTemplateOnly && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-zinc-500 uppercase">Asignar Alumno</label>
-                <select
+                <Select
                   value={selectedStudentId}
-                  onChange={e => setSelectedStudentId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-border text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:outline-none bg-white"
-                >
-                  <option value="">-- Seleccionar Alumno --</option>
-                  {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.full_name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedStudentId(val)}
+                  options={[
+                    { value: "", label: "-- Seleccionar Alumno --" },
+                    ...students.map((s) => ({ value: s.id, label: s.full_name }))
+                  ]}
+                  placeholder="-- Seleccionar Alumno --"
+                  searchable={true}
+                  searchPlaceholder="Buscar alumno..."
+                  triggerClassName="py-2.5 px-4 text-sm bg-white h-[42px] flex items-center justify-between"
+                />
               </div>
             )}
 
@@ -1304,19 +1308,20 @@ export default function CycleImportWizard({
                           {name}
                         </td>
                         <td className="px-4 py-3.5 align-middle">
-                          <select
+                          <Select
                             value={map.category}
-                            onChange={e => {
+                            onChange={(val) => {
                               setMappings(prev => ({
                                 ...prev,
-                                [name]: { ...prev[name], category: e.target.value }
+                                [name]: { ...prev[name], category: val }
                               }));
                             }}
-                            className="bg-white border border-border rounded-lg px-2 py-1 focus:outline-none"
-                          >
-                            <option value="fuerza">Fuerza / Levantamientos</option>
-                            <option value="preparacion_fisica">Prep. Física / WOD</option>
-                          </select>
+                            options={[
+                              { value: "fuerza", label: "Fuerza / Levantamientos" },
+                              { value: "preparacion_fisica", label: "Prep. Física / WOD" }
+                            ]}
+                            triggerClassName="bg-white border border-border rounded-lg px-2 py-1 text-xs focus:outline-none w-48 h-[30px] flex items-center justify-between"
+                          />
                         </td>
                         <td className="px-4 py-3.5 align-middle relative">
                           <div className="flex items-center gap-1.5">
