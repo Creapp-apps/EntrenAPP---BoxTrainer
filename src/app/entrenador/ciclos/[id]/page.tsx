@@ -3699,6 +3699,14 @@ export default function CicloDetailPage() {
       ...w, days: w.days.map(d => d.id === dId ? { ...d, expanded: !d.expanded } : d),
     } : w));
 
+  const enrolledStudentForWeights = selectedStudentTab !== "template"
+    ? enrolledStudents.find(e => e.enrollment_id === selectedStudentTab)
+    : null;
+
+  const overridesForWeights = enrolledStudentForWeights
+    ? studentOverrides[enrolledStudentForWeights.enrollment_id] || {}
+    : {};
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -3890,24 +3898,19 @@ export default function CicloDetailPage() {
           )}
 
           {/* Vista de pesos de un alumno específico */}
-          {selectedStudentTab !== "template" && (() => {
-            const enrolled = enrolledStudents.find(e => e.enrollment_id === selectedStudentTab);
-            if (!enrolled) return null;
-            const overrides = studentOverrides[enrolled.enrollment_id] || {};
-            return (
-              <div className="p-5">
-                <StudentWeightsPanel
-                  weeks={weeks}
-                  enrolledStudent={enrolled}
-                  overrides={overrides}
-                  complexSets={complexSets}
-                  onSave={(teId, kg) => saveStudentOverride(enrolled.enrollment_id, teId, "weight_target", kg)}
-                  onClear={(teId) => clearStudentOverride(enrolled.enrollment_id, teId)}
-                  onPrint={() => setPrintStudent(enrolled)}
-                />
-              </div>
-            );
-          })()}
+          {enrolledStudentForWeights && (
+            <div className="p-5">
+              <StudentWeightsPanel
+                weeks={weeks}
+                enrolledStudent={enrolledStudentForWeights}
+                overrides={overridesForWeights}
+                complexSets={complexSets}
+                onSave={(teId, kg) => saveStudentOverride(enrolledStudentForWeights.enrollment_id, teId, "weight_target", kg)}
+                onClear={(teId) => clearStudentOverride(enrolledStudentForWeights.enrollment_id, teId)}
+                onPrint={() => setPrintStudent(enrolledStudentForWeights)}
+              />
+            </div>
+          )}
         </div>
       )}
 
