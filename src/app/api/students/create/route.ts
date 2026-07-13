@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
       full_name, email, password, phone, trainer_id: providedTrainerId,
       birth_date, weight_kg, height_cm, goals, injuries,
       monthly_price, payment_due_day, modality,
+      gender, injured_parts,
     } = body;
 
     // Get trainer_id from auth if not provided
@@ -80,6 +81,8 @@ export async function POST(request: NextRequest) {
       monthly_price: monthly_price || null,
       payment_due_day: payment_due_day || 1,
       modality: modality || "presencial",
+      gender: gender || "no_especificar",
+      injured_parts: injured_parts || null,
     }, { onConflict: "id" });
 
     if (profileError) {

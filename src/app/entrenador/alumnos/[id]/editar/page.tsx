@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
 import Link from "next/link";
+import HumanBodyMockup from "@/components/HumanBodyMockup";
 
 export default function EditarAlumnoPage() {
   const params = useParams();
@@ -24,7 +25,9 @@ export default function EditarAlumnoPage() {
     injuries: "",
     monthly_price: "",
     payment_due_day: "1",
+    gender: "no_especificar" as "hombre" | "mujer" | "no_especificar",
   });
+  const [injuredParts, setInjuredParts] = useState<string[]>([]);
   const [email, setEmail] = useState("");
 
   useEffect(() => {
@@ -53,7 +56,9 @@ export default function EditarAlumnoPage() {
         injuries: student.injuries || "",
         monthly_price: student.monthly_price?.toString() || "",
         payment_due_day: student.payment_due_day?.toString() || "1",
+        gender: student.gender || "no_especificar",
       });
+      setInjuredParts(student.injured_parts ? student.injured_parts.split(",") : []);
       setLoading(false);
     };
     load();
@@ -77,6 +82,8 @@ export default function EditarAlumnoPage() {
         injuries: form.injuries.trim() || null,
         monthly_price: form.monthly_price ? parseFloat(form.monthly_price) : null,
         payment_due_day: parseInt(form.payment_due_day) || 1,
+        gender: form.gender,
+        injured_parts: injuredParts.join(",") || null,
       })
       .eq("id", id);
 
@@ -164,6 +171,25 @@ export default function EditarAlumnoPage() {
             {field("Talla (cm)", "height_cm", { type: "number", placeholder: "175", step: "0.1" })}
           </div>
           <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Género</label>
+            <div className="flex bg-slate-100 p-1 rounded-xl w-full max-w-sm border border-slate-200">
+              {(["hombre", "mujer", "no_especificar"] as const).map(g => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setForm({ ...form, gender: g })}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                    form.gender === g
+                      ? "bg-white text-slate-800 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {g === "no_especificar" ? "No especificar" : g === "hombre" ? "Hombre" : "Mujer"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Objetivos</label>
             <textarea
               value={form.goals}
@@ -173,15 +199,28 @@ export default function EditarAlumnoPage() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Lesiones / Limitaciones</label>
-            <textarea
-              value={form.injuries}
-              onChange={e => setForm({ ...form, injuries: e.target.value })}
-              placeholder="Ej: molestia en hombro derecho, no hacer press..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Lesiones / Limitaciones (Texto)</label>
+              <textarea
+                value={form.injuries}
+                onChange={e => setForm({ ...form, injuries: e.target.value })}
+                placeholder="Ej: molestia en hombro derecho, no hacer press..."
+                rows={5}
+                className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Describí brevemente cualquier molestia, lesión o precaución médica que deba tenerse en cuenta.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Mapeo de lesiones (Coloreá dónde duele)</label>
+              <HumanBodyMockup
+                gender={form.gender}
+                selectedParts={injuredParts}
+                onChange={setInjuredParts}
+              />
+            </div>
           </div>
         </div>
 

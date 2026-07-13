@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MoreVertical, Pause, Play, UserMinus, Loader2 } from "lucide-react";
+import { MoreVertical, Pause, Play, UserMinus, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -15,6 +15,8 @@ export default function StudentActionMenu({ studentId, studentName, currentStatu
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeModal, setActiveModal] = useState<"pause" | "activate" | "unlink" | null>(null);
+  const [pauseReason, setPauseReason] = useState("Falta de Pago / Membresía expirada");
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Cerrar menú al hacer click afuera
@@ -28,35 +30,23 @@ export default function StudentActionMenu({ studentId, studentName, currentStatu
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleAction = async (action: "pause" | "activate" | "unlink") => {
+  const handleActionClick = (action: "pause" | "activate" | "unlink") => {
     setIsOpen(false);
-    let reason = "";
+    setActiveModal(action);
+  };
 
-    // 1. Confirmaciones & Diálogos
-    if (action === "pause") {
-      const res = window.prompt(
-        `¿Por qué motivo deseas pausar la cuenta de ${studentName}?\n(Este mensaje se le mostrará al alumno al ingresar)`,
-        "Falta de Pago / Membresía expirada"
-      );
-      if (res === null) return; // Cancelado
-      reason = res.trim() || "Pausa administrativa.";
-    } else if (action === "unlink") {
-      const confirmed = window.confirm(
-        `⚠️ ¿Estás seguro de que deseas DESVINCULAR a ${studentName} de tu Box?\n\nEl alumno perderá acceso total de inmediato y se liberará un cupo en tu gimnasio.`
-      );
-      if (!confirmed) return;
-    } else if (action === "activate") {
-      const confirmed = window.confirm(`¿Reactivar el acceso de ${studentName} ahora mismo?`);
-      if (!confirmed) return;
-    }
-
-    // 2. Disparar API
+  const executeAction = async (action: "pause" | "activate" | "unlink") => {
+    setActiveModal(null);
     setLoading(true);
     try {
       const res = await fetch("/api/students/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, action, reason }),
+        body: JSON.stringify({
+          studentId,
+          action,
+          reason: action === "pause" ? pauseReason.trim() : "",
+        }),
       });
 
       const data = await res.json();
@@ -106,7 +96,7 @@ export default function StudentActionMenu({ studentId, studentName, currentStatu
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleAction("activate");
+                handleActionClick("activate");
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-green-700 hover:bg-green-50 rounded-lg transition-colors"
             >
@@ -118,7 +108,7 @@ export default function StudentActionMenu({ studentId, studentName, currentStatu
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleAction("pause");
+                handleActionClick("pause");
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
             >
@@ -133,13 +123,80 @@ export default function StudentActionMenu({ studentId, studentName, currentStatu
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              handleAction("unlink");
+              handleActionClick("unlink");
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           >
             <UserMinus className="w-4 h-4" />
             Desvincular del Box
           </button>
+        </div>
+      )}
+
+      {/* Modern custom confirmation modal */}
+      {activeModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <h3 className="font-bold text-foreground text-lg">
+                {activeModal === "pause" && "Pausar Cuenta"}
+                {activeModal === "activate" && "Reactivar Acceso"}
+                {activeModal === "unlink" && "⚠️ Desvincular del Box"}
+              </h3>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="text-sm text-muted-foreground leading-relaxed">
+              {activeModal === "pause" && (
+                <div className="space-y-3">
+                  <p>¿Por qué motivo deseas pausar la cuenta de <span className="font-semibold text-foreground">{studentName}</span>?</p>
+                  <p className="text-xs text-muted-foreground">(Este mensaje se le mostrará al alumno al ingresar)</p>
+                  <input
+                    type="text"
+                    value={pauseReason}
+                    onChange={e => setPauseReason(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-background text-foreground"
+                    placeholder="Escribe el motivo..."
+                  />
+                </div>
+              )}
+              {activeModal === "activate" && (
+                <p>¿Reactivar el acceso de <span className="font-semibold text-foreground">{studentName}</span> ahora mismo?</p>
+              )}
+              {activeModal === "unlink" && (
+                <p>¿Estás seguro de que deseas desvincular a <span className="font-semibold text-foreground">{studentName}</span> de tu Box? El alumno perderá acceso total de inmediato y se liberará un cupo en tu gimnasio.</p>
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setActiveModal(null)}
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => executeAction(activeModal)}
+                className={`flex-1 py-2 rounded-xl text-white text-sm font-bold shadow-sm transition-colors ${
+                  activeModal === "pause"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : activeModal === "activate"
+                    ? "bg-green-600 hover:bg-green-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

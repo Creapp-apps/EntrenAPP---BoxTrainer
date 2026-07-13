@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
 import Link from "next/link";
 import Select from "@/components/ui/Select";
+import HumanBodyMockup from "@/components/HumanBodyMockup";
 
 export default function NuevoAlumnoPage() {
   const router = useRouter();
@@ -24,7 +25,9 @@ export default function NuevoAlumnoPage() {
     monthly_price: "",
     payment_due_day: "1",
     modality: "presencial",
+    gender: "no_especificar" as "hombre" | "mujer" | "no_especificar",
   });
+  const [injuredParts, setInjuredParts] = useState<string[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +48,7 @@ export default function NuevoAlumnoPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        injured_parts: injuredParts.join(","),
         trainer_id: trainer!.id,
         weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
         height_cm: form.height_cm ? parseFloat(form.height_cm) : null,
@@ -130,10 +134,29 @@ export default function NuevoAlumnoPage() {
             <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold">2</span>
             Datos físicos <span className="text-sm font-normal text-muted-foreground">(opcional)</span>
           </h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {field("Fecha de nacimiento", "birth_date", { type: "date" })}
             {field("Peso (kg)", "weight_kg", { type: "number", placeholder: "75", step: "0.1" })}
             {field("Talla (cm)", "height_cm", { type: "number", placeholder: "175", step: "0.1" })}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Género</label>
+            <div className="flex bg-slate-100 p-1 rounded-xl w-full max-w-sm border border-slate-200">
+              {(["hombre", "mujer", "no_especificar"] as const).map(g => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setForm({ ...form, gender: g })}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                    form.gender === g
+                      ? "bg-white text-slate-800 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {g === "no_especificar" ? "No especificar" : g === "hombre" ? "Hombre" : "Mujer"}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Objetivos</label>
@@ -145,15 +168,28 @@ export default function NuevoAlumnoPage() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Lesiones / Limitaciones</label>
-            <textarea
-              value={form.injuries}
-              onChange={e => setForm({ ...form, injuries: e.target.value })}
-              placeholder="Ej: molestia en hombro derecho, no hacer press..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Lesiones / Limitaciones (Texto)</label>
+              <textarea
+                value={form.injuries}
+                onChange={e => setForm({ ...form, injuries: e.target.value })}
+                placeholder="Ej: molestia en hombro derecho, no hacer press..."
+                rows={5}
+                className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Describí brevemente cualquier molestia, lesión o precaución médica que deba tenerse en cuenta.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Mapeo de lesiones (Coloreá dónde duele)</label>
+              <HumanBodyMockup
+                gender={form.gender}
+                selectedParts={injuredParts}
+                onChange={setInjuredParts}
+              />
+            </div>
           </div>
         </div>
 

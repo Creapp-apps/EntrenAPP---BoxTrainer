@@ -9,9 +9,10 @@ import {
   Dumbbell, Trash2, GripVertical, Search, X, Check, Copy,
   MoreVertical, BookMarked, Link2, UserPlus, Users, Moon,
   ArrowRightLeft, UserMinus, Eye, Flame, Activity, Repeat,
-  Sliders, Weight, ChevronLeft
+  Sliders, Weight, ChevronLeft, Save, Printer, AlertTriangle
 } from "lucide-react";
 import Link from "next/link";
+import HumanBodyMockup from "@/components/HumanBodyMockup";
 import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, getInitials } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -49,6 +50,9 @@ type EnrolledStudent = {
   full_name: string;
   sync_mode: string;
   enrolled_at: string;
+  gender?: "hombre" | "mujer" | "no_especificar";
+  injuries?: string | null;
+  injured_parts?: string | null;
 };
 
 type ComplexSet = {
@@ -189,11 +193,12 @@ const CATEGORY_TABS = [
 ];
 
 function ExercisePicker({
-  exercises, onSelect, onClose, initialCategory = "all", loading = false,
+  exercises, onSelect, onClose, onCreateExercise, initialCategory = "all", loading = false,
 }: {
   exercises: Exercise[];
   onSelect: (ex: Exercise, variant?: Variant) => void;
   onClose: () => void;
+  onCreateExercise?: (form: { name: string; category: string; variants: string[] }) => Promise<Exercise>;
   initialCategory?: string;
   loading?: boolean;
 }) {
@@ -201,8 +206,34 @@ function ExercisePicker({
   const [category, setCategory] = useState(initialCategory);
   const [selected, setSelected] = useState<Exercise | null>(null);
 
+  // Quick create inline form states
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCat, setNewCat] = useState("fuerza");
+  const [newVariantsText, setNewVariantsText] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleOpenCreate = () => {
+    setNewName(search.toUpperCase());
+    setShowQuickCreate(true);
+  };
+
+  // Búsqueda fuzzy: basta con que UN token del query matchee en el nombre
+  const matchesQuery = (name: string, query: string) => {
+    if (!query.trim()) return true;
+    const normalize = (s: string) => s.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const nameNorm = normalize(name);
+    const nameWords = nameNorm.split(/\s+/);
+    const tokens = normalize(query).trim().split(/\s+/);
+    // Al menos 1 token debe matchear como prefix de una palabra del nombre
+    return tokens.some(token =>
+      nameWords.some(word => word.startsWith(token)) || nameNorm.includes(token)
+    );
+  };
+
   const filtered = exercises.filter(e => {
-    const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = matchesQuery(e.name, search);
     const matchesCat = category === "all"
       ? true
       : category === "olimpico"
@@ -226,12 +257,70 @@ function ExercisePicker({
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold text-foreground">Agregar ejercicio</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onCreateExercise && !showQuickCreate && (
+              <button onClick={handleOpenCreate} className="p-1 rounded-lg border border-border text-primary hover:bg-primary/5 transition-colors">
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {!selected ? (
+        {showQuickCreate ? (
+          <div className="p-4 space-y-3 overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-primary uppercase">Crear Ejercicio Rápido</span>
+              <button onClick={() => setShowQuickCreate(false)} className="text-muted-foreground hover:text-foreground text-xs font-medium">Cancelar</button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Nombre</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)}
+                placeholder="Ej: BENCH PRESS, OTM, etc."
+                className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Categoría</label>
+              <select value={newCat} onChange={e => setNewCat(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground">
+                <option value="fuerza">Fuerza</option>
+                <option value="prep_fisica">Prep. Física</option>
+                <option value="accesorio">Accesorio</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">
+                Variantes (separadas por coma)
+              </label>
+              <input value={newVariantsText} onChange={e => setNewVariantsText(e.target.value)}
+                placeholder="Ej: S1, S2, Colgado..."
+                className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground" />
+            </div>
+            <button disabled={creating || !newName.trim()} onClick={async () => {
+              setCreating(true);
+              try {
+                const variants = newVariantsText.split(",").map(v => v.trim()).filter(Boolean);
+                const created = await onCreateExercise!({ name: newName, category: newCat, variants });
+                if (created.variants.length > 0) {
+                  setSelected(created);
+                } else {
+                  onSelect(created);
+                }
+                setShowQuickCreate(false);
+              } catch (err) {
+                console.error(err);
+              } finally {
+                setCreating(false);
+              }
+            }}
+              className="w-full py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Crear y Seleccionar
+            </button>
+          </div>
+        ) : !selected ? (
           <>
             {/* Search */}
             <div className="px-3 pt-3 pb-2 shrink-0">
@@ -270,7 +359,16 @@ function ExercisePicker({
 
             <div className="overflow-y-auto flex-1">
               {filtered.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-8">Sin resultados</p>
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-sm text-muted-foreground">Sin resultados</p>
+                  {onCreateExercise && (
+                    <button onClick={handleOpenCreate}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold bg-primary/5 hover:bg-primary/10 transition-colors">
+                      <Plus className="w-3.5 h-3.5" />
+                      Crear "{search || 'ejercicio'}" rápido
+                    </button>
+                  )}
+                </div>
               ) : filtered.map(ex => (
                 <button key={ex.id} disabled={loading} onClick={() => ex.variants.length > 0 ? setSelected(ex) : onSelect(ex)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 disabled:opacity-50 transition-colors text-left border-b border-border/50 last:border-0">
@@ -395,11 +493,12 @@ function SetRepsOverrideModal({
 
 // ─── Complex / Trepada Picker Modal ───────────────────────────
 function ComplexPicker({
-  exercises, onConfirm, onClose, initialCategory = "all", loading = false,
+  exercises, onConfirm, onClose, onCreateExercise, initialCategory = "all", loading = false,
 }: {
   exercises: Exercise[];
   onConfirm: (items: { ex: Exercise; variant?: Variant }[]) => void;
   onClose: () => void;
+  onCreateExercise?: (form: { name: string; category: string; variants: string[] }) => Promise<Exercise>;
   initialCategory?: string;
   loading?: boolean;
 }) {
@@ -408,8 +507,34 @@ function ComplexPicker({
   const [selectedItems, setSelectedItems] = useState<{ ex: Exercise; variant?: Variant }[]>([]);
   const [pickingVariantFor, setPickingVariantFor] = useState<Exercise | null>(null);
 
+  // Quick create inline form states
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCat, setNewCat] = useState("fuerza");
+  const [newVariantsText, setNewVariantsText] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleOpenCreate = () => {
+    setNewName(search.toUpperCase());
+    setShowQuickCreate(true);
+  };
+
+  // Búsqueda fuzzy: basta con que UN token del query matchee en el nombre
+  const matchesQuery = (name: string, query: string) => {
+    if (!query.trim()) return true;
+    const normalize = (s: string) => s.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const nameNorm = normalize(name);
+    const nameWords = nameNorm.split(/\s+/);
+    const tokens = normalize(query).trim().split(/\s+/);
+    // Al menos 1 token debe matchear como prefix de una palabra del nombre
+    return tokens.some(token =>
+      nameWords.some(word => word.startsWith(token)) || nameNorm.includes(token)
+    );
+  };
+
   const filtered = exercises.filter(e => {
-    const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = matchesQuery(e.name, search);
     const matchesCat = category === "all"
       ? true
       : category === "olimpico"
@@ -417,6 +542,7 @@ function ComplexPicker({
         : e.category === category && e.muscle_group !== "olimpico";
     return matchesSearch && matchesCat;
   });
+
 
   const counts = exercises.reduce((acc: Record<string, number>, e) => {
     if (e.muscle_group === "olimpico") {
@@ -452,13 +578,20 @@ function ComplexPicker({
               1 ejercicio = trepada · 2 o más = complex
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onCreateExercise && !showQuickCreate && (
+              <button onClick={handleOpenCreate} className="p-1 rounded-lg border border-border text-primary hover:bg-primary/5 transition-colors">
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Selected preview */}
-        {selectedItems.length > 0 && (
+        {selectedItems.length > 0 && !showQuickCreate && (
           <div className="p-3 border-b border-border bg-primary/5">
             <p className="text-xs font-semibold text-primary mb-2 uppercase tracking-wide">
               {label} ({selectedItems.length} ejercicio{selectedItems.length !== 1 ? "s" : ""}):
@@ -480,8 +613,58 @@ function ComplexPicker({
           </div>
         )}
 
-        {/* Browse / Variant selection */}
-        {!pickingVariantFor ? (
+        {showQuickCreate ? (
+          <div className="p-4 space-y-3 overflow-y-auto flex-1">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-primary uppercase">Crear Ejercicio Rápido</span>
+              <button onClick={() => setShowQuickCreate(false)} className="text-muted-foreground hover:text-foreground text-xs font-medium">Cancelar</button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Nombre</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)}
+                placeholder="Ej: BENCH PRESS, OTM, etc."
+                className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">Categoría</label>
+              <select value={newCat} onChange={e => setNewCat(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground">
+                <option value="fuerza">Fuerza</option>
+                <option value="prep_fisica">Prep. Física</option>
+                <option value="accesorio">Accesorio</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">
+                Variantes (separadas por coma)
+              </label>
+              <input value={newVariantsText} onChange={e => setNewVariantsText(e.target.value)}
+                placeholder="Ej: S1, S2, Colgado..."
+                className="w-full px-3 py-2 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground" />
+            </div>
+            <button disabled={creating || !newName.trim()} onClick={async () => {
+              setCreating(true);
+              try {
+                const variants = newVariantsText.split(",").map(v => v.trim()).filter(Boolean);
+                const created = await onCreateExercise!({ name: newName, category: newCat, variants });
+                if (created.variants.length > 0) {
+                  setPickingVariantFor(created);
+                } else {
+                  addItem(created);
+                }
+                setShowQuickCreate(false);
+              } catch (err) {
+                console.error(err);
+              } finally {
+                setCreating(false);
+              }
+            }}
+              className="w-full py-2.5 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Crear y Agregar
+            </button>
+          </div>
+        ) : !pickingVariantFor ? (
           <>
             <div className="px-3 pt-3 pb-2 shrink-0">
               <div className="relative">
@@ -519,7 +702,16 @@ function ComplexPicker({
 
             <div className="overflow-y-auto flex-1">
               {filtered.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-8">Sin resultados</p>
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-sm text-muted-foreground">Sin resultados</p>
+                  {onCreateExercise && (
+                    <button onClick={handleOpenCreate}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold bg-primary/5 hover:bg-primary/10 transition-colors">
+                      <Plus className="w-3.5 h-3.5" />
+                      Crear "{search || 'ejercicio'}" rápido
+                    </button>
+                  )}
+                </div>
               ) : filtered.map(ex => (
                 <button key={ex.id}
                   onClick={() => ex.variants.length > 0 ? setPickingVariantFor(ex) : addItem(ex)}
@@ -567,18 +759,20 @@ function ComplexPicker({
         )}
 
         {/* Footer */}
-        <div className="p-3 border-t border-border flex gap-2">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
-            Cancelar
-          </button>
-          <button onClick={() => selectedItems.length >= 1 && onConfirm(selectedItems)}
-            disabled={selectedItems.length < 1 || loading}
-            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-            {loading ? "Creando..." : `Crear (${selectedItems.length})`}
-          </button>
-        </div>
+        {!showQuickCreate && (
+          <div className="p-3 border-t border-border flex gap-2">
+            <button onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors">
+              Cancelar
+            </button>
+            <button onClick={() => selectedItems.length >= 1 && onConfirm(selectedItems)}
+              disabled={selectedItems.length < 1 || loading}
+              className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+              {loading ? "Creando..." : `Crear (${selectedItems.length})`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1973,6 +2167,7 @@ function StudentWeightsPanel({
   complexSets,
   onSave,
   onClear,
+  onPrint,
 }: {
   weeks: Week[];
   enrolledStudent: EnrolledStudent;
@@ -1980,7 +2175,9 @@ function StudentWeightsPanel({
   complexSets: Record<string, ComplexSet[]>;
   onSave: (trainingExerciseId: string, weightKg: number | null) => void;
   onClear: (trainingExerciseId: string) => void;
+  onPrint: () => void;
 }) {
+  const [isInjuriesExpanded, setIsInjuriesExpanded] = useState(false);
   // Recopilar todos los ejercicios individuales del ciclo (no complejos)
   const exerciseGroups: {
     weekNumber: number;
@@ -2044,20 +2241,82 @@ function StudentWeightsPanel({
 
   return (
     <div className="space-y-4">
-      {/* Info banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start gap-3">
-        <Sliders className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-blue-800">
-            Pesos personalizados para {enrolledStudent.full_name}
-          </p>
-          <p className="text-xs text-blue-600 mt-0.5">
-            Estos pesos solo aplican a este alumno. Si un campo está vacío, se usa el peso base del ciclo.
-            {overrideCount > 0 && (
-              <span className="ml-1 font-semibold">{overrideCount} ejercicio{overrideCount !== 1 ? "s" : ""} con peso personalizado.</span>
-            )}
-          </p>
+      {/* Banner de Lesiones y Limitaciones (Colapsable/Desplegable) */}
+      {(enrolledStudent.injuries || enrolledStudent.injured_parts) && (
+        <div className="space-y-2">
+          {/* Fila compacta de advertencia */}
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <span className="text-xs sm:text-sm font-bold text-red-800 truncate">
+                {enrolledStudent.full_name} tiene lesiones / limitaciones registradas
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsInjuriesExpanded(!isInjuriesExpanded)}
+              className="text-xs font-bold text-red-600 hover:text-red-800 transition-colors shrink-0 px-2.5 py-1 bg-red-100/50 hover:bg-red-100 rounded-lg border border-red-200"
+            >
+              {isInjuriesExpanded ? "Ocultar mapa" : "Ver mapa de dolor"}
+            </button>
+          </div>
+
+          {/* Bloque desplegable de detalles */}
+          {isInjuriesExpanded && (
+            <div className="bg-red-50/40 border border-red-150 rounded-xl p-4 flex flex-col md:flex-row items-center gap-5 animate-in slide-in-from-top-2 duration-200">
+              {enrolledStudent.injured_parts && (
+                <div className="shrink-0 w-[110px] h-[240px] overflow-hidden flex items-center justify-center bg-white border border-red-100 rounded-xl shadow-sm">
+                  <div className="scale-[0.55] transform origin-center shrink-0 flex items-center justify-center">
+                    <HumanBodyMockup
+                      gender={enrolledStudent.gender}
+                      selectedParts={enrolledStudent.injured_parts.split(",")}
+                      readOnly={true}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="flex-1 space-y-2 text-center md:text-left min-w-0 w-full">
+                <h4 className="text-xs font-bold text-red-800 flex items-center justify-center md:justify-start gap-1.5 uppercase tracking-wider">
+                  Detalles y Aclaraciones
+                </h4>
+                {enrolledStudent.injuries ? (
+                  <p className="text-xs text-red-700 bg-red-100/50 border border-red-100 p-2.5 rounded-lg whitespace-pre-line text-left leading-relaxed">
+                    {enrolledStudent.injuries}
+                  </p>
+                ) : (
+                  <p className="text-xs text-red-600/80 italic text-left">
+                    Zonas con dolor seleccionadas en el mapa, sin descripción del entrenador.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Info banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Sliders className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-blue-800">
+              Pesos personalizados para {enrolledStudent.full_name}
+            </p>
+            <p className="text-xs text-blue-600 mt-0.5">
+              Estos pesos solo aplican a este alumno. Si un campo está vacío, se usa el peso base del ciclo.
+              {overrideCount > 0 && (
+                <span className="ml-1 font-semibold">{overrideCount} ejercicio{overrideCount !== 1 ? "s" : ""} con peso personalizado.</span>
+              )}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onPrint}
+          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-all shrink-0"
+        >
+          <Printer className="w-3.5 h-3.5" />
+          <span>Imprimir Planilla</span>
+        </button>
       </div>
 
       {/* Tabla por semana */}
@@ -2320,6 +2579,7 @@ export default function CicloDetailPage() {
   const [studentOverrides, setStudentOverrides] = useState<Record<string, Record<string, StudentOverride>>>({});
   // Guardando override (para feedback visual)
   const [savingOverride, setSavingOverride] = useState(false);
+  const [printStudent, setPrintStudent] = useState<EnrolledStudent | null>(null);
 
   const toggleBlock = (blockId: string) => {
     setExpandedBlocks(prev => {
@@ -2338,7 +2598,7 @@ export default function CicloDetailPage() {
 
     const [{ data: cycleData }, { data: weeksData }, { data: exData }, { data: studentsData }] = await Promise.all([
       supabase.from("training_cycles")
-        .select("*, training_cycle_enrollments(id, active, student_id, sync_mode, enrolled_at, users(full_name))")
+        .select("*, training_cycle_enrollments(id, active, student_id, sync_mode, enrolled_at, users(full_name, gender, injuries, injured_parts))")
         .eq("id", id).single(),
       supabase.from("training_weeks")
         .select(`*, training_days(*, training_blocks(*, training_exercises(*, exercises(*, exercise_variants(*)), exercise_variants(*))))`)
@@ -2515,6 +2775,9 @@ export default function CicloDetailPage() {
         full_name: e.users?.full_name || "Alumno",
         sync_mode: e.sync_mode || "SYNC",
         enrolled_at: e.enrolled_at || "",
+        gender: e.users?.gender || "no_especificar",
+        injuries: e.users?.injuries || null,
+        injured_parts: e.users?.injured_parts || null,
       }));
       setEnrolledStudents(enrolledList);
 
@@ -2932,6 +3195,56 @@ export default function CicloDetailPage() {
       setCopying(false);
       setCopyWeekTarget(null);
     }
+  };
+
+  // ─── Crear ejercicio rápido ───────────────────────────────
+  const handleQuickCreateExercise = async (form: { name: string; category: string; variants: string[] }): Promise<Exercise> => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+
+    const nameUpper = form.name.trim().toUpperCase();
+
+    const { data: created, error } = await supabase
+      .from("exercises")
+      .insert({
+        name: nameUpper,
+        category: form.category,
+        muscle_group: "otro",
+      })
+      .select()
+      .single();
+
+    if (error || !created) {
+      throw new Error("Error al crear ejercicio: " + error?.message);
+    }
+
+    const createdVariants: Variant[] = [];
+    if (form.variants && form.variants.length > 0) {
+      const varsToInsert = form.variants.map(v => ({
+        exercise_id: created.id,
+        name: v.toUpperCase(),
+      }));
+      const { data: dbVars } = await supabase
+        .from("exercise_variants")
+        .insert(varsToInsert)
+        .select("id, name");
+      if (dbVars) {
+        createdVariants.push(...dbVars);
+      }
+    }
+
+    const newEx: Exercise = {
+      id: created.id,
+      name: created.name,
+      category: created.category,
+      muscle_group: created.muscle_group || "otro",
+      variants: createdVariants,
+    };
+
+    setExercises(prev => [...prev, newEx].sort((a, b) => a.name.localeCompare(b.name)));
+    toast.success(`Ejercicio "${nameUpper}" creado con éxito`);
+    return newEx;
   };
 
   // ─── Agregar ejercicio individual ─────────────────────────
@@ -3590,6 +3903,7 @@ export default function CicloDetailPage() {
                   complexSets={complexSets}
                   onSave={(teId, kg) => saveStudentOverride(enrolled.enrollment_id, teId, "weight_target", kg)}
                   onClear={(teId) => clearStudentOverride(enrolled.enrollment_id, teId)}
+                  onPrint={() => setPrintStudent(enrolled)}
                 />
               </div>
             );
@@ -3880,6 +4194,7 @@ export default function CicloDetailPage() {
           exercises={exercises}
           onSelect={handleExerciseSelect}
           onClose={() => setPickerBlock(null)}
+          onCreateExercise={handleQuickCreateExercise}
           loading={mutating}
           initialCategory={(
             () => {
@@ -3897,6 +4212,7 @@ export default function CicloDetailPage() {
           exercises={exercises}
           onConfirm={handleComplexCreate}
           onClose={() => setComplexPickerBlock(null)}
+          onCreateExercise={handleQuickCreateExercise}
           loading={mutating}
           initialCategory={(
             () => {
@@ -3937,6 +4253,19 @@ export default function CicloDetailPage() {
           weekNumber={weeks.find(w => w.days.some(d => d.id === previewDay.id))?.week_number || 1}
           complexSets={complexSets}
           onClose={() => setPreviewDay(null)}
+        />
+      )}
+
+      {/* Modal de Impresión de Planilla */}
+      {printStudent && (
+        <PrintPreviewModal
+          student={printStudent}
+          cycle={cycle}
+          weeks={weeks}
+          overrides={studentOverrides[printStudent.enrollment_id] || {}}
+          complexSets={complexSets}
+          studentOneRMs={studentOneRMs}
+          onClose={() => setPrintStudent(null)}
         />
       )}
     </div>
@@ -4266,5 +4595,402 @@ function SetsInput({
       onBlur={handleBlur}
       className={`${className} rounded-lg border border-border text-center focus:outline-none bg-white font-semibold ${focusRingColor}`}
     />
+  );
+}
+
+// ─── Print Preview & Printable Sheet Modal ────────────────────
+function PrintPreviewModal({
+  student,
+  cycle,
+  weeks,
+  overrides,
+  complexSets,
+  studentOneRMs,
+  onClose,
+}: {
+  student: EnrolledStudent;
+  cycle: Cycle | null;
+  weeks: Week[];
+  overrides: Record<string, StudentOverride>;
+  complexSets: Record<string, ComplexSet[]>;
+  studentOneRMs: Record<string, number>;
+  onClose: () => void;
+}) {
+  const [selectedWeeks, setSelectedWeeks] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    weeks.forEach(w => { map[w.id] = true; });
+    return map;
+  });
+  const [includeNotes, setIncludeNotes] = useState(true);
+  const [manualWritingSpace, setManualWritingSpace] = useState(true);
+
+  const toggleWeek = (wId: string) => {
+    setSelectedWeeks(prev => ({ ...prev, [wId]: !prev[wId] }));
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 print:p-0 print:bg-white animate-in fade-in duration-200">
+      {/* Estilos específicos de impresión inyectados dinámicamente */}
+      <style>{`
+        @media print {
+          body {
+            background-color: white !important;
+            color: black !important;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:block {
+            display: block !important;
+          }
+          .print-sheet {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            color: black !important;
+            background-color: white !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .print-page-break {
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+          .print-no-break {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          th, td {
+            border-bottom: 1px solid #e5e7eb !important;
+          }
+        }
+      `}</style>
+
+      {/* Caja modal visible en pantalla */}
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] print:hidden">
+        {/* Header */}
+        <div className="p-5 border-b border-border flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <Printer className="w-5 h-5 text-primary" />
+            <div>
+              <h3 className="font-bold text-foreground">Imprimir Planilla</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Configurar hoja de impresión</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-all">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Options */}
+        <div className="p-5 overflow-y-auto space-y-5 flex-1">
+          <div className="bg-muted/30 rounded-xl p-3.5 border border-border/60">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Alumno</p>
+            <p className="text-sm font-semibold text-foreground mt-1">{student.full_name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Ciclo: {cycle?.name}</p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Configuración</p>
+            
+            <label className="flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-foreground select-none">
+              <input
+                type="checkbox"
+                checked={includeNotes}
+                onChange={e => setIncludeNotes(e.target.checked)}
+                className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
+              />
+              <span>Incluir notas de ejercicios</span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-foreground select-none">
+              <input
+                type="checkbox"
+                checked={manualWritingSpace}
+                onChange={e => setManualWritingSpace(e.target.checked)}
+                className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
+              />
+              <span>Espacio para anotaciones manuales (s1, s2, s3)</span>
+            </label>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Semanas a incluir</p>
+            <div className="grid grid-cols-2 gap-2">
+              {weeks.map(w => {
+                const isChecked = selectedWeeks[w.id];
+                return (
+                  <button
+                    key={w.id}
+                    onClick={() => toggleWeek(w.id)}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left text-xs font-bold transition-all ${
+                      isChecked
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted/30"
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                      isChecked ? "bg-primary border-primary" : "border-muted-foreground/30 bg-white"
+                    }`}>
+                      {isChecked && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                    <span>Semana {w.week_number} ({WEEK_TYPE_LABELS[w.type] || w.type})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-border flex gap-3 shrink-0">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-muted transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Imprimir</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ─── CONTENIDO DE IMPRESIÓN (Solo visible al imprimir) ─── */}
+      <div className="hidden print:block print-sheet text-black bg-white w-full max-w-full p-4">
+        {/* Header principal */}
+        <div className="border-b-4 border-black pb-4 mb-6 flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-wider">Planilla de Entrenamiento</h1>
+            <h2 className="text-lg font-bold mt-1">Alumno: {student.full_name}</h2>
+            <p className="text-xs mt-0.5 text-gray-700">Ciclo: {cycle?.name} • Generado el {new Date().toLocaleDateString()}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-xs font-black px-2.5 py-1.5 border-2 border-black rounded-lg uppercase tracking-widest bg-gray-100">
+              BoxTrainer
+            </span>
+          </div>
+        </div>
+
+        {/* Loop de semanas seleccionadas */}
+        {weeks
+          .filter(w => selectedWeeks[w.id])
+          .map(week => (
+            <div key={week.id} className="print-page-break mb-8 last:mb-0">
+              <div className="bg-gray-200 border-2 border-black px-4 py-2 flex justify-between items-center mb-6">
+                <span className="font-black text-sm uppercase tracking-wide">Semana {week.week_number} — {WEEK_TYPE_LABELS[week.type] || week.type}</span>
+              </div>
+
+              {/* Loop de días */}
+              <div className="space-y-6">
+                {week.days
+                  .filter(d => !d.is_rest)
+                  .map(day => (
+                    <div key={day.id} className="print-no-break border-2 border-gray-300 rounded-xl p-4 bg-white">
+                      <h4 className="font-extrabold text-sm uppercase border-b-2 border-black pb-1 mb-3">
+                        {DAY_NAMES[day.day_of_week]} — {day.label}
+                      </h4>
+
+                      {/* Loop de bloques */}
+                      <div className="space-y-4">
+                        {day.blocks.map(block => {
+                          const items = getBlockItems(block.training_exercises);
+                          if (items.length === 0) return null;
+
+                          return (
+                            <div key={block.id} className="space-y-2">
+                              <h5 className="font-black text-xs text-gray-500 uppercase tracking-widest border-l-4 border-gray-400 pl-2">
+                                {block.type === "prep_fisica" ? "Circuito Prep. Física" : block.name}
+                              </h5>
+
+                              {block.type === "prep_fisica" ? (
+                                /* Formato Circuito / Prep Física */
+                                <div className="space-y-3">
+                                  {items.map(item => {
+                                    if (item.type !== "complex") return null;
+                                    const rounds = complexSets[item.complexId] || [];
+                                    
+                                    return (
+                                      <div key={item.complexId} className="border border-gray-200 rounded-lg p-3 bg-gray-50/50">
+                                        <div className="flex justify-between items-center border-b border-gray-200 pb-1 mb-2">
+                                          <span className="font-bold text-[11px] uppercase text-gray-700">Circuito ({rounds.length} rondas)</span>
+                                          {rounds[0]?.rounds && (
+                                            <span className="text-[10px] bg-gray-200 font-bold px-1.5 py-0.5 rounded">{rounds[0].rounds} rondas</span>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Ejercicios del circuito */}
+                                        <div className="space-y-1">
+                                          {item.exs.map((te, idx) => {
+                                            const override = overrides[te.id];
+                                            const targetWeight = override?.weight_target ?? te.weight_target;
+
+                                            return (
+                                              <div key={te.id} className="flex justify-between text-xs py-0.5 border-b border-gray-100 last:border-0">
+                                                <span className="font-medium text-gray-900">
+                                                  {idx + 1}. {te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name}
+                                                </span>
+                                                <span className="font-bold text-gray-800 font-mono">
+                                                  {te.reps} reps {targetWeight ? `@ ${targetWeight} kg` : ""}
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+
+                                        {/* Cuadrícula de Rondas para anotar */}
+                                        {manualWritingSpace && (
+                                          <div className="mt-3 grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                            {rounds.map(r => (
+                                              <div key={r.id} className="border border-gray-300 rounded p-1 text-center bg-white">
+                                                <span className="text-[8px] font-bold text-gray-400 block uppercase">Ronda {r.set_number}</span>
+                                                <span className="text-[10px] font-bold text-gray-300">[____] kg</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                /* Formato Tabla (Fuerza, Entrada en calor, etc.) */
+                                <table className="w-full text-left text-[11px] border-collapse mb-2">
+                                  <thead>
+                                    <tr className="border-b border-gray-400 text-gray-500 text-[9px] uppercase font-black">
+                                      <th className="py-1.5 w-1/2">Ejercicio / Notas</th>
+                                      <th className="py-1.5 text-center w-1/6">Series × Reps</th>
+                                      <th className="py-1.5 text-center w-1/6">Peso Base</th>
+                                      <th className="py-1.5 text-center w-1/6">Tu Peso</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {items.map(item => {
+                                      if (item.type === "single") {
+                                        const { ex: te } = item;
+                                        const override = overrides[te.id];
+                                        const hasOverride = override?.weight_target !== null && override?.weight_target !== undefined;
+
+                                        let baseDisplay = "—";
+                                        const baseWeight = te.weight_target;
+                                        const basePct = te.percentage_1rm;
+                                        baseDisplay = baseWeight != null && baseWeight !== 0
+                                          ? `${baseWeight} kg`
+                                          : basePct != null && basePct !== 0
+                                          ? `${basePct}% 1RM`
+                                          : "—";
+
+                                        return (
+                                          <tr key={te.id} className="border-b border-gray-200 last:border-0 py-2">
+                                            <td className="py-2">
+                                              <div className="font-extrabold text-gray-900">
+                                                {te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name || "Ejercicio"}
+                                              </div>
+                                              {includeNotes && te.notes && (
+                                                <div className="text-[9px] text-gray-500 italic mt-0.5 leading-relaxed">
+                                                  Nota: {te.notes}
+                                                </div>
+                                              )}
+                                            </td>
+                                            <td className="py-2 text-center font-bold">
+                                              {te.sets} × {te.reps}
+                                            </td>
+                                            <td className="py-2 text-center font-medium text-gray-600">
+                                              {baseDisplay}
+                                            </td>
+                                            <td className="py-2 text-center font-black text-gray-900">
+                                              {hasOverride ? (
+                                                <span className="border-b-2 border-black pb-0.5">{override.weight_target} kg</span>
+                                              ) : (
+                                                <span className="text-gray-400">—</span>
+                                              )}
+                                              {manualWritingSpace && (
+                                                <div className="mt-1.5 flex items-center justify-center gap-1 flex-wrap">
+                                                  {Array.from({ length: te.sets }).map((_, idx) => (
+                                                    <span key={idx} className="inline-block w-8 h-4 border border-black rounded text-[9px] text-gray-400 font-normal leading-4">
+                                                      s{idx+1}:____
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        );
+                                      } else {
+                                        /* Complex inside Strength table */
+                                        const { complexId, exs: complexExs } = item;
+                                        const rounds = complexSets[complexId] || [];
+                                        const sortedComplexExs = [...complexExs].sort((a, b) => (a.complex_order ?? 0) - (b.complex_order ?? 0));
+                                        const firstEx = sortedComplexExs[0];
+                                        const oneRMForCalc = firstEx?.exercise_id ? studentOneRMs[firstEx.exercise_id] : undefined;
+
+                                        return (
+                                          <tr key={complexId} className="border-b border-gray-200 last:border-0 py-2">
+                                            <td className="py-2" colSpan={4}>
+                                              <div className="border border-gray-300 rounded-lg p-2.5 bg-gray-50/30">
+                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest block mb-1">Complex Fuerza</span>
+                                                <div className="space-y-1 mb-2">
+                                                  {sortedComplexExs.map((te, idx) => (
+                                                    <div key={te.id} className="text-xs font-semibold text-gray-800">
+                                                      {idx+1}. {te.variant?.name ? `${te.exercise?.name} (${te.variant.name})` : te.exercise?.name}
+                                                      <span className="text-gray-500 font-normal"> ({te.reps} reps)</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+
+                                                {/* Series / Sets table inside complex */}
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                  {rounds.map(s => {
+                                                    const calcWeight = oneRMForCalc && s.percentage_1rm
+                                                      ? Math.round((oneRMForCalc * s.percentage_1rm / 100) / 2.5) * 2.5
+                                                      : null;
+
+                                                    return (
+                                                      <div key={s.id} className="border border-gray-200 rounded p-1.5 bg-white text-center">
+                                                        <span className="text-[9px] font-black text-gray-400 block">Serie {s.set_number}</span>
+                                                        <span className="text-[10px] font-extrabold text-gray-900">
+                                                          {s.percentage_1rm ? `${s.percentage_1rm}%` : ""}
+                                                          {calcWeight ? ` (~${calcWeight} kg)` : ""}
+                                                        </span>
+                                                        {manualWritingSpace && (
+                                                          <div className="text-[9px] text-gray-400 mt-1 border-t border-gray-100 pt-0.5 font-bold">
+                                                            [____] kg
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      }
+                                    })}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
   );
 }

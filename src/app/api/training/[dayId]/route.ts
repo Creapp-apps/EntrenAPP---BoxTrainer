@@ -100,10 +100,26 @@ export async function GET(
     .select("exercise_id, weight_kg")
     .eq("student_id", user.id);
 
+  // 8. Fetchear overrides personalizados del alumno para este ciclo
+  const { data: studentOverrides } = await admin
+    .from("student_exercise_overrides")
+    .select("training_exercise_id, weight_target, percentage_1rm")
+    .eq("enrollment_id", enrollData.id);
+
+  // Construir un mapa training_exercise_id -> override para fácil lookup
+  const overridesMap: Record<string, { weight_target?: number | null; percentage_1rm?: number | null }> = {};
+  for (const ov of studentOverrides || []) {
+    overridesMap[ov.training_exercise_id] = {
+      weight_target: ov.weight_target,
+      percentage_1rm: ov.percentage_1rm,
+    };
+  }
+
   return NextResponse.json({
     blocks: blocksData || [],
     complexSets: complexSets || [],
     oneRMs: oneRMs || [],
+    studentOverrides: overridesMap,
     dayInfo: {
       cycle_id: cycle?.id,
       cycle_name: cycle?.name,

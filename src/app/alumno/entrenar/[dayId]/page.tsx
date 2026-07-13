@@ -420,6 +420,7 @@ export default function EntrenarPage() {
   const [dayInfo, setDayInfo] = useState<DayInfo | null>(null);
   const [oneRMs, setOneRMs] = useState<Record<string, number>>({});
   const [complexSets, setComplexSets] = useState<Record<string, ComplexSet[]>>({});
+  const [studentOverrides, setStudentOverrides] = useState<Record<string, { weight_target?: number | null; percentage_1rm?: number | null }>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<"interactive" | "pizarra">("interactive");
@@ -573,7 +574,7 @@ export default function EntrenarPage() {
       }
 
       const json = await res.json();
-      const { blocks: blocksData, complexSets: setsData, oneRMs: ormsData, dayInfo: di } = json;
+      const { blocks: blocksData, complexSets: setsData, oneRMs: ormsData, dayInfo: di, studentOverrides: sovData } = json;
 
       if (blocksData) {
         const sorted = (blocksData as unknown as Block[]).map(b => ({
@@ -620,6 +621,11 @@ export default function EntrenarPage() {
           map[r.exercise_id] = r.weight_kg;
         });
         setOneRMs(map);
+      }
+
+      // Cargar overrides personalizados del alumno
+      if (sovData) {
+        setStudentOverrides(sovData);
       }
 
       // Cargar progreso previo de localStorage antes de marcar loading como false
@@ -1404,20 +1410,24 @@ export default function EntrenarPage() {
 
                               {isPrep ? (
                                 <div className="space-y-1 mt-1 pl-2 border-l-2 border-emerald-500/20">
-                                  {items.map(te => {
+                                {items.map(te => {
                                     const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
                                     const r = ov ? ov.reps : te.reps;
-                                    const ovPct = ov?.percentage_1rm;
-                                    const ovWt = ov?.weight_target;
+
+                                    // Override de peso del alumno (prioridad sobre template)
+                                    const studentOv = studentOverrides[te.id];
+                                    const ovPct = studentOv?.percentage_1rm ?? ov?.percentage_1rm;
+                                    const ovWt = studentOv?.weight_target ?? ov?.weight_target;
                                     const basePct = te.percentage_1rm;
                                     const baseWt = te.weight_target;
 
                                     let pct = null;
                                     let wt = null;
 
-                                    if (ovPct !== undefined || ovWt !== undefined) {
-                                      pct = ovPct ?? null;
-                                      wt = ovWt ?? null;
+                                    if (ovPct !== undefined && ovPct !== null) {
+                                      pct = ovPct;
+                                    } else if (ovWt !== undefined && ovWt !== null) {
+                                      wt = ovWt;
                                     } else {
                                       pct = basePct ?? null;
                                       wt = baseWt ?? null;
@@ -1430,12 +1440,13 @@ export default function EntrenarPage() {
 
                                     const v = te.exercise_variants?.name ?? "";
                                     const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+                                    const hasCustom = !!studentOv?.weight_target;
 
                                     return (
                                       <div key={te.id} className="text-xs flex justify-between gap-4 py-0.5">
                                         <span className={`${seriesDone ? "text-muted-foreground line-through" : "text-foreground font-medium"}`}>{displayName}</span>
-                                        <span className={`font-mono text-[11px] font-bold shrink-0 ${seriesDone ? "text-muted-foreground" : "text-slate-600"}`}>
-                                          {r} reps {calcExWeight ? `@ ${calcExWeight} kg` : pct ? `@ ${pct}%` : ""}
+                                        <span className={`font-mono text-[11px] font-bold shrink-0 ${seriesDone ? "text-muted-foreground" : hasCustom ? "text-blue-600" : "text-slate-600"}`}>
+                                          {r} reps {calcExWeight ? `@ ${calcExWeight} kg${hasCustom ? " ✎" : ""}` : pct ? `@ ${pct}%` : ""}
                                         </span>
                                       </div>
                                     );
@@ -2240,31 +2251,69 @@ export default function EntrenarPage() {
                                             }`}>
                                               Serie {s.set_number}
                                             </span>
-                                            <p className={`text-xs font-bold leading-tight ${
-                                              seriesDone ? "text-zinc-400 line-through font-medium" : "text-zinc-800"
-                                            }`}>
-                                              {items.map(te => {
-                                                const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                                const r = ov ? ov.reps : te.reps;
-                                                const v = te.exercise_variants?.name ?? "";
-                                                const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
-                                                return `${r}× ${displayName}`;
-                                              }).join(" + ")}
-                                              {s.percentage_1rm ? (
-                                                <span className="ml-1.5 text-red-500">
-                                                  @{s.percentage_1rm}%
-                                                  {firstOneRM && (
-                                                    <span className="font-bold">
-                                                      {" "}→ {Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5} kg
-                                                    </span>
-                                                  )}
-                                                </span>
-                                              ) : s.weight_target ? (
-                                                <span className="ml-1.5 text-red-500 font-bold">
-                                                  @{s.weight_target} kg
-                                                </span>
-                                              ) : null}
-                                            </p>
+                                            {isPrep ? (
+                                              /* Prep. Física: mostrar cada ejercicio con su peso individual */
+                                              <div className={`space-y-1 mt-0.5 ${seriesDone ? "opacity-50" : ""}`}>
+                                                {items.map(te => {
+                                                  const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                                  const r = ov ? ov.reps : te.reps;
+                                                  const v = te.exercise_variants?.name ?? "";
+                                                  const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+
+                                                  // Prioridad: override alumno > override ronda template > base ejercicio
+                                                  const studentOv = studentOverrides[te.id];
+                                                  const wt = studentOv?.weight_target ?? ov?.weight_target ?? null;
+                                                  const pct = (!wt || wt === 0) ? (studentOv?.percentage_1rm ?? ov?.percentage_1rm ?? te.percentage_1rm ?? null) : null;
+
+                                                  const exOneRM = te.exercise_id ? oneRMs[te.exercise_id] : undefined;
+                                                  const calcWt = exOneRM && pct
+                                                    ? Math.round((exOneRM * pct / 100) / 2.5) * 2.5
+                                                    : (wt && wt !== 0 ? wt : null);
+
+                                                  const hasCustom = !!studentOv?.weight_target;
+
+                                                  return (
+                                                    <div key={te.id} className="flex items-center justify-between gap-3 text-xs">
+                                                      <span className={`font-semibold ${seriesDone ? "line-through text-zinc-400" : "text-zinc-800"}`}>
+                                                        {r}× {displayName}
+                                                      </span>
+                                                      {(calcWt || pct) && (
+                                                        <span className={`font-black shrink-0 ${seriesDone ? "text-zinc-400" : hasCustom ? "text-blue-600" : "text-slate-500"}`}>
+                                                          {calcWt ? `${calcWt} kg${hasCustom ? " ✎" : ""}` : `${pct}%`}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            ) : (
+                                              /* Complex / Trepada: línea compacta original */
+                                              <p className={`text-xs font-bold leading-tight ${
+                                                seriesDone ? "text-zinc-400 line-through font-medium" : "text-zinc-800"
+                                              }`}>
+                                                {items.map(te => {
+                                                  const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                                  const r = ov ? ov.reps : te.reps;
+                                                  const v = te.exercise_variants?.name ?? "";
+                                                  const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
+                                                  return `${r}× ${displayName}`;
+                                                }).join(" + ")}
+                                                {s.percentage_1rm ? (
+                                                  <span className="ml-1.5 text-red-500">
+                                                    @{s.percentage_1rm}%
+                                                    {firstOneRM && (
+                                                      <span className="font-bold">
+                                                        {" "}→ {Math.round((firstOneRM * s.percentage_1rm / 100) / 2.5) * 2.5} kg
+                                                      </span>
+                                                    )}
+                                                  </span>
+                                                ) : s.weight_target ? (
+                                                  <span className="ml-1.5 text-red-500 font-bold">
+                                                    @{s.weight_target} kg
+                                                  </span>
+                                                ) : null}
+                                              </p>
+                                            )}
                                           </div>
                                         </div>
 

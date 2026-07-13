@@ -7,6 +7,7 @@ import Link from "next/link";
 import { formatDate, formatCurrency, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from "@/lib/utils";
 import AlumnoActions from "@/components/AlumnoActions";
 import StudentPlanCard from "@/components/StudentPlanCard";
+import HumanBodyMockup from "@/components/HumanBodyMockup";
 
 // ─── Tonnage helpers ─────────────────────────────────────────
 function parseReps(repsStr: string): number {
@@ -233,6 +234,25 @@ export default async function AlumnoDetailPage({ params }: { params: { id: strin
 
           {/* Plan & Créditos */}
           <StudentPlanCard studentId={params.id} modality={student.modality} />
+
+          {/* Mapeo de Lesiones */}
+          <div className="bg-white rounded-2xl shadow-sm border border-border p-5 space-y-3">
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+              Mapa de Lesiones
+            </h2>
+            {student.injured_parts ? (
+              <div className="flex flex-col items-center">
+                <HumanBodyMockup
+                  gender={student.gender}
+                  selectedParts={student.injured_parts.split(",")}
+                  readOnly={true}
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic text-center py-4">Sin lesiones marcadas en el mapa.</p>
+            )}
+          </div>
 
           {/* 1RMs de Planificación */}
           {oneRMs && oneRMs.length > 0 && (
