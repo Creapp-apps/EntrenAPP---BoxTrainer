@@ -464,6 +464,7 @@ export default function EntrenarPage() {
     calcWeight: number | null;
   } | null>(null);
   const [customSeriesWeight, setCustomSeriesWeight] = useState("");
+  const [showSeriesCustomInput, setShowSeriesCustomInput] = useState(false);
 
   // Summary state
   const [rpeOverall, setRpeOverall] = useState<number>(0);
@@ -741,6 +742,7 @@ export default function EntrenarPage() {
     // Open confirmation modal
     setPendingSeriesConfirm({ set, items, calcWeight });
     setCustomSeriesWeight("");
+    setShowSeriesCustomInput(false);
   };
 
   const confirmSeriesWithWeight = (weight: number | undefined) => {
@@ -2669,66 +2671,41 @@ export default function EntrenarPage() {
                 </p>
               </div>
 
-              {calcWeight ? (
+              {!showSeriesCustomInput ? (
                 <>
-                  <p className="text-sm font-medium text-foreground">¿Hiciste esta serie con <span className="text-primary font-bold">{calcWeight} kg</span>?</p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => confirmSeriesWithWeight(calcWeight)}
-                      className="flex-1 py-3.5 rounded-2xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Check className="w-4 h-4" /> Sí, con {calcWeight} kg
-                    </button>
+                  <p className="text-sm text-muted-foreground text-center">
+                    ¿Cómo completaste esta serie?
+                  </p>
+                  <div className="flex flex-col gap-3">
                     <button
                       onClick={() => {
-                        const div = document.getElementById("series-custom-input");
-                        if (div) div.classList.toggle("hidden");
+                        confirmSeriesWithWeight(calcWeight || undefined);
                       }}
-                      className="flex-1 py-3.5 rounded-2xl border-2 border-border font-semibold text-sm hover:border-primary/30 transition-colors"
+                      className="w-full py-3.5 rounded-2xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
                     >
-                      No, otro peso
+                      <Check className="w-4 h-4" /> 
+                      {calcWeight 
+                        ? `Lo hice con el peso recomendado (${calcWeight} kg)` 
+                        : "Lo hice con el peso/porcentaje recomendado"}
                     </button>
-                  </div>
-                  <div id="series-custom-input" className="hidden space-y-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={customSeriesWeight}
-                        onChange={e => setCustomSeriesWeight(e.target.value)}
-                        placeholder="Ej: 52.5"
-                        className="flex-1 px-4 py-3 rounded-xl border border-border text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      <span className="text-muted-foreground font-medium">kg</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          const n = parseFloat(customSeriesWeight);
-                          confirmSeriesWithWeight(isNaN(n) ? undefined : n);
-                        }}
-                        className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold text-sm"
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        onClick={() => confirmSeriesWithWeight(undefined)}
-                        className="px-4 py-3 rounded-xl border border-border text-sm text-muted-foreground font-medium"
-                      >
-                        Omitir
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setShowSeriesCustomInput(true)}
+                      className="w-full py-3.5 rounded-2xl border-2 border-border font-semibold text-sm hover:border-primary/30 transition-colors text-foreground"
+                    >
+                      Lo hice con otro peso
+                    </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground">¿Con qué peso hiciste esta serie? <span className="text-xs">(opcional)</span></p>
+                  <p className="text-sm text-muted-foreground">¿Con qué peso hiciste esta serie?</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
                       value={customSeriesWeight}
                       onChange={e => setCustomSeriesWeight(e.target.value)}
                       placeholder="Ej: 52.5"
-                      className="flex-1 px-4 py-3 rounded-xl border border-border text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="flex-1 px-4 py-3 rounded-xl border border-border text-base font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
                     />
                     <span className="text-muted-foreground font-medium">kg</span>
                   </div>
@@ -2740,7 +2717,13 @@ export default function EntrenarPage() {
                       }}
                       className="flex-1 py-3.5 rounded-2xl bg-primary text-white font-semibold text-sm"
                     >
-                      {customSeriesWeight ? "Guardar" : "Guardar sin peso"}
+                      Guardar
+                    </button>
+                    <button
+                      onClick={() => setShowSeriesCustomInput(false)}
+                      className="px-4 py-3.5 rounded-2xl border border-border text-sm text-muted-foreground font-medium"
+                    >
+                      Volver
                     </button>
                   </div>
                 </>

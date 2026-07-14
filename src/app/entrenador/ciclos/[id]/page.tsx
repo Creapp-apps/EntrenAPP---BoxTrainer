@@ -67,6 +67,7 @@ type ComplexSet = {
     reps: string;
     weight_target?: number | null;
     percentage_1rm?: number | null;
+    rpe_target?: number | null;
   }[];
   rounds?: number;
 };
@@ -74,6 +75,13 @@ type ComplexSet = {
 type BlockItem =
   | { type: "single"; ex: TrainingExercise }
   | { type: "complex"; complexId: string; exs: TrainingExercise[] };
+
+const parseFloatWithComma = (val: string): number | null => {
+  if (val === "") return null;
+  const normalized = val.replace(",", ".");
+  const parsed = parseFloat(normalized);
+  return isNaN(parsed) ? null : parsed;
+};
 
 function getBlockItems(exercises: TrainingExercise[]): BlockItem[] {
   const complexMap = new Map<string, TrainingExercise[]>();
@@ -328,7 +336,7 @@ function ExercisePicker({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Buscar ejercicio..."
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground" />
               </div>
             </div>
 
@@ -672,7 +680,7 @@ function ComplexPicker({
                 <input autoFocus={selectedItems.length === 0} value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Buscar y agregar ejercicio..."
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground" />
               </div>
             </div>
 
@@ -839,7 +847,7 @@ function ComplexCard({
   }, [prevSetIds]);
 
   const savePct = (setId: string, raw: string, current: number | null) => {
-    const pct = raw !== "" ? parseFloat(raw) : null;
+    const pct = parseFloatWithComma(raw);
     if (isNaN(pct ?? 0) && pct !== null) return; // valor inválido
     if ((pct ?? null) === (current ?? null)) return; // sin cambios
     onUpdateSetPercentage(setId, pct);
@@ -910,7 +918,7 @@ function ComplexCard({
                   <input type="text" value={te.reps}
                     onChange={e => onUpdateField(blockId, te.id, "reps", e.target.value)}
                     placeholder="2"
-                    className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white" />
+                    className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
                 </div>
                 <button onClick={() => onDelete(blockId, te.id)}
                   className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors md:opacity-0 md:group-hover:opacity-100 shrink-0"
@@ -954,7 +962,7 @@ function ComplexCard({
                     onBlur={() => savePct(s.id, pctInputs[s.id] ?? "", s.percentage_1rm)}
                     onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
                     placeholder="%"
-                    className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground"
                   />
                   {justSaved && (
                     <span className="absolute left-full ml-1 text-xs text-green-600 font-semibold whitespace-nowrap">✓</span>
@@ -1026,7 +1034,7 @@ function ComplexCard({
         <input type="number" min="0" value={sharedRest ?? ""}
           onChange={e => onUpdateRest(blockId, complexId, e.target.value ? parseInt(e.target.value) : null)}
           placeholder="180"
-          className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-white mt-0.5" />
+          className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-white mt-0.5 text-foreground" />
       </div>
 
       {/* Reps override modal */}
@@ -1117,10 +1125,10 @@ function PrepFisicaBlock({
       });
     });
 
-    setRepsInputs(prev => ({ ...nextReps, ...prev }));
-    setWeightInputs(prev => ({ ...nextWeight, ...prev }));
-    setPctInputs(prev => ({ ...nextPct, ...prev }));
-    setRpeInputs(prev => ({ ...nextRpe, ...prev }));
+    setRepsInputs(nextReps);
+    setWeightInputs(nextWeight);
+    setPctInputs(nextPct);
+    setRpeInputs(nextRpe);
   }, [sets, block.training_exercises]);
 
   const handleRepsChange = (setId: string, teId: string, val: string) => {
@@ -1186,7 +1194,7 @@ function PrepFisicaBlock({
           }
 
           if (mode === "percent") {
-            const pctNum = pctVal !== "" ? parseFloat(pctVal) : null;
+            const pctNum = parseFloatWithComma(pctVal);
             if (ov.percentage_1rm !== pctNum || ov.weight_target !== null || ov.rpe_target !== null) {
               ov.percentage_1rm = pctNum;
               ov.weight_target = null;
@@ -1194,7 +1202,7 @@ function PrepFisicaBlock({
               hasChanges = true;
             }
           } else if (mode === "weight") {
-            const wtNum = wtVal !== "" ? parseFloat(wtVal) : null;
+            const wtNum = parseFloatWithComma(wtVal);
             if (ov.weight_target !== wtNum || ov.percentage_1rm !== null || ov.rpe_target !== null) {
               ov.weight_target = wtNum;
               ov.percentage_1rm = null;
@@ -1202,7 +1210,7 @@ function PrepFisicaBlock({
               hasChanges = true;
             }
           } else if (mode === "rpe") {
-            const rpeNum = rpeVal !== "" ? parseFloat(rpeVal) : null;
+            const rpeNum = parseFloatWithComma(rpeVal);
             if (ov.rpe_target !== rpeNum || ov.percentage_1rm !== null || ov.weight_target !== null) {
               ov.rpe_target = rpeNum;
               ov.percentage_1rm = null;
@@ -1210,7 +1218,7 @@ function PrepFisicaBlock({
               hasChanges = true;
             }
           } else if (mode === "rir") {
-            const rirNum = rpeVal !== "" ? parseFloat(rpeVal) : null;
+            const rirNum = parseFloatWithComma(rpeVal);
             const storedRpe = rirNum !== null ? (rirNum === 0 ? -0.1 : -Math.abs(rirNum)) : null;
             if (ov.rpe_target !== storedRpe || ov.percentage_1rm !== null || ov.weight_target !== null) {
               ov.rpe_target = storedRpe;
@@ -1269,13 +1277,13 @@ function PrepFisicaBlock({
       if (ov.reps === rawVal) return;
       ov.reps = rawVal;
     } else if (field === "weight_target") {
-      const num = rawVal !== "" ? parseFloat(rawVal) : null;
+      const num = parseFloatWithComma(rawVal);
       if (ov.weight_target === num) return;
       ov.weight_target = num;
       ov.percentage_1rm = null;
       ov.rpe_target = null;
     } else if (field === "percentage_1rm") {
-      const num = rawVal !== "" ? parseFloat(rawVal) : null;
+      const num = parseFloatWithComma(rawVal);
       if (ov.percentage_1rm === num) return;
       ov.percentage_1rm = num;
       ov.weight_target = null;
@@ -1283,11 +1291,11 @@ function PrepFisicaBlock({
     } else if (field === "rpe_target") {
       const mode = getExerciseChargeMode(te!);
       if (mode === "rpe") {
-        const num = rawVal !== "" ? parseFloat(rawVal) : null;
+        const num = parseFloatWithComma(rawVal);
         if (ov.rpe_target === num) return;
         ov.rpe_target = num;
       } else {
-        const rirNum = rawVal !== "" ? parseFloat(rawVal) : null;
+        const rirNum = parseFloatWithComma(rawVal);
         const storedRpe = rirNum !== null ? (rirNum === 0 ? -0.1 : -Math.abs(rirNum)) : null;
         if (ov.rpe_target === storedRpe) return;
         ov.rpe_target = storedRpe;
@@ -1478,12 +1486,15 @@ function PrepFisicaBlock({
                             <div className="flex-1 min-w-[50px]">
                               <input
                                 type="text"
+                                name={`reps-${s.id}-${te.id}`}
+                                id={`reps-${s.id}-${te.id}`}
                                 value={repsVal}
                                 placeholder="Reps"
+                                autoComplete="new-password"
                                 onChange={e => handleRepsChange(s.id, te.id, e.target.value)}
                                 onBlur={() => saveCell(s.id, te.id, "reps", repsVal)}
                                 onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white text-foreground"
                               />
                             </div>
                             <span className="text-[10px] text-muted-foreground select-none">@</span>
@@ -1491,8 +1502,11 @@ function PrepFisicaBlock({
                             <div className="flex-1 min-w-[50px]">
                               <input
                                 type="text"
+                                name={`load-${s.id}-${te.id}`}
+                                id={`load-${s.id}-${te.id}`}
                                 value={displayValue}
                                 placeholder={displayPlaceholder}
+                                autoComplete="new-password"
                                 onChange={e => {
                                   if (mode === "percent") handlePctChange(s.id, te.id, e.target.value);
                                   else if (mode === "weight") handleWeightChange(s.id, te.id, e.target.value);
@@ -1500,7 +1514,7 @@ function PrepFisicaBlock({
                                 }}
                                 onBlur={() => saveCell(s.id, te.id, fieldName, displayValue)}
                                 onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+                                className="w-full px-1.5 py-1 rounded border border-border text-center text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white text-foreground"
                               />
                             </div>
                           </div>
@@ -1549,7 +1563,7 @@ function PrepFisicaBlock({
                     setJustSaved(false);
                   }}
                   placeholder="90"
-                  className="w-16 px-2 py-1 rounded-lg border border-border text-xs text-center font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-16 px-2 py-1 rounded-lg border border-border text-xs text-center font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white text-foreground"
                 />
               </div>
 
@@ -1877,19 +1891,19 @@ function ExerciseRow({
             </div>
             {chargeMode === "percent" && (
               <input type="number" min="0" max="110" value={ex.percentage_1rm ?? ""}
-                onChange={e => onUpdate(blockId, ex.id, "percentage_1rm", e.target.value ? parseFloat(e.target.value) : null)}
+                onChange={e => onUpdate(blockId, ex.id, "percentage_1rm", e.target.value ? parseFloatWithComma(e.target.value) : null)}
                 placeholder="75"
                 className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
             )}
             {chargeMode === "weight" && (
               <input type="number" min="0" value={ex.weight_target ?? ""}
-                onChange={e => onUpdate(blockId, ex.id, "weight_target", e.target.value ? parseFloat(e.target.value) : null)}
+                onChange={e => onUpdate(blockId, ex.id, "weight_target", e.target.value ? parseFloatWithComma(e.target.value) : null)}
                 placeholder="kg"
                 className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
             )}
             {chargeMode === "rpe" && (
               <input type="number" min="1" max="10" step="0.5" value={ex.rpe_target ?? ""}
-                onChange={e => onUpdate(blockId, ex.id, "rpe_target", e.target.value ? parseFloat(e.target.value) : null)}
+                onChange={e => onUpdate(blockId, ex.id, "rpe_target", e.target.value ? parseFloatWithComma(e.target.value) : null)}
                 placeholder="RPE (8.5)"
                 className="w-full px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary bg-white text-foreground" />
             )}
@@ -2471,7 +2485,7 @@ function WeightOverrideRow({
   }, [customWeight]);
 
   const handleBlur = () => {
-    const parsed = inputVal.trim() === "" ? null : parseFloat(inputVal);
+    const parsed = inputVal.trim() === "" ? null : parseFloatWithComma(inputVal);
     if (inputVal.trim() === "" && hasOverride) {
       // Limpiar override
       onClear(exId);
@@ -2511,7 +2525,7 @@ function WeightOverrideRow({
               onBlur={handleBlur}
               onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
               placeholder="kg"
-              className={`w-20 px-2 py-1.5 rounded-lg border text-sm text-center font-semibold focus:outline-none transition-all ${
+              className={`w-20 px-2 py-1.5 rounded-lg border text-sm text-center font-semibold focus:outline-none transition-all text-foreground ${
                 hasOverride
                   ? "border-blue-400 bg-blue-50 text-blue-800 focus:ring-2 focus:ring-blue-400"
                   : "border-border bg-white focus:ring-2 focus:ring-primary"
@@ -3478,7 +3492,11 @@ export default function CicloDetailPage() {
       })),
     })));
     const supabase = createClient();
-    await supabase.from("training_exercises").update(updates).eq("id", exId);
+    const { error } = await supabase.from("training_exercises").update(updates).eq("id", exId);
+    if (error) {
+      console.error("updateExercise error:", error);
+      toast.error("Error al actualizar el ejercicio");
+    }
   };
 
   // ─── Actualizar descanso del complex (solo rest_seconds) ──
@@ -3496,7 +3514,11 @@ export default function CicloDetailPage() {
       })),
     })));
     const supabase = createClient();
-    await supabase.from("training_exercises").update({ rest_seconds: value }).eq("complex_id", complexId);
+    const { error } = await supabase.from("training_exercises").update({ rest_seconds: value }).eq("complex_id", complexId);
+    if (error) {
+      console.error("updateComplexRest error:", error);
+      toast.error("Error al actualizar el descanso");
+    }
   };
 
   // ─── Actualizar % de una serie ────────────────────────────
@@ -3523,7 +3545,12 @@ export default function CicloDetailPage() {
     overrides: { training_exercise_id: string; reps: string }[]
   ) => {
     const supabase = createClient();
-    await supabase.from("training_complex_sets").update({ reps_overrides: overrides }).eq("id", setId);
+    const { error } = await supabase.from("training_complex_sets").update({ reps_overrides: overrides }).eq("id", setId);
+    if (error) {
+      console.error("updateComplexSetRepsOverride error:", error);
+      toast.error("Error al actualizar repeticiones y cargas");
+      throw error;
+    }
     setComplexSets(prev => {
       const next = { ...prev };
       for (const cid in next) {
@@ -3536,7 +3563,12 @@ export default function CicloDetailPage() {
   // ─── Actualizar rondas de una serie ───────────────────────
   const updateComplexSetRounds = async (setId: string, r: number) => {
     const supabase = createClient();
-    await supabase.from("training_complex_sets").update({ rounds: r }).eq("id", setId);
+    const { error } = await supabase.from("training_complex_sets").update({ rounds: r }).eq("id", setId);
+    if (error) {
+      console.error("updateComplexSetRounds error:", error);
+      toast.error("Error al actualizar las rondas");
+      return;
+    }
     setComplexSets(prev => {
       const next = { ...prev };
       for (const cid in next) {
