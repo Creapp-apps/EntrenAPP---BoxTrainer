@@ -78,8 +78,7 @@ function LoginForm() {
     }
 
     toast.success("¡Sesión iniciada!");
-    router.push("/");
-    router.refresh();
+    window.location.href = "/";
     return true;
   };
 
