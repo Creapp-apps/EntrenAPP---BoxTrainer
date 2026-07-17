@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resend, EMAIL_FROM } from "@/lib/resend";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,75 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email y Nombre son obligatorios" }, { status: 400 });
     }
 
-    const firstName = fullName.split(" ")[0];
+    // 🛡️ 1. Verificar si viene con firma de servicio interno (Bearer token)
+    let isAuthorized = false;
+    const authHeader = request.headers.get("Authorization");
+    const expectedToken = process.env.INTERNAL_API_SECRET;
+    if (expectedToken && authHeader === `Bearer ${expectedToken}`) {
+      isAuthorized = true;
+    }
+
+    // 🛡️ 2. Si no es firma interna, verificar si es un entrenador/admin autenticado
+    if (!isAuthorized) {
+      try {
+        const userSupabase = await createClient();
+        const { data: { user: currentUser } } = await userSupabase.auth.getUser();
+        if (currentUser) {
+          const adminSupabase = await createAdminClient();
+          const { data: profile } = await adminSupabase
+            .from("users")
+            .select("role")
+            .eq("id", currentUser.id)
+            .single();
+          if (profile && ["trainer", "super_admin"].includes(profile.role)) {
+            isAuthorized = true;
+          }
+        }
+      } catch (authErr) {
+        console.error("Error in welcome-email auth check:", authErr);
+      }
+    }
+
+    // 🛡️ 3. Si no es firma interna ni entrenador, verificar si es un auto-registro reciente (últimos 5 minutos)
+    if (!isAuthorized) {
+      try {
+        const adminSupabase = await createAdminClient();
+        const { data: userRecord } = await adminSupabase
+          .from("users")
+          .select("created_at")
+          .eq("email", email.trim().toLowerCase())
+          .maybeSingle();
+
+        if (userRecord) {
+          const createdAt = new Date(userRecord.created_at);
+          const now = new Date();
+          const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+          if (diffMinutes <= 5) {
+            isAuthorized = true;
+          }
+        }
+      } catch (dbErr) {
+        console.error("Error checking user creation in welcome-email:", dbErr);
+      }
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Sanitizar entradas para evitar inyecciones HTML en el correo
+    const escapeHtml = (unsafe: string) => {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    };
+
+    const sanitizedEmail = escapeHtml(email.trim().toLowerCase());
+    const sanitizedFullName = escapeHtml(fullName.trim());
+    const firstName = sanitizedFullName.split(" ")[0];
 
     const emailHtml = `
       <div style="font-family: 'Segoe UI', -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #050508; color: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
@@ -44,7 +113,7 @@ export async function POST(request: NextRequest) {
           <!-- Caja de Información Útil -->
           <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; margin-bottom: 32px;">
             <h3 style="color: #f97316; font-size: 13px; font-weight: 700; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 1px;">Detalles de tu cuenta:</h3>
-            <p style="color: #e4e4e7; font-size: 14px; margin: 4px 0;"><strong>📧 Usuario:</strong> ${email}</p>
+            <p style="color: #e4e4e7; font-size: 14px; margin: 4px 0;"><strong>📧 Usuario:</strong> ${sanitizedEmail}</p>
             <p style="color: #e4e4e7; font-size: 14px; margin: 4px 0;"><strong>✅ Estado:</strong> Activo</p>
           </div>
 

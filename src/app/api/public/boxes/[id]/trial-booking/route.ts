@@ -139,7 +139,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     try {
       fetch(`${new URL(request.url).origin}/api/auth/welcome-email`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.INTERNAL_API_SECRET}`
+        },
         body: JSON.stringify({ email: email.trim().toLowerCase(), fullName: fullName.trim() })
       });
     } catch (emailErr) {

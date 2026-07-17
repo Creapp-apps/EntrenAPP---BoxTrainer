@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import TrainerLayoutClient from "@/components/layout/TrainerLayoutClient";
 
 export default async function TrainerLayout({
@@ -18,11 +18,7 @@ export default async function TrainerLayout({
 
   // Use plain supabase-js client with service role (NOT the cookie-based SSR client)
   // This truly bypasses RLS — the SSR client attaches cookies which can override service role
-  const { createClient: createPlainClient } = await import("@supabase/supabase-js");
-  const adminSupabase = createPlainClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const adminSupabase = await createAdminClient();
 
   // Obtener perfil del usuario
   let profile = null;

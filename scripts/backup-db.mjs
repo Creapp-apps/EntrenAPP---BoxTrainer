@@ -21,7 +21,15 @@ const envContent = readFileSync(envPath, "utf-8");
 const env = {};
 envContent.split("\n").forEach((line) => {
   const [key, ...rest] = line.split("=");
-  if (key && rest.length) env[key.trim()] = rest.join("=").trim();
+  if (key && rest.length) {
+    let value = rest.join("=").trim();
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.substring(1, value.length - 1);
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.substring(1, value.length - 1);
+    }
+    env[key.trim()] = value;
+  }
 });
 
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;

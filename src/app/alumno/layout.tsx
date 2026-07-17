@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import StudentBottomNav from "@/components/layout/StudentBottomNav";
 import NoBoxState from "@/components/NoBoxState";
 import SuspendedState from "@/components/SuspendedState";
@@ -22,11 +22,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
   if (!currentProfile) {
     console.log("[Student Layout] 🚨 Perfil no encontrado en renderización. Aplicando Auto-Sanación en caliente...");
     try {
-      const { createClient: createPlainClient } = await import("@supabase/supabase-js");
-      const adminSupabase = createPlainClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      const adminSupabase = await createAdminClient();
 
       const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Alumno";
       
