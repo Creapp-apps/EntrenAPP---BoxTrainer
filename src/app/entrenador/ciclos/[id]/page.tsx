@@ -465,7 +465,7 @@ function SetRepsOverrideModal({
             return (
               <div key={te.id} className="flex items-center gap-3">
                 <span className="text-xs text-primary font-bold w-4 shrink-0">{i + 1}.</span>
-                <span className="text-sm flex-1 truncate font-medium">
+                <span className="text-sm flex-1 truncate font-medium text-foreground">
                   {name}{variant ? ` — ${variant}` : ""}
                 </span>
                 <input
@@ -608,7 +608,7 @@ function ComplexPicker({
               {selectedItems.map((item, i) => (
                 <div key={i} className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-border">
                   <span className="text-xs font-bold text-primary w-4 shrink-0">{i + 1}.</span>
-                  <span className="text-sm font-medium flex-1 truncate">
+                  <span className="text-sm font-medium flex-1 truncate text-foreground">
                     {item.ex.name}{item.variant ? ` — ${item.variant.name}` : ""}
                   </span>
                   <button onClick={() => removeItem(i)}
@@ -753,7 +753,7 @@ function ComplexPicker({
             <div className="overflow-y-auto flex-1">
               <button onClick={() => addItem(pickingVariantFor)}
                 className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border">
-                <span className="text-sm font-medium">Sin variante (base)</span>
+                <span className="text-sm font-medium text-foreground">Sin variante (base)</span>
               </button>
               {pickingVariantFor.variants.map(v => (
                 <button key={v.id} onClick={() => addItem(pickingVariantFor, v)}
