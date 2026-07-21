@@ -250,7 +250,7 @@ export default function LandingClient() {
       {/* ══════════════════════════════════════════════════
           DISCIPLINAS (Hecho para múltiples tipos de centros)
       ══════════════════════════════════════════════════ */}
-      <section id="disciplines" className="relative py-28 px-5 sm:px-8 z-30 min-h-[580px]">
+      <section id="disciplines" className="relative py-28 px-5 sm:px-8 z-30 min-h-[580px] scroll-mt-20">
         <div className="max-w-5xl mx-auto relative">
           <div className="text-center mb-14">
             <p className="text-xs font-black text-orange-400 uppercase tracking-[0.2em] mb-4">Adaptado a tu disciplina</p>
@@ -366,7 +366,7 @@ export default function LandingClient() {
       {/* ══════════════════════════════════════════════════
           PRICING
       ══════════════════════════════════════════════════ */}
-      <section id="pricing" className="relative py-28 px-5 sm:px-8 z-10 overflow-hidden">
+      <section id="pricing" className="relative py-28 px-5 sm:px-8 z-10 overflow-hidden scroll-mt-20">
         <div className="absolute inset-0 bg-white/[0.01] pointer-events-none" />
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
@@ -759,7 +759,7 @@ export default function LandingClient() {
       {/* ══════════════════════════════════════════════════
           FAQ
       ══════════════════════════════════════════════════ */}
-      <section id="faq" className="relative py-28 px-5 sm:px-8 z-10">
+      <section id="faq" className="relative py-28 px-5 sm:px-8 z-10 scroll-mt-20">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-14">
             <p className="text-xs font-black text-white/30 uppercase tracking-[0.2em] mb-4">FAQ</p>

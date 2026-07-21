@@ -243,7 +243,7 @@ export function LandingAccordionItem() {
   };
 
   return (
-    <section id="features" className="relative py-20 md:py-28 px-4 sm:px-6 md:px-8 z-10 overflow-hidden bg-[#060608]">
+    <section id="features" className="relative py-20 md:py-28 px-4 sm:px-6 md:px-8 z-10 overflow-hidden bg-[#060608] scroll-mt-20">
       
       {/* Background Gradients */}
       <div className="absolute top-[10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[120px] pointer-events-none" />
@@ -259,23 +259,23 @@ export function LandingAccordionItem() {
               <span className="text-[10px] font-black uppercase tracking-wider">Todo lo que necesitás</span>
             </div>
             
-            <h2 ref={headingRef} className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tighter flex flex-col items-center lg:items-start gap-1 whitespace-nowrap">
-              <div className="flex flex-row items-center justify-center lg:justify-start gap-x-2 whitespace-nowrap">
-                <VerticalCutReveal
-                  splitBy="characters"
-                  staggerDuration={0.025}
-                  staggerFrom="first"
-                  animate={isHeadingInView}
-                  autoStart={false}
-                  transition={{ type: "spring", stiffness: 200, damping: 21 }}
-                  containerClassName="text-white justify-center lg:justify-start"
-                >
-                  Gestioná tu
-                </VerticalCutReveal>
+            <h2 ref={headingRef} className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-black text-white leading-[1.15] tracking-tighter flex flex-col items-center lg:items-start gap-1">
+              <VerticalCutReveal
+                splitBy="characters"
+                staggerDuration={0.025}
+                staggerFrom="first"
+                animate={isHeadingInView}
+                autoStart={false}
+                transition={{ type: "spring", stiffness: 200, damping: 21 }}
+                containerClassName="text-white justify-center lg:justify-start"
+              >
+                Gestioná tu
+              </VerticalCutReveal>
+              <div className="flex items-center justify-center lg:justify-start min-h-[1.2em]">
                 <TypingEffect
-                  texts={["Box", "Gimnasio", "Funcional", "Musculación"]}
-                  className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tighter text-orange-gradient"
-                  typingSpeed={80}
+                  texts={["Box", "Gimnasio", "Centro Funcional", "Musculación"]}
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-black tracking-tighter text-orange-gradient"
+                  typingSpeed={70}
                   rotationInterval={2200}
                   trigger={isHeadingInView}
                 />

@@ -312,7 +312,7 @@ export function CinematicHero({
         scrollTrigger: {
           trigger: containerRef.current,
           start: "top top",
-          end: "+=3000",
+          end: "+=2200",
           pin: true,
           scrub: 1,
           anticipatePin: 1,
@@ -454,18 +454,18 @@ export function CinematicHero({
       </div>
 
       {/* FOREGROUND LAYER: The Physical Deep Carbon Card */}
-      <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none" style={{ perspective: "1500px" }}>
+      <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none pt-[72px]" style={{ perspective: "1500px" }}>
         <div
           ref={mainCardRef}
           style={{ transform: "translateY(120vh)" }}
-          className="main-card premium-depth-card relative overflow-hidden gsap-reveal flex items-center justify-center pointer-events-auto w-[92vw] md:w-[85vw] h-[92vh] md:h-[85vh] rounded-[32px] md:rounded-[40px]"
+          className="main-card premium-depth-card relative overflow-hidden gsap-reveal flex items-center justify-center pointer-events-auto w-[94vw] md:w-[85vw] h-[82vh] md:h-[78vh] max-h-[780px] rounded-[24px] md:rounded-[40px]"
         >
           <div className="card-sheen" aria-hidden="true" />
 
           {/* Slide 1: Platform Introduction */}
-          <div className="slide-intro-info gsap-reveal absolute inset-0 z-10 flex flex-col justify-center items-center px-4 md:px-8 lg:px-16 w-full h-full pointer-events-auto">
-            <div className="max-w-5xl mx-auto flex flex-col items-center w-full">
-              <span className="slide-intro-tag text-[9px] md:text-xs font-extrabold tracking-widest text-orange-500 uppercase bg-orange-500/10 border border-orange-500/20 px-2.5 py-0.5 md:px-3 md:py-1 rounded-full mb-2 md:mb-6">
+          <div className="slide-intro-info gsap-reveal absolute inset-0 z-10 flex flex-col justify-center items-center px-4 md:px-8 lg:px-12 py-4 md:py-6 w-full h-full pointer-events-auto">
+            <div className="max-w-5xl mx-auto flex flex-col items-center w-full my-auto">
+              <span className="slide-intro-tag text-[9px] md:text-xs font-extrabold tracking-widest text-orange-500 uppercase bg-orange-500/10 border border-orange-500/20 px-2.5 py-0.5 md:px-3 md:py-1 rounded-full mb-1.5 md:mb-3">
                 EntrenAPP para Boxes
               </span>
               <TextEffect
@@ -474,23 +474,15 @@ export function CinematicHero({
                 preset="blur"
                 delay={0.2}
                 trigger={isIntroActive}
-                className="slide-intro-title text-xl md:text-4xl lg:text-5xl font-black uppercase tracking-tighter text-white mb-2 md:mb-6 text-center max-w-4xl leading-tight drop-shadow-md"
+                className="slide-intro-title text-xl md:text-3xl lg:text-4xl font-black uppercase tracking-tighter text-white mb-2 md:mb-4 text-center max-w-4xl leading-tight drop-shadow-md"
               >
                 La plataforma definitiva para gestionar tu Box
               </TextEffect>
-              <p className="slide-intro-desc text-muted-foreground text-[10px] md:text-sm lg:text-base font-light max-w-xl text-center mb-4 md:mb-10 leading-relaxed px-4 md:px-0 min-h-[3rem] md:min-h-[2.5rem]">
-                <Typewriter
-                  words={["Digitalizá tu centro de entrenamiento, automatizá tus ingresos y conectá a tu comunidad de atletas en un solo ecosistema premium."]}
-                  speed={15}
-                  delayBetweenWords={2000}
-                  loop={false}
-                  cursor={true}
-                  cursorChar="|"
-                  trigger={startTypewriter}
-                />
+              <p className="slide-intro-desc text-muted-foreground text-xs md:text-sm lg:text-base font-light max-w-2xl text-center mb-3 md:mb-6 leading-relaxed px-4 md:px-0">
+                Digitalizá tu centro de entrenamiento, automatizá tus ingresos y conectá a tu comunidad de atletas en un solo ecosistema premium.
               </p>
               
-              <div className="flex flex-col md:grid md:grid-cols-3 gap-4 md:gap-6 w-full px-2 md:px-0 max-w-5xl justify-items-center pointer-events-auto select-auto">
+              <div className="flex flex-col md:grid md:grid-cols-3 gap-3 md:gap-5 w-full px-2 md:px-0 max-w-5xl justify-items-center pointer-events-auto select-auto">
                 {/* Column 1 */}
                 <div style={{ perspective: "1000px" }} className="w-full flex justify-center">
                   <InteractiveTravelCard
@@ -500,7 +492,7 @@ export function CinematicHero({
                     actionText="Ver Planificación"
                     href="/entrenador/ejercicios"
                     onActionClick={() => {}}
-                    className="slide-intro-col"
+                    className="slide-intro-col h-[15rem] md:h-[17.5rem] lg:h-[19rem]"
                   />
                 </div>
                 {/* Column 2 */}
@@ -512,7 +504,7 @@ export function CinematicHero({
                     actionText="Gestionar Cobros"
                     href="/entrenador/pagos"
                     onActionClick={() => {}}
-                    className="slide-intro-col"
+                    className="slide-intro-col h-[15rem] md:h-[17.5rem] lg:h-[19rem]"
                   />
                 </div>
                 {/* Column 3 */}
@@ -524,7 +516,7 @@ export function CinematicHero({
                     actionText="Ver Comunidad"
                     href="/entrenador/tu-box"
                     onActionClick={() => {}}
-                    className="slide-intro-col"
+                    className="slide-intro-col h-[15rem] md:h-[17.5rem] lg:h-[19rem]"
                   />
                 </div>
               </div>
