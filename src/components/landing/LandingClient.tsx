@@ -204,7 +204,6 @@ export default function LandingClient() {
           {/* Nav links — desktop */}
           <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-white/50">
             <a href="#features" className="hover:text-white transition-colors">Funcionalidades</a>
-            <a href="#disciplines" className="hover:text-white transition-colors">Disciplinas</a>
             <a href="#pricing" className="hover:text-white transition-colors">Planes</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
           </nav>
@@ -247,121 +246,7 @@ export default function LandingClient() {
       ══════════════════════════════════════════════════ */}
       <LandingAccordionItem />
 
-      {/* ══════════════════════════════════════════════════
-          DISCIPLINAS (Hecho para múltiples tipos de centros)
-      ══════════════════════════════════════════════════ */}
-      <section id="disciplines" className="relative py-28 px-5 sm:px-8 z-30 min-h-[580px] scroll-mt-20">
-        <div className="max-w-5xl mx-auto relative">
-          <div className="text-center mb-14">
-            <p className="text-xs font-black text-orange-400 uppercase tracking-[0.2em] mb-4">Adaptado a tu disciplina</p>
-            <h2 ref={disciplinesRef} className="text-4xl sm:text-5xl font-black text-white flex flex-col items-center gap-1">
-              <BlurIn
-                word="Hecho para múltiples"
-                animate={isDisciplinesInView}
-                duration={0.6}
-                className="text-4xl sm:text-5xl font-black text-white tracking-tighter"
-              />
-              <BlurIn
-                word="tipos de centros"
-                animate={isDisciplinesInView}
-                duration={0.6}
-                variant={{
-                  hidden: { filter: "blur(10px)", opacity: 0 },
-                  visible: { filter: "blur(0px)", opacity: 0.4 },
-                }}
-                className="text-4xl sm:text-5xl font-black text-white tracking-tighter"
-              />
-            </h2>
-          </div>
 
-          {/* Dynamic Dropdown Navbar Menu */}
-          <div className="flex flex-col items-center w-full relative">
-            <div className="flex justify-center w-full relative z-40">
-              <Menu 
-                setActive={setActiveNavbarItem} 
-                closeOnMouseLeave={false} 
-                className="border border-white/5 bg-black/40 backdrop-blur-md px-6 py-4 rounded-full"
-              >
-                {DISCIPLINES.map((d) => (
-                  <MenuItem
-                    key={d.key}
-                    setActive={setActiveNavbarItem}
-                    active={activeNavbarItem}
-                    item={d.key}
-                    label={d.label}
-                    emoji={d.emoji}
-                  />
-                ))}
-              </Menu>
-            </div>
-
-            {/* Dropdown Content Rendered Below to Avoid Clipping/Overflow Constraints */}
-            <div className="w-full relative z-30 min-h-[380px] sm:min-h-[320px]">
-              <AnimatePresence mode="wait">
-                {activeNavbarItem && (() => {
-                  const d = DISCIPLINES.find(item => item.key === activeNavbarItem);
-                  if (!d) return null;
-                  return (
-                    <motion.div
-                      key={d.key}
-                      initial={{ opacity: 0, y: 15, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -15, scale: 0.98 }}
-                      transition={{ duration: 0.25, ease: "easeInOut" }}
-                      className="mt-8 w-full max-w-4xl mx-auto"
-                    >
-                      <div className="relative bg-white/[0.02] border border-white/[0.06] rounded-[28px] p-6 sm:p-8 md:p-10 overflow-hidden shadow-2xl backdrop-blur-md text-left">
-                        {/* Glow effect matching active discipline color */}
-                        <div className={`absolute -inset-1 blur-3xl opacity-20 bg-gradient-to-br ${d.color} transition-all duration-500`} />
-                        
-                        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-                          <div className="flex-1">
-                            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${d.color} bg-opacity-10 border border-white/5 mb-4`}>
-                              <span className="text-sm">{d.emoji}</span>
-                              <span className="text-[10px] font-black text-white uppercase tracking-widest">{d.label}</span>
-                            </div>
-                            
-                            <h3 className="text-2xl sm:text-3xl font-black text-white mb-3 tracking-tight">
-                              {d.title}
-                            </h3>
-                            
-                            <p className="text-white/60 leading-relaxed text-sm sm:text-base max-w-2xl mb-6">
-                              {d.desc}
-                            </p>
-                            
-                            <div className="border-t border-white/5 pt-4">
-                              <p className="text-[10px] uppercase tracking-[0.2em] font-black text-white/30 mb-3">Funcionalidades Clave</p>
-                              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                {d.features.map(f => (
-                                  <li key={f} className="flex items-center gap-2.5 text-xs sm:text-sm text-white/80 font-bold">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                                    <span>{f}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                          
-                          <div className="hidden md:flex justify-center items-center shrink-0">
-                            <motion.div
-                              initial={{ scale: 0.9, rotate: -2 }}
-                              animate={{ scale: 1, rotate: 0 }}
-                              transition={{ type: "spring", stiffness: 100 }}
-                              className={`w-32 h-32 md:w-40 md:h-40 rounded-[32px] bg-gradient-to-br ${d.color} flex items-center justify-center shadow-xl relative group`}
-                            >
-                              <span className="text-6xl select-none filter drop-shadow-md">{d.emoji}</span>
-                            </motion.div>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })()}
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ══════════════════════════════════════════════════
           PRICING
@@ -844,7 +729,6 @@ export default function LandingClient() {
           </div>
           <div className="flex flex-wrap justify-center gap-8 text-sm text-white/30 font-semibold">
             <a href="#features" className="hover:text-white transition-colors">Funcionalidades</a>
-            <a href="#disciplines" className="hover:text-white transition-colors">Disciplinas</a>
             <a href="#pricing" className="hover:text-white transition-colors">Planes</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <a href="https://wa.me/541165234769" className="hover:text-white transition-colors">Contacto</a>
