@@ -188,7 +188,7 @@ export default function StudentOneRMPage() {
                               if (e.key === "Escape") cancelEdit();
                             }}
                             placeholder="kg"
-                            className="w-16 px-1.5 py-1 rounded-lg border border-primary text-xs text-center font-bold focus:outline-none"
+                            className="w-16 px-1.5 py-1 rounded-lg border border-primary bg-white text-slate-900 text-xs text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                           />
                           <span className="text-xs text-muted-foreground">kg</span>
                         </div>
@@ -230,7 +230,7 @@ export default function StudentOneRMPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar ejercicio..."
-          className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
@@ -280,7 +280,7 @@ export default function StudentOneRMPage() {
                             if (e.key === "Escape") cancelEdit();
                           }}
                           placeholder="kg"
-                          className="w-20 px-2 py-1.5 rounded-lg border border-primary text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                          className="w-20 px-2 py-1.5 rounded-lg border border-primary bg-white text-slate-900 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         <span className="text-xs text-muted-foreground">kg</span>
                       </div>

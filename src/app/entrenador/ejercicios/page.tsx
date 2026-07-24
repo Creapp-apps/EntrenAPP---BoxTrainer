@@ -31,14 +31,16 @@ const CF_UNIT_LABELS: Record<string, string> = {
 type Exercise = {
   id: string; name: string; category: string;
   muscle_group: string; video_url?: string | null;
+  thumbnail_url?: string | null; notes?: string | null;
 };
 
 type CfExercise = {
   id: string; name: string; category: string;
   default_unit: string; video_url?: string | null;
+  thumbnail_url?: string | null; notes?: string | null;
 };
 
-type Tab = "fuerza" | "prep_fisica" | "crossfit";
+type Tab = "fuerza" | "prep_fisica" | "crossfit" | "avatars";
 
 export default function EjerciciosPage() {
   const supabase = createClient();
@@ -62,8 +64,8 @@ export default function EjerciciosPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const [{ data: exs }, { data: cfs }] = await Promise.all([
-        supabase.from("exercises").select("id, name, category, muscle_group, video_url")
-          .eq("archived", false).order("name"),
+        supabase.from("exercises").select("id, name, category, muscle_group, video_url, thumbnail_url, notes")
+          .eq("archived", false).order("name").range(0, 4999),
         supabase.from("cf_exercises").select("id, name, category, default_unit, video_url")
           .eq("archived", false).order("name"),
       ]);
@@ -97,8 +99,9 @@ export default function EjerciciosPage() {
   // ─── Filtered data ──────────────────────────────────────────
   const fuerzaExs = exercises.filter(e => e.category === "fuerza");
   const prepExs = exercises.filter(e => e.category === "prep_fisica" || e.category === "accesorio");
+  const avatarExs = exercises.filter(e => Boolean(e.video_url || e.thumbnail_url));
 
-  const currentStrength = tab === "fuerza" ? fuerzaExs : prepExs;
+  const currentStrength = tab === "avatars" ? avatarExs : tab === "fuerza" ? fuerzaExs : prepExs;
   const filteredStrength = currentStrength.filter(ex => {
     if (search && !ex.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (muscleFilter !== "all" && ex.muscle_group !== muscleFilter) return false;
@@ -151,6 +154,18 @@ export default function EjerciciosPage() {
     setSeeding(false);
   }
 
+  async function loadDatasetExercises() {
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/seed-dataset-exercises", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Error al cargar ejercicios avatar"); return; }
+      toast.success(`✅ ¡Catálogo cargado! ${data.inserted} ejercicios avatar con animaciones agregados.`);
+      loadAll();
+    } catch (err: any) { toast.error(err.message); }
+    setSeeding(false);
+  }
+
   function exportCSV() {
     const { exercisesToCSV, cfExercisesToCSV, DEFAULT_FUERZA, DEFAULT_PREP_FISICA, DEFAULT_CROSSFIT } = require("@/lib/defaultExercises");
     let csv: string;
@@ -174,26 +189,25 @@ export default function EjerciciosPage() {
     <>
       <div className="space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Ejercicios</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               {fuerzaExs.length} fuerza · {prepExs.length} prep. física · {cfExercises.length} cross/funcional
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={loadDatasetExercises} disabled={seeding}
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3.5 py-2.5 rounded-xl text-sm font-semibold hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 transition shadow-md shadow-purple-500/20"
+              title="Importar 1.324 ejercicios con GIFs de Avatars animadas">
+              <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+              {seeding ? "Importando..." : "Importar 1.324 Avatars"}
+            </button>
             <button onClick={exportCSV}
               className="flex items-center gap-2 border border-border text-foreground px-3 py-2.5 rounded-xl text-sm font-medium hover:bg-muted transition"
               title="Exportar CSV">
               <Download className="w-4 h-4" /> CSV
             </button>
-            {exercises.length === 0 && cfExercises.length === 0 && (
-              <button onClick={loadDefaults} disabled={seeding}
-                className="flex items-center gap-2 border-2 border-dashed border-orange-400/50 text-orange-500 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-orange-500/10 disabled:opacity-50 transition">
-                <FileSpreadsheet className="w-4 h-4" />
-                {seeding ? "Cargando..." : "Cargar plantilla"}
-              </button>
-            )}
             <Link
               href={`/entrenador/ejercicios/nuevo?tipo=${newExTipo}`}
               className={`flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition shadow-sm ${
@@ -207,7 +221,19 @@ export default function EjerciciosPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-muted p-1 rounded-xl w-fit">
+        <div className="flex gap-1 bg-muted p-1 rounded-xl w-fit flex-wrap">
+          <button onClick={() => switchTab("avatars")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              tab === "avatars" ? "bg-purple-600 text-white shadow-sm font-bold" : "text-purple-600 hover:bg-purple-50"
+            }`}>
+            <Video className="w-4 h-4" />
+            🎬 Avatars
+            {avatarExs.length > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                tab === "avatars" ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"
+              }`}>{avatarExs.length}</span>
+            )}
+          </button>
           <button onClick={() => switchTab("fuerza")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               tab === "fuerza" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
@@ -314,36 +340,57 @@ export default function EjerciciosPage() {
                         <span className="text-sm font-normal text-muted-foreground">({exs.length})</span>
                       </h2>
                       <div className="bg-white rounded-2xl shadow-sm border border-border divide-y divide-border">
-                        {exs.map(ex => (
-                          <div key={ex.id} className="flex items-center gap-4 px-5 py-4 hover:bg-muted/30 transition-colors group">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                              tab === "fuerza" ? "bg-primary/10" : "bg-green-100"
-                            }`}>
-                              <BookOpen className={`w-4 h-4 ${tab === "fuerza" ? "text-primary" : "text-green-600"}`} />
+                        {exs.map(ex => {
+                          const avatarSrc = ex.video_url || ex.thumbnail_url;
+                          return (
+                            <div key={ex.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors group">
+                              {avatarSrc ? (
+                                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-border flex items-center justify-center overflow-hidden shrink-0 shadow-sm relative group/avatar">
+                                  <img
+                                    src={avatarSrc}
+                                    alt={ex.name}
+                                    className="w-full h-full object-cover group-hover/avatar:scale-110 transition-transform duration-200"
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ) : (
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                                  tab === "fuerza" ? "bg-primary/10" : "bg-green-100"
+                                }`}>
+                                  <BookOpen className={`w-5 h-5 ${tab === "fuerza" ? "text-primary" : "text-green-600"}`} />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-foreground text-sm capitalize">{ex.name}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-xs text-muted-foreground">{MUSCLE_LABELS[ex.muscle_group] || ex.muscle_group}</span>
+                                  {ex.notes && (
+                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono truncate max-w-[200px]" title={ex.notes}>
+                                      Técnica
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {ex.video_url && (
+                                <span className="text-xs bg-purple-50 text-purple-600 border border-purple-200/60 px-2 py-1 rounded-lg font-semibold flex items-center gap-1">
+                                  <Video className="w-3 h-3 text-purple-600" /> Avatar
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Link href={`/entrenador/ejercicios/${ex.id}`}
+                                  className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                  title="Editar">
+                                  <Pencil className="w-4 h-4" />
+                                </Link>
+                                <button onClick={() => setConfirmTarget({ id: ex.id, name: ex.name, table: "exercises" })}
+                                  className="p-2 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                                  title="Eliminar">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-foreground text-sm">{ex.name}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5">{MUSCLE_LABELS[ex.muscle_group] || ex.muscle_group}</p>
-                            </div>
-                            {ex.video_url && (
-                              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-lg font-medium flex items-center gap-1">
-                                <Video className="w-3 h-3" />Video
-                              </span>
-                            )}
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Link href={`/entrenador/ejercicios/${ex.id}`}
-                                className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                title="Editar">
-                                <Pencil className="w-4 h-4" />
-                              </Link>
-                              <button onClick={() => setConfirmTarget({ id: ex.id, name: ex.name, table: "exercises" })}
-                                className="p-2 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
-                                title="Eliminar">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ))

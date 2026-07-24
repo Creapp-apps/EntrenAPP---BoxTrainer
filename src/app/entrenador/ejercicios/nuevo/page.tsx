@@ -272,8 +272,8 @@ export default function NuevoEjercicioPage() {
               <div className="flex flex-wrap gap-2">
                 {Object.entries(VARIANTES_GLOBALES).map(([group, set]) => (
                   <button key={group} type="button" onClick={() => addGlobalSet(set)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted hover:bg-primary/10 hover:text-primary text-sm font-medium transition-colors border border-border">
-                    <Plus className="w-3 h-3" />
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-800 hover:bg-emerald-50 hover:text-emerald-700 text-xs font-extrabold transition-all border border-slate-300 active:scale-95 shadow-xs">
+                    <Plus className="w-3.5 h-3.5 text-slate-600" />
                     {group} ({set.join(", ")})
                   </button>
                 ))}
@@ -295,7 +295,7 @@ export default function NuevoEjercicioPage() {
               <input type="text" value={newVariant} onChange={e => setNewVariant(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addVariant(newVariant); } }}
                 placeholder="Ej: SUSPENDIDO, CON PAUSA, JERK..."
-                className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
+                className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-white text-slate-900 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
               <button type="button" onClick={() => addVariant(newVariant)}
                 className="px-4 py-2.5 rounded-xl bg-muted hover:bg-primary hover:text-white font-medium text-sm transition-colors flex items-center gap-1.5">
                 <Plus className="w-4 h-4" /> Agregar

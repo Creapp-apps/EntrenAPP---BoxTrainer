@@ -3646,7 +3646,7 @@ function SetRepsOverrideModal({
                   type="text"
                   value={inputs[te.id] ?? ""}
                   onChange={e => setInputs(prev => ({ ...prev, [te.id]: e.target.value }))}
-                  className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-16 px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             );

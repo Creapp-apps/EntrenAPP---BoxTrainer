@@ -15,7 +15,118 @@ import { calculateWeight } from "@/lib/utils";
 import LoadingScreen from "@/components/ui/loading-screen";
 
 // ─── Types ────────────────────────────────────────────────────
-type ExerciseData = { id: string; name: string; video_url?: string; category: string };
+type ExerciseData = {
+  id: string;
+  name: string;
+  video_url?: string;
+  thumbnail_url?: string;
+  notes?: string;
+  category: string;
+  muscle_group?: string;
+};
+
+// ─── Avatar Modal Component ──────────────────────────────────
+function ExerciseAvatarModal({
+  data,
+  onClose,
+}: {
+  data: {
+    name: string;
+    variant_name?: string;
+    category?: string;
+    muscle_group?: string;
+    video_url?: string;
+    thumbnail_url?: string;
+    notes?: string;
+  };
+  onClose: () => void;
+}) {
+  const videoSrc = data.video_url || data.thumbnail_url;
+  const rawNotes = data.notes || "";
+  const steps = rawNotes
+    ? rawNotes.split(/\.\s+/).map(s => s.trim()).filter(Boolean)
+    : [];
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-4 duration-300 text-white">
+        {/* Header */}
+        <div className="p-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/80">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] uppercase font-extrabold tracking-wider text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/30" /> Avatar Técnica
+              </span>
+              {data.muscle_group && (
+                <span className="text-[11px] uppercase font-extrabold text-slate-300 bg-slate-800 border border-slate-700/80 px-2.5 py-0.5 rounded-full">
+                  {data.muscle_group}
+                </span>
+              )}
+            </div>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-white mt-2 capitalize leading-tight tracking-tight">
+              {data.name} {data.variant_name ? `— ${data.variant_name}` : ""}
+            </h3>
+          </div>
+          <button onClick={onClose} className="p-2.5 rounded-full bg-slate-800/80 hover:bg-slate-700 transition-colors text-slate-300 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 overflow-y-auto space-y-4">
+          {/* Avatar Video Box */}
+          {videoSrc ? (
+            <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/80 aspect-square max-h-72 mx-auto flex items-center justify-center shadow-2xl group">
+              <img
+                src={videoSrc}
+                alt={data.name}
+                className="w-full h-full object-contain p-2"
+              />
+              <div className="absolute bottom-3 left-3 bg-slate-950/90 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[11px] text-white font-bold flex items-center gap-2 border border-slate-700/60 shadow-lg">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                Animación Avatar en Bucle
+              </div>
+            </div>
+          ) : null}
+
+          {/* Execution steps */}
+          {steps.length > 0 ? (
+            <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                Paso a Paso (Español)
+              </h4>
+              <div className="space-y-2.5 text-sm">
+                {steps.map((step, idx) => (
+                  <div key={idx} className="flex gap-3 items-start">
+                    <span className="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 text-xs font-black flex items-center justify-center shrink-0 mt-0.5 shadow-md">
+                      {idx + 1}
+                    </span>
+                    <p className="leading-relaxed text-slate-200 font-medium">
+                      {step.endsWith(".") ? step : step + "."}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 italic text-center py-2">
+              Seguí el movimiento del avatar animado para asegurar una postura correcta.
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-800/80 bg-slate-950/80">
+          <button
+            onClick={onClose}
+            className="w-full py-4 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-sm tracking-wide transition-all shadow-xl shadow-primary/30 active:scale-[0.98]"
+          >
+            ¡Entendido! Volver al Entrenamiento
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 type TrainingExercise = {
   id: string;
   exercise_id: string;
@@ -465,6 +576,17 @@ export default function EntrenarPage() {
   } | null>(null);
   const [customSeriesWeight, setCustomSeriesWeight] = useState("");
   const [showSeriesCustomInput, setShowSeriesCustomInput] = useState(false);
+
+  // Avatar Modal State
+  const [avatarModalData, setAvatarModalData] = useState<{
+    name: string;
+    variant_name?: string;
+    category?: string;
+    muscle_group?: string;
+    video_url?: string;
+    thumbnail_url?: string;
+    notes?: string;
+  } | null>(null);
 
   // Summary state
   const [rpeOverall, setRpeOverall] = useState<number>(0);
@@ -1247,7 +1369,7 @@ export default function EntrenarPage() {
               ? calculateWeight(oneRMs[te.exercise_id], te.percentage_1rm)
               : te.weight_target || undefined;
 
-            const videoUrl = te.exercise_variants?.video_url || te.exercises?.video_url;
+            const avatarSrc = te.exercises?.thumbnail_url || te.exercises?.video_url || te.exercise_variants?.video_url;
 
             return (
               <button key={te.id} onClick={() => handleExerciseTap(te)}
@@ -1255,6 +1377,26 @@ export default function EntrenarPage() {
                 <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${done ? "bg-primary border-primary" : "border-muted-foreground/40"}`}>
                   {done && <Check className="w-4 h-4 text-white" />}
                 </div>
+                {avatarSrc && (
+                  <div
+                    onClick={e => {
+                      e.stopPropagation();
+                      setAvatarModalData({
+                        name: te.exercises?.name || "",
+                        variant_name: te.exercise_variants?.name,
+                        category: te.exercises?.category,
+                        muscle_group: te.exercises?.muscle_group,
+                        video_url: te.exercises?.video_url || te.exercise_variants?.video_url || undefined,
+                        thumbnail_url: te.exercises?.thumbnail_url || undefined,
+                        notes: te.exercises?.notes || undefined,
+                      });
+                    }}
+                    className="w-11 h-11 rounded-xl bg-slate-900 border border-slate-700/60 overflow-hidden shrink-0 shadow-sm relative group cursor-pointer hover:scale-105 transition-transform"
+                    title="Ver técnica con Avatar"
+                  >
+                    <img src={avatarSrc} alt={te.exercises?.name} className="w-full h-full object-cover" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className={`text-sm font-semibold truncate ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>
@@ -1262,11 +1404,25 @@ export default function EntrenarPage() {
                       {te.exercise_variants?.name && <span className="text-primary font-bold ml-1">— {te.exercise_variants.name}</span>}
                     </p>
                     {videoUrl && (
-                      <a href={videoUrl} target="_blank" rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full hover:bg-primary/20 transition-colors shrink-0">
-                        <Video className="w-3 h-3" /><span>Video</span>
-                      </a>
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setAvatarModalData({
+                            name: te.exercises?.name || "",
+                            variant_name: te.exercise_variants?.name,
+                            category: te.exercises?.category,
+                            muscle_group: te.exercises?.muscle_group,
+                            video_url: videoUrl,
+                            thumbnail_url: te.exercises?.thumbnail_url,
+                            notes: te.exercises?.notes,
+                          });
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 rounded-full hover:bg-emerald-200 transition-colors shrink-0 shadow-xs"
+                      >
+                        <Video className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Ver Avatar</span>
+                      </button>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -1357,16 +1513,7 @@ export default function EntrenarPage() {
                       ))}
                     </div>
                   )}
-                  {videoLink && (
-                    <a href={videoLink} target="_blank" rel="noopener noreferrer"
-                      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full transition-colors mt-1.5 ${
-                        isPrep 
-                          ? "text-emerald-700 bg-emerald-100 hover:bg-emerald-200" 
-                          : "text-primary bg-primary/10 hover:bg-primary/20"
-                      }`}>
-                      <Video className="w-3 h-3" /><span>Ver video</span>
-                    </a>
-                  )}
+
                   {/* Notes from any exercise */}
                   {items.some(te => te.notes) && (
                     <div className="mt-1.5 space-y-0.5">
@@ -1471,15 +1618,57 @@ export default function EntrenarPage() {
                                       )}
                                     </span>
                                   ) : null}
-                                  <p className={`text-xs mt-0.5 ${seriesDone ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
+                                  <div className="space-y-1.5 mt-2">
                                     {items.map(te => {
                                       const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
                                       const r = ov ? ov.reps : te.reps;
                                       const v = te.exercise_variants?.name ?? "";
                                       const displayName = v ? `${te.exercises?.name} — ${v}` : te.exercises?.name;
-                                      return `${r}× ${displayName}`;
-                                    }).join(" + ")}
-                                  </p>
+                                      const avatarSrc = te.exercises?.thumbnail_url || te.exercises?.video_url || te.exercise_variants?.video_url;
+
+                                      return (
+                                        <div
+                                          key={te.id}
+                                          onClick={e => {
+                                            if (avatarSrc) {
+                                              e.stopPropagation();
+                                              setAvatarModalData({
+                                                name: te.exercises?.name || "",
+                                                variant_name: te.exercise_variants?.name,
+                                                category: te.exercises?.category,
+                                                muscle_group: te.exercises?.muscle_group,
+                                                video_url: te.exercises?.video_url || te.exercise_variants?.video_url || undefined,
+                                                thumbnail_url: te.exercises?.thumbnail_url || undefined,
+                                                notes: te.exercises?.notes || undefined,
+                                              });
+                                            }
+                                          }}
+                                          className={`flex items-center gap-2.5 p-1.5 rounded-xl border border-border/40 bg-slate-50 dark:bg-slate-900/50 transition-all ${avatarSrc ? "cursor-pointer hover:border-purple-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/30 active:scale-[0.99]" : ""}`}
+                                        >
+                                          {avatarSrc ? (
+                                            <div className="w-9 h-9 rounded-lg bg-slate-950 border border-slate-700/60 overflow-hidden shrink-0 shadow-sm relative group">
+                                              <img src={avatarSrc} alt={te.exercises?.name} className="w-full h-full object-cover" />
+                                            </div>
+                                          ) : (
+                                            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                              <Dumbbell className="w-4 h-4 text-primary" />
+                                            </div>
+                                          )}
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-foreground truncate">
+                                              <span className="text-primary font-extrabold mr-1.5">{r}×</span>
+                                              {displayName}
+                                            </p>
+                                          </div>
+                                          {avatarSrc && (
+                                            <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/70 border border-purple-200/60 px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                                              <Video className="w-3 h-3" /> Ver Avatar
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </>
                               )}
                             </div>
@@ -2068,21 +2257,32 @@ export default function EntrenarPage() {
                                                     {te.rpe_target > 0 ? `RPE ${te.rpe_target}` : `RIR ${Math.abs(te.rpe_target) === 0.1 ? 0 : Math.abs(te.rpe_target)}`}
                                                   </span>
                                                 )}
+                                                {videoUrl && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={e => {
+                                                      e.stopPropagation();
+                                                      setAvatarModalData({
+                                                        name: te.exercises?.name || "",
+                                                        variant_name: te.exercise_variants?.name,
+                                                        category: te.exercises?.category,
+                                                        muscle_group: te.exercises?.muscle_group,
+                                                        video_url: videoUrl,
+                                                        thumbnail_url: te.exercises?.thumbnail_url,
+                                                        notes: te.exercises?.notes,
+                                                      });
+                                                    }}
+                                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-800/60 px-2.5 py-0.5 rounded-full hover:bg-emerald-200 transition-colors ml-1 shadow-xs"
+                                                  >
+                                                    <Video className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                                    <span>Ver Avatar</span>
+                                                  </button>
+                                                )}
                                                 {dropsets.map((ds, idx) => (
                                                   <span key={idx} className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded-md border border-orange-100 font-bold text-[10px] flex items-center gap-1">
                                                     <Repeat className="w-3.5 h-3.5 text-orange-500 shrink-0" /> Drop: {getDropsetText(ds, suggestedKg)}
                                                   </span>
                                                 ))}
-                                                {videoUrl && (
-                                                  <a
-                                                    href={videoUrl}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-500 font-bold ml-1"
-                                                  >
-                                                    <Video className="w-3.5 h-3.5" /> Video
-                                                  </a>
-                                                )}
                                               </div>
                                             </div>
                                           </div>
@@ -2247,7 +2447,7 @@ export default function EntrenarPage() {
                                           </button>
 
                                           {/* Series Label & Details */}
-                                          <div>
+                                          <div className="flex-1">
                                             <span className={`text-xs font-black ${
                                               seriesDone ? "text-zinc-400" : "text-emerald-700"
                                             }`}>
@@ -2255,39 +2455,62 @@ export default function EntrenarPage() {
                                             </span>
                                             {isPrep ? (
                                               /* Prep. Física: mostrar cada ejercicio con su peso individual */
-                                              <div className={`space-y-1 mt-0.5 ${seriesDone ? "opacity-50" : ""}`}>
-                                                {items.map(te => {
-                                                  const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
-                                                  const r = ov ? ov.reps : te.reps;
-                                                  const v = te.exercise_variants?.name ?? "";
-                                                  const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+                                             <div className={`space-y-1 mt-1 ${seriesDone ? "opacity-60" : ""}`}>
+                                               {items.map(te => {
+                                                 const ov = s.reps_overrides.find(o => o.training_exercise_id === te.id);
+                                                 const r = ov ? ov.reps : te.reps;
+                                                 const v = te.exercise_variants?.name ?? "";
+                                                 const displayName = v ? `${te.exercises?.name} (${v})` : te.exercises?.name;
+                                                 const avatarVideoUrl = te.exercises?.video_url || te.exercise_variants?.video_url || te.exercises?.thumbnail_url;
 
-                                                  // Prioridad: override alumno > override ronda template > base ejercicio
-                                                  const studentOv = studentOverrides[te.id];
-                                                  const wt = studentOv?.weight_target ?? ov?.weight_target ?? null;
-                                                  const pct = (!wt || wt === 0) ? (studentOv?.percentage_1rm ?? ov?.percentage_1rm ?? te.percentage_1rm ?? null) : null;
+                                                 const studentOv = studentOverrides[te.id];
+                                                 const wt = studentOv?.weight_target ?? ov?.weight_target ?? null;
+                                                 const pct = (!wt || wt === 0) ? (studentOv?.percentage_1rm ?? ov?.percentage_1rm ?? te.percentage_1rm ?? null) : null;
+                                                 const exOneRM = te.exercise_id ? oneRMs[te.exercise_id] : undefined;
+                                                 const calcWt = exOneRM && pct
+                                                   ? Math.round((exOneRM * pct / 100) / 2.5) * 2.5
+                                                   : (wt && wt !== 0 ? wt : null);
+                                                 const hasCustom = !!studentOv?.weight_target;
 
-                                                  const exOneRM = te.exercise_id ? oneRMs[te.exercise_id] : undefined;
-                                                  const calcWt = exOneRM && pct
-                                                    ? Math.round((exOneRM * pct / 100) / 2.5) * 2.5
-                                                    : (wt && wt !== 0 ? wt : null);
+                                                 return (
+                                                   <div key={te.id} className="flex items-center justify-between gap-2 py-1 text-xs">
+                                                     <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                                                       <span className={`font-extrabold text-sm ${seriesDone ? "line-through text-zinc-400" : "text-slate-900"}`}>
+                                                         <span className="text-emerald-700 font-black mr-1">{r}×</span>
+                                                         {displayName}
+                                                       </span>
+                                                       {(calcWt || pct) && (
+                                                         <span className={`font-extrabold text-[11px] ${seriesDone ? "text-zinc-400" : hasCustom ? "text-blue-600" : "text-slate-600"}`}>
+                                                           {calcWt ? `@ ${calcWt} kg${hasCustom ? " ✎" : ""}` : `@ ${pct}%`}
+                                                         </span>
+                                                       )}
+                                                     </div>
 
-                                                  const hasCustom = !!studentOv?.weight_target;
-
-                                                  return (
-                                                    <div key={te.id} className="flex items-center justify-between gap-3 text-xs">
-                                                      <span className={`font-semibold ${seriesDone ? "line-through text-zinc-400" : "text-zinc-800"}`}>
-                                                        {r}× {displayName}
-                                                      </span>
-                                                      {(calcWt || pct) && (
-                                                        <span className={`font-black shrink-0 ${seriesDone ? "text-zinc-400" : hasCustom ? "text-blue-600" : "text-slate-500"}`}>
-                                                          {calcWt ? `${calcWt} kg${hasCustom ? " ✎" : ""}` : `${pct}%`}
-                                                        </span>
-                                                      )}
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
+                                                     {avatarVideoUrl && (
+                                                       <button
+                                                         type="button"
+                                                         onClick={e => {
+                                                           e.stopPropagation();
+                                                           setAvatarModalData({
+                                                             name: te.exercises?.name || "",
+                                                             variant_name: te.exercise_variants?.name,
+                                                             category: te.exercises?.category,
+                                                             muscle_group: te.exercises?.muscle_group,
+                                                             video_url: te.exercises?.video_url || te.exercise_variants?.video_url || undefined,
+                                                             thumbnail_url: te.exercises?.thumbnail_url || undefined,
+                                                             notes: te.exercises?.notes || undefined,
+                                                           });
+                                                         }}
+                                                         className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-800/60 px-2.5 py-0.5 rounded-full hover:bg-emerald-200 transition-colors shrink-0 shadow-xs"
+                                                       >
+                                                         <Video className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                                         <span>Ver Avatar</span>
+                                                       </button>
+                                                     )}
+                                                   </div>
+                                                 );
+                                               })}
+                                             </div>
                                             ) : (
                                               /* Complex / Trepada: línea compacta original */
                                               <p className={`text-xs font-bold leading-tight ${
@@ -2739,6 +2962,13 @@ export default function EntrenarPage() {
           </div>
         );
       })()}
+
+      {avatarModalData && (
+        <ExerciseAvatarModal
+          data={avatarModalData}
+          onClose={() => setAvatarModalData(null)}
+        />
+      )}
     </div>
   );
 }

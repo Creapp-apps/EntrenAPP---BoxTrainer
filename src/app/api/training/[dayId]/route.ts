@@ -65,7 +65,7 @@ export async function GET(
         id, exercise_id, variant_id, sets, reps,
         percentage_1rm, weight_target, rest_seconds, notes, order,
         complex_id, complex_order,
-        exercises ( id, name, category, video_url ),
+        exercises ( id, name, category, video_url, thumbnail_url, notes, muscle_group ),
         exercise_variants ( id, name, video_url )
       ),
       cf_block_exercises (

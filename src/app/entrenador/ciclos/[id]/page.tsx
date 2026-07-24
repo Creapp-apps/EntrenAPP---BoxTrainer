@@ -17,7 +17,7 @@ import { DAY_NAMES, WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, getInitials } from "@/li
 
 // ─── Types ────────────────────────────────────────────────────
 type Variant = { id: string; name: string };
-type Exercise = { id: string; name: string; category: string; muscle_group: string; variants: Variant[] };
+type Exercise = { id: string; name: string; category: string; muscle_group: string; video_url?: string; thumbnail_url?: string; notes?: string; variants: Variant[] };
 type TrainingExercise = {
   id: string; exercise_id: string; variant_id?: string; exercise?: Exercise;
   variant?: Variant; sets: number; reps: string; percentage_1rm?: number;
@@ -194,6 +194,7 @@ function CopyWeekModal({
 // ─── Exercise Picker Modal (single) ──────────────────────────
 const CATEGORY_TABS = [
   { value: "all", label: "Todos" },
+  { value: "avatar", label: "🎬 Avatars Animados" },
   { value: "olimpico", label: "Olímpicos" },
   { value: "fuerza", label: "Fuerza" },
   { value: "prep_fisica", label: "Prep. Física" },
@@ -244,14 +245,19 @@ function ExercisePicker({
     const matchesSearch = matchesQuery(e.name, search);
     const matchesCat = category === "all"
       ? true
-      : category === "olimpico"
-        ? e.muscle_group === "olimpico"
-        : e.category === category && e.muscle_group !== "olimpico";
+      : category === "avatar"
+        ? Boolean(e.video_url || e.thumbnail_url)
+        : category === "olimpico"
+          ? e.muscle_group === "olimpico"
+          : e.category === category && e.muscle_group !== "olimpico";
     return matchesSearch && matchesCat;
   });
 
   // Count per category for badges
   const counts = exercises.reduce((acc: Record<string, number>, e) => {
+    if (e.video_url || e.thumbnail_url) {
+      acc["avatar"] = (acc["avatar"] || 0) + 1;
+    }
     if (e.muscle_group === "olimpico") {
       acc["olimpico"] = (acc["olimpico"] || 0) + 1;
     } else {
@@ -377,30 +383,47 @@ function ExercisePicker({
                     </button>
                   )}
                 </div>
-              ) : filtered.map(ex => (
-                <button key={ex.id} disabled={loading} onClick={() => ex.variants.length > 0 ? setSelected(ex) : onSelect(ex)}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 disabled:opacity-50 transition-colors text-left border-b border-border/50 last:border-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{ex.name}</p>
-                    {category === "all" && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {ex.muscle_group === "olimpico" ? "Olímpico" : (CATEGORY_TABS.find(t => t.value === ex.category)?.label ?? ex.category)}
-                      </p>
+              ) : filtered.map(ex => {
+                const avatarSrc = ex.video_url || ex.thumbnail_url;
+                return (
+                  <button key={ex.id} disabled={loading} onClick={() => ex.variants.length > 0 ? setSelected(ex) : onSelect(ex)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 disabled:opacity-50 transition-colors text-left border-b border-border/50 last:border-0 group">
+                    {avatarSrc ? (
+                      <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border flex items-center justify-center overflow-hidden shrink-0 shadow-sm relative group-hover:scale-105 transition-transform">
+                        <img
+                          src={avatarSrc}
+                          alt={ex.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Dumbbell className="w-4 h-4 text-primary" />
+                      </div>
                     )}
-                  </div>
-                  {ex.variants.length > 0 && (
-                    <div className="flex items-center gap-1 flex-wrap justify-end max-w-[160px]">
-                      {ex.variants.slice(0, 3).map(v => (
-                        <span key={v.id} className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{v.name}</span>
-                      ))}
-                      {ex.variants.length > 3 && (
-                        <span className="text-xs text-muted-foreground font-medium">+{ex.variants.length - 3}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground capitalize">{ex.name}</p>
+                      {category === "all" && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {ex.muscle_group === "olimpico" ? "Olímpico" : (CATEGORY_TABS.find(t => t.value === ex.category)?.label ?? ex.category)}
+                        </p>
                       )}
                     </div>
-                  )}
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                </button>
-              ))}
+                    {ex.variants.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap justify-end max-w-[160px]">
+                        {ex.variants.slice(0, 3).map(v => (
+                          <span key={v.id} className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{v.name}</span>
+                        ))}
+                        {ex.variants.length > 3 && (
+                          <span className="text-xs text-muted-foreground font-medium">+{ex.variants.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                );
+              })}
             </div>
           </>
         ) : (
@@ -472,7 +495,7 @@ function SetRepsOverrideModal({
                   type="text"
                   value={inputs[te.id] ?? ""}
                   onChange={e => setInputs(prev => ({ ...prev, [te.id]: e.target.value }))}
-                  className="w-16 px-2 py-1.5 rounded-lg border border-border text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-16 px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
             );
@@ -2619,7 +2642,7 @@ export default function CicloDetailPage() {
         .eq("cycle_id", id).order("week_number"),
       supabase.from("exercises")
         .select("*, exercise_variants(*)")
-        .eq("archived", false).order("name"),
+        .eq("archived", false).order("name").range(0, 4999),
       supabase.from("users")
         .select(`
           id, full_name, 
@@ -2675,6 +2698,7 @@ export default function CicloDetailPage() {
     if (exData) {
       setExercises(exData.map(e => ({
         id: e.id, name: e.name, category: e.category, muscle_group: e.muscle_group,
+        video_url: e.video_url, thumbnail_url: e.thumbnail_url, notes: e.notes,
         variants: (e.exercise_variants || []) as Variant[],
       })));
     }
