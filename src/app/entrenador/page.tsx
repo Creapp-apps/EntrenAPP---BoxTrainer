@@ -5,6 +5,8 @@ import Link from "next/link";
 import QuickAnnouncementPanel from "@/components/QuickAnnouncementPanel";
 import TodayClassesList from "@/components/TodayClassesList";
 import LiveClock from "@/components/LiveClock";
+import PlanningAlertsWidget from "@/components/PlanningAlertsWidget";
+import { getBoxPlanningAlerts } from "@/lib/planningAlerts";
 
 export default async function TrainerDashboard() {
   const supabase = await createClient();
@@ -38,6 +40,7 @@ export default async function TrainerDashboard() {
     { data: todaySlotsData },
     studentsListRes,
     announcementsRes,
+    planningAlertsRes,
   ] = await Promise.all([
     supabase.from("users").select("*", { count: "exact", head: true })
       .eq("role", "student")
@@ -85,10 +88,13 @@ export default async function TrainerDashboard() {
       .eq("box_id", profile?.box_id)
       .order("created_at", { ascending: false })
       .limit(10),
+    // Alertas de planificación de alumnos
+    getBoxPlanningAlerts(supabase, profile?.box_id),
   ]);
 
   const boxStudents = studentsListRes.data || [];
   const recentAnnouncements = announcementsRes.data || [];
+  const planningAlerts = planningAlertsRes;
 
   const monthlyIncome = (paidThisMonth || []).reduce((sum, p) => sum + (p.amount || 0), 0);
   
@@ -169,6 +175,9 @@ export default async function TrainerDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* ⚠️ Control de Planificación y Alertas de Planillas */}
+      <PlanningAlertsWidget summary={planningAlerts} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pagos a vencer */}
@@ -262,7 +271,7 @@ export default async function TrainerDashboard() {
           </div>
           <LiveClock />
         </div>
-        <TodayClassesList slots={todaySlotsData || []} bookings={todayBookingsData || []} />
+        <TodayClassesList slots={todaySlotsData || []} bookings={(todayBookingsData as any) || []} />
       </div>
 
       {/* 📢 Cartelera y Comunicados del Box */}

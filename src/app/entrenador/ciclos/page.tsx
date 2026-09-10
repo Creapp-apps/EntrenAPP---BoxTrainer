@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Calendar, Plus, Copy, Dumbbell, Trash2 } from "lucide-react";
+import { Calendar, Plus, Copy, Dumbbell, Trash2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { WEEK_TYPE_LABELS, WEEK_TYPE_COLORS, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { motion, AnimatePresence } from "framer-motion";
 import LoadingScreen from "@/components/ui/loading-screen";
-
+import PlanningReviewTab from "@/components/PlanningReviewTab";
+import { evaluateAllStudentsPlanning, PlanningAlertSummary, RawStudentWithEnrollments } from "@/lib/planningAlerts";
 
 type Cycle = {
   id: string;
@@ -27,8 +29,12 @@ type Cycle = {
 };
 
 export default function CiclosPage() {
-  const [tab, setTab] = useState<"ciclos" | "plantillas">("ciclos");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "revision" ? "revision" : "ciclos";
+
+  const [tab, setTab] = useState<"ciclos" | "plantillas" | "revision">(initialTab);
   const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [planningSummary, setPlanningSummary] = useState<PlanningAlertSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<Cycle | null>(null);
@@ -36,13 +42,29 @@ export default function CiclosPage() {
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data } = await supabase
-        .from("training_cycles")
-        .select("*, training_cycle_enrollments(active, users(full_name))")
-        
-        .order("created_at", { ascending: false });
-      setCycles((data as Cycle[]) || []);
+      const [{ data: cyclesData }, { data: studentsData }] = await Promise.all([
+        supabase
+          .from("training_cycles")
+          .select("*, training_cycle_enrollments(active, users(full_name))")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("users")
+          .select(`
+            id, full_name, email, phone, avatar_url, modality, status, active,
+            training_cycle_enrollments(
+              id, active, sync_mode, enrolled_at,
+              training_cycles(id, name, start_date, end_date, total_weeks, cycle_type, is_template, active)
+            )
+          `)
+          .eq("role", "student")
+          .eq("active", true)
+          .order("full_name"),
+      ]);
+
+      setCycles((cyclesData as Cycle[]) || []);
+      if (studentsData) {
+        setPlanningSummary(evaluateAllStudentsPlanning(studentsData as unknown as RawStudentWithEnrollments[]));
+      }
       setLoading(false);
     };
     load();
@@ -79,7 +101,9 @@ export default function CiclosPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Ciclos</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {regularCycles.length} ciclo{regularCycles.length !== 1 ? "s" : ""} · {templates.length} plantilla{templates.length !== 1 ? "s" : ""}
+            {tab === "revision"
+              ? `${planningSummary?.needingReviewCount || 0} alumno${planningSummary?.needingReviewCount !== 1 ? "s requieren" : " requiere"} revisión · ${planningSummary?.totalStudents || 0} alumnos activos`
+              : `${regularCycles.length} ciclo${regularCycles.length !== 1 ? "s" : ""} · ${templates.length} plantilla${templates.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <Link href={tab === "plantillas" ? "/entrenador/ciclos/nuevo?template=true" : "/entrenador/ciclos/nuevo"}
@@ -115,6 +139,26 @@ export default function CiclosPage() {
             }`}>{templates.length}</span>
           )}
         </button>
+        <button onClick={() => setTab("revision")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            tab === "revision" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}>
+          <AlertTriangle className={`w-4 h-4 ${
+            planningSummary && planningSummary.urgentCount > 0
+              ? "text-red-500 animate-pulse"
+              : planningSummary && planningSummary.endingThisWeekCount > 0
+              ? "text-amber-500"
+              : "text-muted-foreground"
+          }`} />
+          Control de Alumnos
+          {planningSummary && planningSummary.needingReviewCount > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+              planningSummary.urgentCount > 0
+                ? "bg-red-100 text-red-700"
+                : "bg-amber-100 text-amber-800"
+            }`}>{planningSummary.needingReviewCount}</span>
+          )}
+        </button>
       </div>
 
       {/* Content */}
@@ -127,7 +171,9 @@ export default function CiclosPage() {
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
           {loading ? (
-            <LoadingScreen message="Cargando ciclos y plantillas..." />
+            <LoadingScreen message="Cargando ciclos y planificaciones..." />
+          ) : tab === "revision" ? (
+            <PlanningReviewTab students={planningSummary?.students || []} />
           ) : shown.length > 0 ? (
             <div className="space-y-3">
               {shown.map(cycle => {

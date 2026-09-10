@@ -23,6 +23,8 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { evaluateAllStudentsPlanning, RawStudentWithEnrollments } from "@/lib/planningAlerts";
 
 const navItems = [
   { href: "/entrenador", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -48,6 +50,34 @@ export default function TrainerSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [planningAlertCount, setPlanningAlertCount] = useState<number>(0);
+
+  useEffect(() => {
+    const checkAlerts = async () => {
+      try {
+        const supabase = createClient();
+        const { data: studentsData } = await supabase
+          .from("users")
+          .select(`
+            id, full_name, email, phone, avatar_url, modality, status, active,
+            training_cycle_enrollments(
+              id, active, sync_mode, enrolled_at,
+              training_cycles(id, name, start_date, end_date, total_weeks, cycle_type, is_template, active)
+            )
+          `)
+          .eq("role", "student")
+          .eq("active", true);
+
+        if (studentsData) {
+          const summary = evaluateAllStudentsPlanning(studentsData as unknown as RawStudentWithEnrollments[]);
+          setPlanningAlertCount(summary.needingReviewCount);
+        }
+      } catch (e) {
+        // Silently catch to avoid interrupting sidebar
+      }
+    };
+    checkAlerts();
+  }, [pathname]);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -107,6 +137,11 @@ export default function TrainerSidebar({
                 active && "scale-105"
               )} />
               <span className="flex-1">{label}</span>
+              {href === "/entrenador/ciclos" && planningAlertCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500 text-white shrink-0 shadow-sm">
+                  {planningAlertCount}
+                </span>
+              )}
               {active && <ChevronRight className="w-3 h-3 opacity-60 animate-scale-in" />}
             </Link>
           );
@@ -115,12 +150,18 @@ export default function TrainerSidebar({
 
       {/* User + Logout */}
       <div className="px-3 pb-6 lg:pb-4 space-y-1 border-t border-sidebar-border pt-3">
-        <button
+        <Link
+          href="/entrenador/ciclos?tab=revision"
           onClick={handleNavClick}
           className="flex items-center gap-3 px-3 py-3 lg:py-2.5 rounded-xl text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-spring active:scale-[0.97] group w-full">
           <Bell className="w-5 h-5 lg:w-4 lg:h-4 transition-transform duration-300 group-hover:scale-110" />
-          Notificaciones
-        </button>
+          <span className="flex-1">Alertas Planillas</span>
+          {planningAlertCount > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-red-500 text-white shrink-0">
+              {planningAlertCount}
+            </span>
+          )}
+        </Link>
         <Link
           href="/entrenador/configuracion"
           onClick={handleNavClick}

@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { createClient } from "@/lib/supabase/server";
-import { Users, Plus, Search, MessageCircle, Ticket, AlertCircle, Clock } from "lucide-react";
+import { Users, Plus, Search, MessageCircle, Ticket, AlertCircle, Clock, Dumbbell, AlertTriangle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { getInitials, formatCurrency } from "@/lib/utils";
 import AlumnosCSV from "@/components/AlumnosCSV";
 import InviteStudentModal from "@/components/InviteStudentModal";
 import StudentActionMenu from "@/components/StudentActionMenu";
+import { calculateStudentPlanningStatus, StudentPlanningStatus } from "@/lib/planningAlerts";
 
 function whatsappUrl(phone: string) {
   const clean = phone.replace(/[^\d+]/g, "");
@@ -47,7 +48,7 @@ export default async function AlumnosPage() {
   // Fetch active subscriptions and overdue payments for all students in parallel
   const studentIds = students?.map(s => s.id) || [];
   
-  const [subsRes, paymentsRes] = await Promise.all([
+  const [subsRes, paymentsRes, enrollsRes] = await Promise.all([
     studentIds.length > 0
       ? supabase.from("student_plan_subscriptions")
           .select("student_id, credits_total, credits_used, period_end, status, plans(name)")
@@ -59,6 +60,12 @@ export default async function AlumnosPage() {
           .select("student_id, due_date, status")
           .in("student_id", studentIds)
           .in("status", ["vencido", "pendiente"])
+      : Promise.resolve({ data: [] }),
+    studentIds.length > 0
+      ? supabase.from("training_cycle_enrollments")
+          .select("student_id, active, sync_mode, enrolled_at, training_cycles(id, name, start_date, end_date, total_weeks, cycle_type, is_template, active)")
+          .in("student_id", studentIds)
+          .eq("active", true)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -82,6 +89,24 @@ export default async function AlumnosPage() {
       const days = daysUntil(p.due_date);
       if (days <= 5 && days >= 0) alert.nearDue++;
     }
+  }
+
+  const enrollmentsByStudent = new Map<string, any[]>();
+  for (const e of ((enrollsRes as any)?.data || [])) {
+    if (!enrollmentsByStudent.has(e.student_id)) {
+      enrollmentsByStudent.set(e.student_id, []);
+    }
+    enrollmentsByStudent.get(e.student_id)!.push(e);
+  }
+
+  const planningByStudent = new Map<string, StudentPlanningStatus>();
+  for (const s of (students || [])) {
+    const enrolls = enrollmentsByStudent.get(s.id) || [];
+    const status = calculateStudentPlanningStatus({
+      ...s,
+      training_cycle_enrollments: enrolls,
+    });
+    planningByStudent.set(s.id, status);
   }
 
   return (
@@ -120,20 +145,23 @@ export default async function AlumnosPage() {
           {students.map((student) => {
             const sub = subsByStudent.get(student.id);
             const alert = paymentAlerts.get(student.id);
+            const planning = planningByStudent.get(student.id);
             const modalityConf = MODALITY_CONFIG[student.modality as string];
             const creditsRemaining = sub ? sub.credits_total - sub.credits_used : null;
             const creditsPercent = sub ? (creditsRemaining! / sub.credits_total) * 100 : 0;
             const subDaysLeft = sub ? daysUntil(sub.period_end) : null;
+            const isPlanningUrgent = planning && (planning.urgency === "no_cycle" || planning.urgency === "expired");
+            const isPlanningWarning = planning && planning.urgency === "ending_soon";
 
             return (
               <div key={student.id} className="relative group bg-white rounded-2xl shadow-sm border border-border hover:shadow-md hover:border-primary/30 transition-all">
                 <StudentActionMenu studentId={student.id} studentName={student.full_name || ""} currentStatus={student.status} />
 
-                {/* Payment urgency top stripe */}
-                {alert && alert.overdue > 0 && (
+                {/* Urgency top stripe: Payment or Planning */}
+                {((alert && alert.overdue > 0) || isPlanningUrgent) && (
                   <div className="h-1 bg-gradient-to-r from-red-500 to-red-400 w-full rounded-t-2xl" />
                 )}
-                {alert && alert.overdue === 0 && alert.nearDue > 0 && (
+                {!((alert && alert.overdue > 0) || isPlanningUrgent) && ((alert && alert.nearDue > 0) || isPlanningWarning) && (
                   <div className="h-1 bg-gradient-to-r from-amber-400 to-amber-300 w-full rounded-t-2xl" />
                 )}
 
@@ -222,6 +250,53 @@ export default async function AlumnosPage() {
                       <span className="text-[11px] font-medium text-amber-700">
                         Pago próximo a vencer
                       </span>
+                    </div>
+                  )}
+
+                  {/* Planning Status Badge */}
+                  {planning && (
+                    <div className="mt-3 pt-2.5 border-t border-border/80">
+                      {planning.urgency === "no_cycle" ? (
+                        <div className="flex items-center justify-between gap-1.5 bg-red-50/90 border border-red-200/80 rounded-xl px-2.5 py-1.5">
+                          <span className="text-[11px] font-bold text-red-700 flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                            Sin planilla asignada
+                          </span>
+                          <span className="text-[10px] font-extrabold bg-red-200/70 text-red-800 px-1.5 py-0.5 rounded">
+                            ¡Urgente!
+                          </span>
+                        </div>
+                      ) : planning.urgency === "expired" ? (
+                        <div className="flex items-center justify-between gap-1.5 bg-red-50/90 border border-red-200/80 rounded-xl px-2.5 py-1.5">
+                          <span className="text-[11px] font-semibold text-red-700 flex items-center gap-1.5 truncate">
+                            <Clock className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                            <span className="truncate">{planning.cycleName}</span>
+                          </span>
+                          <span className="text-[10px] font-extrabold bg-red-200/70 text-red-800 px-1.5 py-0.5 rounded shrink-0">
+                            Vencida
+                          </span>
+                        </div>
+                      ) : planning.urgency === "ending_soon" ? (
+                        <div className="flex items-center justify-between gap-1.5 bg-amber-50/90 border border-amber-200/80 rounded-xl px-2.5 py-1.5">
+                          <span className="text-[11px] font-semibold text-amber-800 flex items-center gap-1.5 truncate">
+                            <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span className="truncate">{planning.cycleName} (S{planning.currentWeek}/{planning.totalWeeks})</span>
+                          </span>
+                          <span className="text-[10px] font-bold bg-amber-200/70 text-amber-800 px-1.5 py-0.5 rounded shrink-0">
+                            Vence en {planning.daysRemaining}d
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-1.5 text-[11px] text-muted-foreground px-0.5">
+                          <span className="flex items-center gap-1.5 truncate">
+                            <Dumbbell className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="truncate font-medium text-foreground">{planning.cycleName}</span>
+                          </span>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md shrink-0">
+                            S{planning.currentWeek}/{planning.totalWeeks} · Al día
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </Link>
