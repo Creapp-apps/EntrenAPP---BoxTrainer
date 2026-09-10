@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
+import { ArrowLeft, Loader2, UserPlus, Mail } from "lucide-react";
 import Link from "next/link";
 import Select from "@/components/ui/Select";
 import HumanBodyMockup from "@/components/HumanBodyMockup";
@@ -15,7 +14,6 @@ export default function NuevoAlumnoPage() {
   const [form, setForm] = useState({
     full_name: "",
     email: "",
-    password: "",
     phone: "",
     birth_date: "",
     weight_kg: "",
@@ -31,25 +29,19 @@ export default function NuevoAlumnoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.full_name.trim() || !form.email.trim() || !form.password.trim()) {
-      return toast.error("Nombre, email y contraseña son obligatorios");
-    }
-    if (form.password.length < 6) {
-      return toast.error("La contraseña debe tener al menos 6 caracteres");
+    if (!form.full_name.trim() || !form.email.trim()) {
+      return toast.error("Nombre y email son obligatorios");
     }
     setLoading(true);
 
-    const supabase = createClient();
-    const { data: { user: trainer } } = await supabase.auth.getUser();
-
-    // Crear usuario via API route (necesita service role)
+    // La contraseña es generada automáticamente por el servidor.
+    // El alumno recibe un magic link por email para ingresar.
     const res = await fetch("/api/students/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
         injured_parts: injuredParts.join(","),
-        trainer_id: trainer!.id,
         weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
         height_cm: form.height_cm ? parseFloat(form.height_cm) : null,
         monthly_price: form.monthly_price ? parseFloat(form.monthly_price) : null,
@@ -65,9 +57,9 @@ export default function NuevoAlumnoPage() {
       return;
     }
 
-    toast.success("Alumno " + form.full_name + " creado correctamente");
+    toast.success(`✅ Alumno ${form.full_name} creado correctamente`);
     if (result.email_sent) {
-      toast.success("Email de bienvenida enviado a " + form.email);
+      toast.success(`📧 Email de bienvenida enviado a ${form.email}`);
     } else {
       toast.warning("No se pudo enviar el email de bienvenida");
     }
@@ -100,6 +92,17 @@ export default function NuevoAlumnoPage() {
         </div>
       </div>
 
+      {/* Aviso informativo sobre el acceso */}
+      <div className="flex items-start gap-3 bg-primary/5 border border-primary/20 rounded-2xl px-5 py-4">
+        <Mail className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Acceso por enlace seguro</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            El alumno recibirá un <strong>email con un botón de acceso directo</strong> a su cuenta. No necesitás crear ni compartir contraseñas.
+          </p>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Datos de acceso */}
         <div className="bg-white rounded-2xl shadow-sm border border-border p-6 space-y-5">
@@ -108,9 +111,8 @@ export default function NuevoAlumnoPage() {
             Datos de acceso
           </h2>
           {field("Nombre completo *", "full_name", { placeholder: "Ej: Juan Pérez", required: true })}
-          {field("Email *", "email", { type: "email", placeholder: "juan@email.com", required: true })}
-          {field("Contraseña inicial *", "password", { type: "password", placeholder: "Mínimo 6 caracteres", required: true },
-            "El alumno podrá cambiarla después desde su perfil")}
+          {field("Email *", "email", { type: "email", placeholder: "juan@email.com", required: true },
+            "Se usará para iniciar sesión y recibir el enlace de acceso")}
           {field("Teléfono", "phone", { type: "tel", placeholder: "+54 9 11 1234-5678" })}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Modalidad</label>

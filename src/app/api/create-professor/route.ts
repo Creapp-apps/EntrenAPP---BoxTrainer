@@ -1,15 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, createClient as createServerClient } from "@/lib/supabase/server";
 import { resend, EMAIL_FROM } from "@/lib/resend";
+import { escapeHtml } from "@/lib/utils/escapeHtml";
+import { rateLimiter } from "@/lib/rateLimiter";
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY FIX (H4): Rate limiting — máx 10 profesores por IP cada 30 minutos
+    const rl = rateLimiter.check(request, {
+      maxRequests: 10,
+      windowMs: 30 * 60 * 1000,
+      keyPrefix: "create-professor",
+    });
+    if (!rl.allowed) {
+      return NextResponse.json({ error: rl.error }, { status: 429 });
+    }
+
     const body = await request.json();
     const { name, email, password } = body;
 
-    if (!name?.trim() || !email?.trim() || !password || password.length < 6) {
+    if (!name?.trim() || !email?.trim() || !password) {
       return NextResponse.json(
-        { error: "Nombre, email y contraseña (mín 6 chars) son obligatorios" },
+        { error: "Nombre, email y contraseña son obligatorios" },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY FIX (C3): Validar complejidad de contraseña
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return NextResponse.json(
+        { error: "La contraseña debe tener al menos 8 caracteres, una letra y un número." },
         { status: 400 }
       );
     }
@@ -75,11 +95,8 @@ export async function POST(request: NextRequest) {
     // 5. Generar Link oficial de verificación (Signup confirmation)
     const origin = new URL(request.url).origin;
     const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
-      type: "signup",
+      type: "magiclink",
       email,
-      options: {
-        redirectTo: `${origin}/auth/callback`
-      }
     });
 
     if (linkError || !linkData?.properties?.action_link) {
@@ -95,7 +112,13 @@ export async function POST(request: NextRequest) {
     const verifyUrl = linkData.properties.action_link;
 
     // 6. Enviar Email de bienvenida con el link usando Resend
+    // SECURITY FIX (H2): Escapar variables de usuario para prevenir HTML injection
+    // SECURITY FIX (C1/C4): La contraseña NO se incluye en el email
     try {
+      const safeName = escapeHtml(name.trim());
+      const safeEmail = escapeHtml(email);
+      const safeVerifyUrl = verifyUrl.replace(/"/g, "&quot;");
+      const year = new Date().getFullYear();
       const emailHtml = `
         <div style="font-family: 'Segoe UI', -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0b; color: #e4e4e7; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
           <div style="padding: 32px 28px; border-bottom: 1px solid rgba(255,255,255,0.05);">
@@ -107,29 +130,28 @@ export async function POST(request: NextRequest) {
             </div>
           </div>
           <div style="padding: 32px 28px;">
-            <h2 style="color: white; font-size: 22px; margin: 0 0 12px;">¡Bienvenido al Equipo! 🏋️‍♂️</h2>
+            <h2 style="color: white; font-size: 22px; margin: 0 0 12px;">¡Bienvenido al Equipo! 🏋️</h2>
             <p style="color: #a1a1aa; font-size: 14px; line-height: 1.6;">
-              Hola <strong style="color: white;">${name.trim()}</strong>, has sido agregado como <strong>Profesor</strong> en la plataforma para gestionar la planificación deportiva.
+              Hola <strong style="color: white;">${safeName}</strong>, fuiste agregado como <strong>Profesor</strong> en la plataforma.
             </p>
             <p style="color: #a1a1aa; font-size: 14px; line-height: 1.6;">
-              Para activar tu cuenta y validar tu correo, por favor haz clic en el botón de abajo:
+              Hacé clic en el botón de abajo para activar tu cuenta:
             </p>
-            
+
             <div style="text-align: center; margin: 32px 0;">
-              <a href="${verifyUrl}" style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">
-                Verificar Cuenta →
+              <a href="${safeVerifyUrl}" style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">
+                Verificar y activar cuenta →
               </a>
             </div>
-            
+
             <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-top: 20px;">
-              <p style="color: #a1a1aa; font-size: 12px; margin: 0 0 6px;">Tus accesos provisorios:</p>
-              <p style="color: #e4e4e7; font-size: 13px; margin: 0;">📧 Correo: <strong>${email}</strong></p>
-              <p style="color: #e4e4e7; font-size: 13px; margin: 6px 0 0;">🔑 Contraseña temporal: <strong>${password}</strong></p>
+              <p style="color: #a1a1aa; font-size: 12px; margin: 0 0 6px;">Tu email de acceso:</p>
+              <p style="color: #e4e4e7; font-size: 13px; margin: 0; font-weight: 600;">${safeEmail}</p>
             </div>
-            <p style="color: #71717a; font-size: 12px; margin-top: 20px;">Recuerda cambiar tu contraseña dentro de tu configuración una vez que inicies sesión.</p>
+            <p style="color: #71717a; font-size: 12px; margin-top: 16px;">Podés cambiar tu contraseña desde tu perfil una vez que ingreses. Si no esperabas este mensaje, podés ignorarlo.</p>
           </div>
           <div style="padding: 20px 28px; border-top: 1px solid rgba(255,255,255,0.05); text-align: center;">
-            <p style="color: rgba(255,255,255,0.3); font-size: 11px; margin: 0;">© ${new Date().getFullYear()} EntrenAPP · Plataforma de gestión deportiva</p>
+            <p style="color: rgba(255,255,255,0.3); font-size: 11px; margin: 0;">© ${year} EntrenAPP · Plataforma de gestión deportiva</p>
           </div>
         </div>
       `;
@@ -137,12 +159,11 @@ export async function POST(request: NextRequest) {
       await resend.emails.send({
         from: EMAIL_FROM,
         to: [email],
-        subject: "Verifica tu cuenta de Profesor en EntrenAPP ⚡",
+        subject: "Verificá tu cuenta de Profesor en EntrenAPP ⚡",
         html: emailHtml,
       });
     } catch (emailErr) {
       console.error("Error enviando email vía Resend:", emailErr);
-      // Mismo caso, no queremos tumbar la creación del profesor si solo falló el envío del mail
     }
 
     return NextResponse.json({
